@@ -117,6 +117,12 @@
   </div>
 
   <section class="panel">
+    <h2>触发回复 <span class="muted" style="font-weight:400">（群里 @机器人+关键词 时自动回复；需在 NapCat 里配置 HTTP POST 上报）</span>
+      <span class="spacer"></span><button class="primary small" onclick="openTriggerForm(null)">＋ 新建触发</button></h2>
+    <div id="triggerlist" class="tasklist"></div>
+  </section>
+
+  <section class="panel">
     <h2>图片库 <span class="muted" style="font-weight:400">（点击图片可复制其 ID，任务里选图片用）</span></h2>
     <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
       <input type="file" id="upload" accept="image/*" style="max-width:320px">
@@ -152,18 +158,40 @@
         <div class="hint">支持任意 RSS/Atom 订阅地址。示例：https://www.ithome.com/rss/</div>
       </label>
 
-      <label class="field"><span>正文（占位符：{date} {time} {datetime} {weekday} {name}；倒计时：{days:1209} {days:2027-03-01} {label:1209} {weekday_of:1209}）</span>
+      <label class="field"><span>正文（占位符：{date} {time} {datetime} {weekday} {name}；倒计时：{days:1209} {days:2027-03-01} {label:1209} {weekday_of:1209}；算式：{=115-30} {=(365+1)*2}；自定义变量：见下方）</span>
         <textarea id="f-content" placeholder="早上好！今天是 {date} {weekday}&#10;距离1209考核还有{days:1209}天"></textarea>
-        <div class="hint">RSS 模式下，这里可以写前言（可留空），会拼在标题前面。<br>{days:1209} 会在每次发送时自动算出还剩几天；只写月日时若今年已过会自动顺延到明年。</div>
+        <div class="hint">RSS 模式下，这里可以写前言（可留空），会拼在标题前面。<br>{days:1209} 会在每次发送时自动算出还剩几天；只写月日时若今年已过会自动顺延到明年。<br>{=…} 内支持 + - * / // % ** 与括号，发送时计算。</div>
       </label>
 
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">自定义变量（在正文里用 {变量名} 引用）</span>
+        <div id="vars-box"></div>
+        <button type="button" class="small" onclick="addVar()">＋ 添加变量</button>
+        <div class="hint">例如变量名 <code>赛季</code>、值 <code>UC</code>，正文写 <code>{赛季}</code> 即替换为 UC。变量名支持中英文、数字、下划线。</div>
+      </div>
+
       <div class="grid2">
-        <label class="field"><span>配图（可选，从图片库选择）</span>
-          <select id="f-image"></select>
+        <label class="field"><span>配图方式</span>
+          <select id="f-imagemode" onchange="onImageModeChange()">
+            <option value="none">不配图</option>
+            <option value="fixed">固定一张</option>
+            <option value="random">随机抽取</option>
+          </select>
         </label>
         <label class="field"><span>@全体成员（仅群聊生效）</span>
           <select id="f-atall"><option value="0">否</option><option value="1">是</option></select>
         </label>
+      </div>
+
+      <div class="field" id="img-fixed-wrap">
+        <span style="font-size:12px;color:var(--sub)">配图（从图片库选择）</span>
+        <select id="f-image"></select>
+      </div>
+
+      <div class="field" id="img-random-wrap" style="display:none">
+        <span style="font-size:12px;color:var(--sub)">随机图片候选池（点选缩略图加入/移出；不选则从整个图片库随机）</span>
+        <div id="img-pool" class="imgs" style="max-height:220px;overflow:auto"></div>
+        <div class="hint">每次发送时从候选池随机抽 1 张。</div>
       </div>
 
       <div class="field">
@@ -211,6 +239,67 @@
   </form>
 </dialog>
 
+<dialog id="trigDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3 id="trig-dlg-title">新建触发</h3></div>
+    <div class="dlg-body">
+      <input type="hidden" id="t-id">
+      <div class="grid2">
+        <label class="field"><span>触发关键词</span><input id="t-keyword" placeholder="例如 考核、图鉴、签到"></label>
+        <label class="field"><span>状态</span>
+          <select id="t-enabled"><option value="1">启用</option><option value="0">停用</option></select>
+        </label>
+      </div>
+      <label class="field"><span>回复内容（支持全部占位符；留空则只发图片）</span>
+        <textarea id="t-reply" placeholder="距离1209考核还有{days:1209}天"></textarea>
+      </label>
+      <div class="grid3">
+        <label class="field"><span>必须 @机器人 才触发</span>
+          <select id="t-at"><option value="1">是（推荐）</option><option value="0">否（提到关键词就回）</option></select>
+        </label>
+        <label class="field"><span>生效范围</span>
+          <select id="t-scope" onchange="onScopeChange()">
+            <option value="all">所有群+私聊</option>
+            <option value="group">所有群</option>
+            <option value="private">仅私聊</option>
+            <option value="group_ids">指定群…</option>
+          </select>
+        </label>
+        <label class="field"><span>冷却秒数（同群同词最短间隔）</span>
+          <input id="t-cd" type="number" min="0" max="3600" value="10">
+        </label>
+      </div>
+      <div class="field" id="t-scope-groups" style="display:none">
+        <span style="font-size:12px;color:var(--sub)">指定群（可多选）</span>
+        <div style="display:flex;gap:8px">
+          <select id="t-group-select" multiple size="6" style="flex:1"></select>
+        </div>
+        <div class="hint">按住 Ctrl / Shift 多选。列表来自 NapCat 群列表，若为空请先点任务里的“刷新列表”。</div>
+      </div>
+      <div class="grid2">
+        <label class="field"><span>配图方式</span>
+          <select id="t-imagemode" onchange="onTrigImageMode()">
+            <option value="none">不配图</option>
+            <option value="fixed">固定一张</option>
+            <option value="random">随机抽取</option>
+          </select>
+        </label>
+        <label class="field" id="t-img-fixed-wrap"><span>固定图片</span>
+          <select id="t-image"></select>
+        </label>
+      </div>
+      <div class="field" id="t-img-random-wrap" style="display:none">
+        <span style="font-size:12px;color:var(--sub)">随机候选池（不选=全库随机）</span>
+        <div id="t-img-pool" class="imgs" style="max-height:200px;overflow:auto"></div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="document.getElementById('trigDlg').close()">取消</button>
+      <button type="button" class="primary" onclick="saveTrigger()">保存</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="setDlg">
   <form method="dialog" onsubmit="return false">
     <div class="dlg-head"><h3>设置</h3></div>
@@ -218,9 +307,16 @@
       <label class="field"><span>OneBot HTTP 地址（NapCat 的 HTTP 服务）</span>
         <input id="s-http" placeholder="http://127.0.0.1:3001">
       </label>
-      <label class="field"><span>OneBot Access Token（没有就留空）</span>
+      <label class="field"><span>OneBot Access Token（调用 NapCat 用的，没有就留空）</span>
         <input id="s-token" placeholder="留空表示不鉴权">
       </label>
+      <label class="field"><span>事件上报 Token（NapCat POST 到本服务 /post 时校验用，留空=不校验）</span>
+        <input id="s-post-token" placeholder="触发回复功能需要，建议设置">
+      </label>
+      <div class="hint" style="margin-bottom:12px">启用「触发回复」需要在 NapCat WebUI → 网络配置 → HTTP POST 里新增一条：
+        地址 <code>http://qq-daily-bot:8080/post</code>，
+        HTTP Header 加 <code>Authorization: Bearer 与上面一致</code>，
+        事件订阅勾选「消息事件」（group / private 的 message）。</div>
       <label class="field"><span>RSS 请求超时（秒）</span>
         <input id="s-rss" type="number" min="5" max="60">
       </label>
@@ -306,7 +402,7 @@ function renderTasks() {
   box.innerHTML = tasks.map(t => {
     const tg = (t.targets || []).map(x => `<span class="chip"><span class="tag ${x.type === 'private' ? 'p' : ''}">${x.type === 'group' ? '群' : '私'}</span><b>${esc(x.name || x.id)}</b></span>`).join('') || '<span class="muted">未设置目标</span>';
     const next = t.next_run ? `下次 ${esc(t.next_run)}` : (t.enabled ? '未排程（检查时间）' : '已停用');
-    const img = t.image ? `<span class="muted">🖼 ${esc(t.image.original)}</span>` : '';
+    const img = t.image_mode === 'random' ? `<span class="muted">🖼 随机(${(t.image_ids||[]).length || '全库'})</span>` : (t.image ? `<span class="muted">🖼 ${esc(t.image.original)}</span>` : '');
     return `<div class="t">
       <button class="exec" title="立即执行一次" onclick="runTask(${t.id})">
         <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>立即
@@ -376,7 +472,7 @@ function syncFromCron() {
 async function openTaskForm(id) {
   editingId = id;
   $('#dlg-title').textContent = id ? `编辑任务 #${id}` : '新建任务';
-  let t = {name: '', enabled: true, content: '', image_id: null, rss_url: '', source_mode: 'static', at_all: false, targets: [], schedule: '0 9 * * *'};
+  let t = {name: '', enabled: true, content: '', image_id: null, image_mode: 'fixed', image_ids: [], vars: [], rss_url: '', source_mode: 'static', at_all: false, targets: [], schedule: '0 9 * * *'};
   if (id !== null) {
     try { t = await api(`/api/tasks/${id}`); } catch (e) { toast(e.message, true); return; }
   }
@@ -395,8 +491,12 @@ async function openTaskForm(id) {
   syncFromCron();
   chips = (t.targets || []).map(x => ({type: x.type, id: Number(x.id), name: x.name || String(x.id)}));
   renderChips();
+  renderVars(t.vars || []);
   await loadImages();
   $('#f-image').value = t.image_id || '';
+  poolSel = new Set((t.image_ids || []).map(Number));
+  $('#f-imagemode').value = t.image_mode || 'fixed';
+  onImageModeChange();
   onModeChange();
   await loadTargets();
   if (t.targets && t.targets.length) {
@@ -418,6 +518,52 @@ function schedulerResetPreview() {
 function onModeChange() {
   const m = $('#f-mode').value;
   $('#rss-wrap').style.display = m === 'static' ? 'none' : '';
+}
+
+// ---------- 自定义变量 ----------
+function renderVars(vars) {
+  $('#vars-box').innerHTML = '';
+  (vars || []).forEach(v => addVar(v.key, v.value));
+  if (!vars || !vars.length) addVar();
+}
+function addVar(key = '', value = '') {
+  const row = document.createElement('div');
+  row.className = 'var-row';
+  row.style.cssText = 'display:flex;gap:8px;margin-bottom:6px';
+  row.innerHTML = `<input class="v-key" placeholder="变量名，如 赛季" style="max-width:180px" value="${esc(key)}">
+    <input class="v-val" placeholder="值，如 UC" style="flex:1" value="${esc(value)}">
+    <button type="button" class="small danger" onclick="this.parentNode.remove()">✕</button>`;
+  $('#vars-box').appendChild(row);
+}
+function readVars() {
+  return [...document.querySelectorAll('#vars-box .var-row')].map(r => ({
+    key: r.querySelector('.v-key').value.trim(),
+    value: r.querySelector('.v-val').value,
+  })).filter(v => v.key);
+}
+
+// ---------- 随机图片池 ----------
+let poolSel = new Set();
+function onImageModeChange() {
+  const m = $('#f-imagemode').value;
+  $('#img-fixed-wrap').style.display = m === 'fixed' ? '' : 'none';
+  $('#img-random-wrap').style.display = m === 'random' ? '' : 'none';
+  if (m === 'random') renderPool('#img-pool', poolSel);
+}
+function renderPool(box, sel) {
+  const el = $(box);
+  const html = images.length ? images.map(i => `
+    <div class="item ${sel.has(i.id) ? 'sel' : ''}" title="#${i.id} ${esc(i.original)}" data-iid="${i.id}">
+      <img src="/api/images/${i.id}/file" loading="lazy">
+    </div>`).join('') : '<div class="empty">图片库为空，请先在下方上传</div>';
+  el.innerHTML = html;
+  el.querySelectorAll('.item').forEach(node => {
+    node.onclick = () => {
+      const id = Number(node.dataset.iid);
+      sel.has(id) ? sel.delete(id) : sel.add(id);
+      node.classList.toggle('sel');
+    };
+  });
 }
 
 async function loadImages() {
@@ -507,11 +653,15 @@ function renderChips() {
 }
 
 function formData() {
+  const mode = $('#f-imagemode').value;
   return {
     name: $('#f-name').value.trim(),
     enabled: $('#f-enabled').value === '1',
     content: $('#f-content').value,
-    image_id: $('#f-image').value ? Number($('#f-image').value) : null,
+    image_id: mode === 'fixed' && $('#f-image').value ? Number($('#f-image').value) : null,
+    image_mode: mode,
+    image_ids: mode === 'random' ? [...poolSel] : [],
+    vars: readVars(),
     rss_url: $('#f-rss').value.trim(),
     source_mode: $('#f-mode').value,
     at_all: $('#f-atall').value === '1',
@@ -538,7 +688,8 @@ async function doPreview() {
     const r = await api('/api/preview', {method: 'POST', body: JSON.stringify(b)});
     let txt = r.text;
     if (b.at_all && chips.some(c => c.type === 'group')) txt = '@全体成员\n' + txt;
-    if (b.image_id) txt += '\n[图片]';
+    if (b.image_mode === 'random') txt += '\n[随机图片]';
+    else if (b.image_mode === 'fixed' && b.image_id) txt += '\n[图片]';
     $('#preview').textContent = txt || '（空）';
     $('#preview').classList.remove('muted');
   } catch (e) { toast(e.message, true); }
@@ -562,12 +713,137 @@ async function testSend() {
   } catch (e) { toast(e.message, true); }
 }
 
+// ---------- 触发回复 ----------
+let triggers = [], trigPoolSel = new Set(), trigEditing = null;
+
+async function loadTriggers() {
+  try { triggers = await api('/api/triggers'); } catch { triggers = []; }
+  renderTriggers();
+}
+
+function renderTriggers() {
+  const box = $('#triggerlist');
+  if (!triggers.length) { box.innerHTML = '<div class="empty">还没有触发词。注意：需要 NapCat 配置 HTTP POST 上报（见页脚说明）。</div>'; return; }
+  box.innerHTML = triggers.map(t => {
+    const scopeTxt = {all: '所有会话', group: '所有群', private: '仅私聊'}[t.scope] || (t.scope.startsWith('group:') ? '指定群' : t.scope);
+    const imgTxt = t.image_mode === 'random' ? '随机图' : t.image_mode === 'fixed' ? '固定图' : '';
+    return `<div class="t">
+      <div class="body">
+        <div class="title">${esc(t.keyword)}
+          <span class="pill ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '停用'}</span>
+          <span class="pill off">${t.at_required ? '需@' : '免@'}</span>
+          <span class="pill off">${esc(scopeTxt)}</span>
+          ${imgTxt ? `<span class="pill off">🖼 ${imgTxt}</span>` : ''}
+        </div>
+        <div class="meta"><span>${esc((t.reply_text || '').slice(0, 60)) || '（仅图片）'}</span><span>冷却 ${t.cooldown}s</span></div>
+      </div>
+      <div class="ops">
+        <button class="small" onclick="toggleTrigger(${t.id}, ${!t.enabled})">${t.enabled ? '停用' : '启用'}</button>
+        <button class="small" onclick="openTriggerForm(${t.id})">编辑</button>
+        <button class="small danger" onclick="delTrigger(${t.id})">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleTrigger(id, enabled) {
+  const t = triggers.find(x => x.id === id);
+  if (!t) return;
+  const body = {...t, enabled};
+  delete body.created_at;
+  try { await api(`/api/triggers/${id}`, {method: 'PUT', body: JSON.stringify(body)}); loadTriggers(); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function delTrigger(id) {
+  if (!confirm('确定删除这个触发词？')) return;
+  try { await api(`/api/triggers/${id}`, {method: 'DELETE'}); loadTriggers(); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function openTriggerForm(id) {
+  trigEditing = id;
+  $('#trig-dlg-title').textContent = id ? `编辑触发 #${id}` : '新建触发';
+  let t = {keyword: '', reply_text: '', image_mode: 'none', image_id: null, image_ids: [], at_required: true, scope: 'all', cooldown: 10, enabled: true};
+  if (id !== null) {
+    t = triggers.find(x => x.id === id) || t;
+  }
+  await loadImages();
+  $('#t-keyword').value = t.keyword || '';
+  $('#t-reply').value = t.reply_text || '';
+  $('#t-enabled').value = t.enabled ? '1' : '0';
+  $('#t-at').value = t.at_required ? '1' : '0';
+  $('#t-cd').value = t.cooldown ?? 10;
+  $('#t-imagemode').value = t.image_mode || 'none';
+  $('#t-image').value = t.image_id || '';
+  trigPoolSel = new Set((t.image_ids || []).map(Number));
+  // scope
+  let scopeVal = t.scope || 'all';
+  if (scopeVal.startsWith('group:')) scopeVal = 'group_ids';
+  $('#t-scope').value = scopeVal;
+  await fillGroupSelect(t.scope);
+  onScopeChange();
+  onTrigImageMode();
+  $('#trigDlg').showModal();
+}
+
+async function fillGroupSelect(scope) {
+  const sel = $('#t-group-select');
+  sel.innerHTML = '<option value="">加载中…</option>';
+  let groups = targetsCache.group;
+  if (!groups.length) {
+    try { groups = targetsCache.group = await api('/api/groups'); } catch (e) { groups = []; }
+  }
+  const wanted = new Set(scope.startsWith('group:') ? scope.slice(6).split(',').map(s => s.trim()) : []);
+  sel.innerHTML = groups.map(g => `<option value="${g.id}" ${wanted.has(String(g.id)) ? 'selected' : ''}>${esc(g.name)}</option>`).join('') || '<option value="">（群列表为空）</option>';
+}
+
+function onScopeChange() {
+  $('#t-scope-groups').style.display = $('#t-scope').value === 'group_ids' ? '' : 'none';
+}
+
+function onTrigImageMode() {
+  const m = $('#t-imagemode').value;
+  $('#t-img-fixed-wrap').style.display = m === 'fixed' ? '' : 'none';
+  $('#t-img-random-wrap').style.display = m === 'random' ? '' : 'none';
+  if (m === 'random') renderPool('#t-img-pool', trigPoolSel);
+}
+
+async function saveTrigger() {
+  const scopeSel = $('#t-scope').value;
+  let scope = scopeSel;
+  if (scopeSel === 'group_ids') {
+    const ids = [...$('#t-group-select').selectedOptions].map(o => o.value).filter(Boolean);
+    if (!ids.length) return toast('请至少选择一个群', true);
+    scope = 'group:' + ids.join(',');
+  }
+  const body = {
+    keyword: $('#t-keyword').value.trim(),
+    reply_text: $('#t-reply').value,
+    image_mode: $('#t-imagemode').value,
+    image_id: $('#t-imagemode').value === 'fixed' && $('#t-image').value ? Number($('#t-image').value) : null,
+    image_ids: $('#t-imagemode').value === 'random' ? [...trigPoolSel] : [],
+    at_required: $('#t-at').value === '1',
+    scope,
+    cooldown: Number($('#t-cd').value) || 0,
+    enabled: $('#t-enabled').value === '1',
+  };
+  try {
+    if (trigEditing) await api(`/api/triggers/${trigEditing}`, {method: 'PUT', body: JSON.stringify(body)});
+    else await api('/api/triggers', {method: 'POST', body: JSON.stringify(body)});
+    $('#trigDlg').close();
+    toast('已保存');
+    loadTriggers();
+  } catch (e) { toast(e.message, true); }
+}
+
 // ---------- 设置 ----------
 async function openSettings() {
   try {
     const s = await api('/api/settings');
     $('#s-http').value = s.onebot_http || '';
     $('#s-token').value = s.onebot_token || '';
+    $('#s-post-token').value = s.post_token || '';
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-old').value = ''; $('#s-new').value = '';
     $('#setDlg').showModal();
@@ -579,6 +855,7 @@ async function saveSettings() {
     await api('/api/settings', {method: 'POST', body: JSON.stringify({
       onebot_http: $('#s-http').value.trim(),
       onebot_token: $('#s-token').value,
+      post_token: $('#s-post-token').value,
       rss_timeout: Number($('#s-rss').value) || 15,
     })});
     const oldP = $('#s-old').value, newP = $('#s-new').value;
@@ -627,6 +904,7 @@ function connectSSE() {
 // ---------- 启动 ----------
 fillSelects();
 loadImages();
+loadTriggers();
 refreshStatus();
 loadLogs();
 connectSSE();

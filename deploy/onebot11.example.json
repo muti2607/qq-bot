@@ -15,7 +15,17 @@
       }
     ],
     "httpSseServers": [],
-    "httpClients": [],
+    "httpClients": [
+      {
+        "name": "post-to-bot",
+        "enable": false,
+        "url": "http://qq-daily-bot:8080/post",
+        "token": "",
+        "messagePostFormat": "array",
+        "heartbeatInterval": 60000,
+        "heartbeatEnable": true
+      }
+    ],
     "websocketServers": [],
     "websocketClients": [],
     "plugins": []

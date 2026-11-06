@@ -8,6 +8,7 @@ import hashlib
 import json
 import logging
 import os
+import re
 import secrets
 import time
 import uuid
@@ -25,6 +26,7 @@ import db
 import onebot
 import scheduler
 import sender
+import triggers
 
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.getenv("PORT", "8080"))
@@ -105,7 +107,7 @@ async def require_auth(request: Request) -> None:
 @app.middleware("http")
 async def auth_middleware(request: Request, call_next):
     path = request.url.path
-    public = path.startswith("/login") or path.startswith("/api/login") or path.startswith("/static")
+    public = path.startswith("/login") or path.startswith("/api/login") or path.startswith("/static") or path == "/post"
     if not public and _auth_required() and not _verify(request.cookies.get(COOKIE_NAME)):
         if path.startswith("/api/"):
             return JSONResponse({"detail": "未登录"}, status_code=401)
@@ -153,6 +155,7 @@ async def index():
 class SettingsIn(BaseModel):
     onebot_http: str | None = None
     onebot_token: str | None = None
+    post_token: str | None = None
     admin_password: str | None = None
     rss_timeout: int | None = None
 
@@ -161,6 +164,7 @@ class SettingsIn(BaseModel):
 async def api_get_settings():
     s = db.get_settings()
     s["onebot_token"] = "******" if s.get("onebot_token") else ""
+    s["post_token"] = "******" if s.get("post_token") else ""
     s.pop("admin_password", None)
     s["has_password"] = _auth_required()
     return s
@@ -173,6 +177,8 @@ async def api_save_settings(body: SettingsIn):
         data["onebot_http"] = body.onebot_http.strip()
     if body.onebot_token is not None and body.onebot_token != "******":
         data["onebot_token"] = body.onebot_token.strip()
+    if body.post_token is not None and body.post_token != "******":
+        data["post_token"] = body.post_token.strip()
     if body.rss_timeout is not None:
         data["rss_timeout"] = str(body.rss_timeout)
     db.set_settings(data)
@@ -267,11 +273,19 @@ class Target(BaseModel):
     name: str = ""
 
 
+class TaskVar(BaseModel):
+    key: str
+    value: str = ""
+
+
 class TaskIn(BaseModel):
     name: str = ""
     enabled: bool = True
     content: str = ""
     image_id: int | None = None
+    image_mode: str = "fixed"          # none | fixed | random
+    image_ids: list[int] = Field(default_factory=list)
+    vars: list[TaskVar] = Field(default_factory=list)
     rss_url: str = ""
     source_mode: str = "static"
     at_all: bool = False
@@ -282,18 +296,29 @@ class TaskIn(BaseModel):
 
 def _validate(body: TaskIn) -> None:
     try:
-        CronTrigger.from_crontab(body.schedule, timezone=body.timezone or "Asia/Shanghai")
+        CronTrigger.from_crontab(body.schedule.strip(), timezone=body.timezone or "Asia/Shanghai")
     except Exception as e:
         raise HTTPException(400, f"cron 表达式无效：{e}")
     if body.source_mode not in ("static", "rss_text", "rss_with_link"):
         raise HTTPException(400, "source_mode 无效")
-    if not body.content.strip() and not body.image_id and body.source_mode == "static":
+    if body.image_mode not in ("none", "fixed", "random"):
+        raise HTTPException(400, "image_mode 无效")
+    has_image = (
+        (body.image_mode == "fixed" and body.image_id)
+        or (body.image_mode == "random")
+    )
+    if not body.content.strip() and not has_image and body.source_mode == "static":
         raise HTTPException(400, "内容和图片至少填一个")
     if body.source_mode != "static" and not body.rss_url.strip():
         raise HTTPException(400, "RSS 模式需要填写 RSS 地址")
     for t in body.targets:
         if t.type not in ("group", "private"):
             raise HTTPException(400, f"目标类型无效：{t.type}")
+    for v in body.vars:
+        if not v.key.strip():
+            raise HTTPException(400, "自定义变量名不能为空")
+        if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fff]+", v.key.strip()):
+            raise HTTPException(400, f"变量名「{v.key}」只能包含字母数字下划线或中文")
 
 
 @app.get("/api/tasks")
@@ -365,6 +390,9 @@ class PreviewIn(BaseModel):
     source_mode: str = "static"
     name: str = ""
     image_id: int | None = None
+    image_mode: str = "fixed"
+    image_ids: list[int] = Field(default_factory=list)
+    vars: list[TaskVar] = Field(default_factory=list)
 
 
 @app.post("/api/preview")
@@ -375,7 +403,10 @@ async def api_preview(body: PreviewIn):
         "rss_url": body.rss_url,
         "source_mode": body.source_mode,
         "name": body.name,
-        "image_id": None,  # 预览只展示文本
+        "vars": [v.model_dump() for v in body.vars],
+        "image_mode": "none",  # 预览只展示文本
+        "image_id": None,
+        "image_ids": [],
     }
     now = _dt.datetime.now(_tz())
     try:
@@ -411,6 +442,82 @@ async def api_run_task(task_id: int, body: RunIn | None = None):
     if not res["ok"]:
         raise HTTPException(400, "；".join(res["errors"]) or "发送失败")
     return res
+
+
+# ---------------- OneBot 事件回调（NapCat HTTP POST 推送） ----------------
+
+
+@app.post("/post")
+async def onebot_event(request: Request):
+    """NapCat 的 HTTP POST 上报入口。带 X-Self-Info 或自配 Token 校验。"""
+    expected = db.get_settings().get("post_token") or ""
+    if expected:
+        got = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+        if got != expected:
+            return {"ok": False}
+    try:
+        event = await request.json()
+    except Exception:
+        return {"ok": False}
+    if event.get("post_type") == "message":
+        triggers.handle_event_async(event)
+    return {"ok": True}
+
+
+# ---------------- 触发词 ----------------
+
+
+class TriggerIn(BaseModel):
+    keyword: str
+    reply_text: str = ""
+    image_mode: str = "none"
+    image_id: int | None = None
+    image_ids: list[int] = Field(default_factory=list)
+    at_required: bool = True
+    scope: str = "all"
+    cooldown: int = 10
+    enabled: bool = True
+
+
+def _validate_trigger(body: TriggerIn) -> None:
+    if not body.keyword.strip():
+        raise HTTPException(400, "触发词不能为空")
+    if body.image_mode not in ("none", "fixed", "random"):
+        raise HTTPException(400, "image_mode 无效")
+    if not body.reply_text.strip() and body.image_mode == "none":
+        raise HTTPException(400, "回复内容和图片至少填一个")
+    if body.scope not in ("all", "group", "private") and not body.scope.startswith("group:"):
+        raise HTTPException(400, "scope 无效")
+
+
+@app.get("/api/triggers")
+async def api_triggers():
+    return db.list_triggers()
+
+
+@app.post("/api/triggers")
+async def api_create_trigger(body: TriggerIn):
+    _validate_trigger(body)
+    tid = db.create_trigger(body.model_dump())
+    db.add_log(f"新建触发词《{body.keyword}》", "info")
+    return {"ok": True, "id": tid}
+
+
+@app.put("/api/triggers/{tid}")
+async def api_update_trigger(tid: int, body: TriggerIn):
+    if not db.get_trigger(tid):
+        raise HTTPException(404, "触发词不存在")
+    _validate_trigger(body)
+    db.update_trigger(tid, body.model_dump())
+    db.add_log(f"修改触发词《{body.keyword}》", "info")
+    return {"ok": True}
+
+
+@app.delete("/api/triggers/{tid}")
+async def api_delete_trigger(tid: int):
+    db.delete_trigger(tid)
+    db.add_log(f"删除触发词 #{tid}", "warn")
+    return {"ok": True}
 
 
 # ---------------- 图片库 ----------------

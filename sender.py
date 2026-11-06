@@ -1,7 +1,9 @@
 """内容渲染：纯文本模板、图片、RSS 抓取。"""
 from __future__ import annotations
 
+import ast
 import datetime as _dt
+import random
 import re
 from pathlib import Path
 from zoneinfo import ZoneInfo
@@ -62,10 +64,60 @@ def _parse_target(raw: str, now: _dt.datetime) -> _dt.date:
     return target
 
 
+_EXPR_RE = re.compile(r"\{=([^{}]+)\}")
+
+
+def _safe_eval(expr: str) -> float:
+    """只允许数字与 + - * / // % ** ( ) 的表达式，用 ast 白名单校验，绝不执行任意代码。"""
+    expr = expr.strip()
+    if not expr or len(expr) > 100:
+        raise ValueError("表达式为空或过长")
+    if not re.fullmatch(r"[\d\.\s\+\-\*/\%()]+", expr):
+        raise ValueError("只支持数字与 + - * / // % ** ( ) 运算")
+    tree = ast.parse(expr, mode="eval")
+
+    import operator
+    _OPS = {
+        ast.Add: operator.add, ast.Sub: operator.sub, ast.Mult: operator.mul,
+        ast.Div: operator.truediv, ast.FloorDiv: operator.floordiv,
+        ast.Mod: operator.mod, ast.Pow: operator.pow,
+    }
+
+    def ev(node):
+        if isinstance(node, ast.Expression):
+            return ev(node.body)
+        if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)):
+            return node.value
+        if isinstance(node, ast.BinOp) and type(node.op) in _OPS:
+            a, b = ev(node.left), ev(node.right)
+            if isinstance(node.op, (ast.Div, ast.Mod, ast.FloorDiv)) and b == 0:
+                raise ValueError("除数为 0")
+            if isinstance(node.op, ast.Pow) and (abs(b) > 64 or abs(a) > 10 ** 9):
+                raise ValueError("幂运算超出限制")
+            return _OPS[type(node.op)](a, b)
+        if isinstance(node, ast.UnaryOp) and isinstance(node.op, (ast.UAdd, ast.USub)):
+            v = ev(node.operand)
+            return +v if isinstance(node.op, ast.UAdd) else -v
+        raise ValueError("表达式包含不支持的写法")
+
+    result = ev(tree)
+    if isinstance(result, float) and result.is_integer():
+        return int(result)
+    if isinstance(result, float):
+        return round(result, 4)
+    return result
+
+
+def _fmt_num(x) -> str:
+    return str(x)
+
+
 def render_template(content: str, task: dict, now: _dt.datetime) -> str:
     """支持占位符：
     {date} {time} {datetime} {weekday} {name}
+    自定义变量：任务 vars 里的 {key}
     倒计时：{days:1209} {days:2027-03-01} {date:1209} {label:1209} {weekday_of:1209}
+    算术：{=115-30} {=(2027-2026)*365}
     """
     weekday_cn = "一二三四五六日"[now.weekday()]
     mapping = {
@@ -75,6 +127,10 @@ def render_template(content: str, task: dict, now: _dt.datetime) -> str:
         "weekday": f"星期{weekday_cn}",
         "name": task.get("name") or "",
     }
+    for var in task.get("vars") or []:
+        key = (var.get("key") or "").strip()
+        if key and key not in mapping:
+            mapping[key] = var.get("value") or ""
 
     def repl(m: re.Match) -> str:
         key = m.group(1)
@@ -96,7 +152,15 @@ def render_template(content: str, task: dict, now: _dt.datetime) -> str:
             return f"{target.month}月{target.day}日"
         return f"星期{'一二三四五六日'[target.weekday()]}"
 
-    return _COUNTDOWN_RE.sub(cd_repl, text)
+    text = _COUNTDOWN_RE.sub(cd_repl, text)
+
+    def expr_repl(m: re.Match) -> str:
+        try:
+            return _fmt_num(_safe_eval(m.group(1)))
+        except Exception as e:
+            return f"[算式错误:{e}]"
+
+    return _EXPR_RE.sub(expr_repl, text)
 
 
 def fetch_rss(url: str, timeout: int = 15) -> dict:
@@ -123,6 +187,40 @@ def fetch_rss(url: str, timeout: int = 15) -> dict:
         "summary": summary,
         "published": published,
     }
+
+
+def pick_image(task_or_trigger: dict) -> Path | None:
+    """按 image_mode 选图：fixed 用单张；random 从候选池（空=全库）随机抽一张。"""
+    mode = task_or_trigger.get("image_mode") or "fixed"
+    if mode == "none":
+        return None
+    if mode == "random":
+        pool = task_or_trigger.get("image_ids") or []
+        candidates = []
+        for iid in pool:
+            img = db.get_image(int(iid))
+            if img and (db.UPLOAD_DIR / img["filename"]).exists():
+                candidates.append(db.UPLOAD_DIR / img["filename"])
+        if not candidates:
+            all_imgs = [
+                db.UPLOAD_DIR / i["filename"]
+                for i in db.list_images()
+                if (db.UPLOAD_DIR / i["filename"]).exists()
+            ]
+            candidates = all_imgs
+        if not candidates:
+            raise RuntimeError("随机图片：图片库为空，请先上传图片")
+        return random.choice(candidates)
+    image_id = task_or_trigger.get("image_id")
+    if not image_id:
+        return None
+    img = db.get_image(int(image_id))
+    if not img:
+        raise RuntimeError(f"图片 id={image_id} 不存在")
+    path = db.UPLOAD_DIR / img["filename"]
+    if not path.exists():
+        raise RuntimeError(f"图片文件丢失：{img['filename']}")
+    return path
 
 
 def build_segments(task: dict, now: _dt.datetime) -> list[dict]:
@@ -155,15 +253,14 @@ def build_segments(task: dict, now: _dt.datetime) -> list[dict]:
     if text.strip():
         segments.append(onebot.text_segment(text.strip()))
 
-    image_id = task.get("image_id")
-    if image_id:
-        img = db.get_image(int(image_id))
-        if not img:
-            raise RuntimeError(f"图片 id={image_id} 不存在")
-        path = db.UPLOAD_DIR / img["filename"]
-        if not path.exists():
-            raise RuntimeError(f"图片文件丢失：{img['filename']}")
-        segments.append(onebot.image_segment(path))
+    try:
+        img_path = pick_image(task)
+    except RuntimeError:
+        if not segments:
+            raise
+        img_path = None  # 有文本时图片选不出来就只发文本，不让整条任务失败
+    if img_path:
+        segments.append(onebot.image_segment(img_path))
 
     if not segments:
         raise RuntimeError("内容为空（既没有文本也没有图片）")

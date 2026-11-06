@@ -23,6 +23,9 @@ CREATE TABLE IF NOT EXISTS tasks (
     enabled     INTEGER NOT NULL DEFAULT 1,
     content     TEXT    NOT NULL DEFAULT '',   -- 纯文本模式正文，支持 {date} {time} {weekday} {name}
     image_id    INTEGER,                       -- 图片库中的图片 id
+    image_mode  TEXT    NOT NULL DEFAULT 'fixed',  -- none | fixed | random
+    image_ids   TEXT    NOT NULL DEFAULT '[]', -- random 模式候选图片 id 列表（空=全库随机）
+    vars        TEXT    NOT NULL DEFAULT '[]', -- 自定义占位符 [{"key":"赛季","value":"UC"}]
     rss_url     TEXT    NOT NULL DEFAULT '',
     source_mode TEXT    NOT NULL DEFAULT 'static',  -- static | rss_text | rss_with_link
     at_all      INTEGER NOT NULL DEFAULT 0,
@@ -31,6 +34,20 @@ CREATE TABLE IF NOT EXISTS tasks (
     timezone    TEXT    NOT NULL DEFAULT 'Asia/Shanghai',
     created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime')),
     updated_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS triggers (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    keyword     TEXT    NOT NULL,
+    reply_text  TEXT    NOT NULL DEFAULT '',
+    image_mode  TEXT    NOT NULL DEFAULT 'none',   -- none | fixed | random
+    image_id    INTEGER,
+    image_ids   TEXT    NOT NULL DEFAULT '[]',
+    at_required INTEGER NOT NULL DEFAULT 1,        -- 必须 @机器人 才触发
+    scope       TEXT    NOT NULL DEFAULT 'all',    -- all | group:123,456 | private
+    cooldown    INTEGER NOT NULL DEFAULT 10,       -- 同一会话同一触发词的最小间隔秒数
+    enabled     INTEGER NOT NULL DEFAULT 1,
+    created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
 CREATE TABLE IF NOT EXISTS images (
@@ -83,6 +100,22 @@ def init_db() -> None:
     UPLOAD_DIR.mkdir(parents=True, exist_ok=True)
     with db() as conn:
         conn.executescript(SCHEMA)
+        _migrate(conn)
+
+
+def _migrate(conn: sqlite3.Connection) -> None:
+    """给已存在的旧表补新增列。"""
+    def cols(table: str) -> set[str]:
+        return {r["name"] for r in conn.execute(f"PRAGMA table_info({table})").fetchall()}
+
+    task_cols = cols("tasks")
+    for name, ddl in (
+        ("image_mode", "TEXT NOT NULL DEFAULT 'fixed'"),
+        ("image_ids", "TEXT NOT NULL DEFAULT '[]'"),
+        ("vars", "TEXT NOT NULL DEFAULT '[]'"),
+    ):
+        if name not in task_cols:
+            conn.execute(f"ALTER TABLE tasks ADD COLUMN {name} {ddl}")
 
 
 # ---------------- settings ----------------
@@ -90,6 +123,7 @@ def init_db() -> None:
 DEFAULT_SETTINGS = {
     "onebot_http": "http://127.0.0.1:3001",
     "onebot_token": "",
+    "post_token": "",
     "admin_password": "",
     "rss_timeout": "15",
 }
@@ -118,10 +152,11 @@ def set_settings(values: dict[str, Any]) -> None:
 
 def _task_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
     d = dict(row)
-    try:
-        d["targets"] = json.loads(d.get("targets") or "[]")
-    except json.JSONDecodeError:
-        d["targets"] = []
+    for key in ("targets", "image_ids", "vars"):
+        try:
+            d[key] = json.loads(d.get(key) or "[]")
+        except json.JSONDecodeError:
+            d[key] = []
     d["enabled"] = bool(d["enabled"])
     d["at_all"] = bool(d["at_all"])
     return d
@@ -144,6 +179,9 @@ TASK_FIELDS = (
     "enabled",
     "content",
     "image_id",
+    "image_mode",
+    "image_ids",
+    "vars",
     "rss_url",
     "source_mode",
     "at_all",
@@ -152,49 +190,59 @@ TASK_FIELDS = (
     "timezone",
 )
 
+_JSON_FIELDS = {"targets", "image_ids", "vars"}
+_BOOL_FIELDS = {"enabled", "at_all"}
+
+
+def _normalize_task(data: dict[str, Any]) -> dict[str, Any]:
+    values = {k: data.get(k) for k in TASK_FIELDS}
+    for k in _JSON_FIELDS:
+        v = values.get(k)
+        if v is None:
+            v = []
+        values[k] = json.dumps(v, ensure_ascii=False) if not isinstance(v, str) else v
+    for k in _BOOL_FIELDS:
+        values[k] = int(bool(values.get(k, True)))
+    defaults = {
+        "name": "", "content": "", "rss_url": "",
+        "source_mode": "static", "image_mode": "fixed",
+        "schedule": "0 9 * * *", "timezone": "Asia/Shanghai",
+    }
+    for k, v in defaults.items():
+        if values.get(k) in (None, ""):
+            values[k] = v
+    if values.get("image_id") in (0, ""):
+        values["image_id"] = None
+    return values
+
 
 def create_task(data: dict[str, Any]) -> int:
-    values = {k: data.get(k) for k in TASK_FIELDS}
-    values["enabled"] = int(bool(values.get("enabled", True)))
-    values["at_all"] = int(bool(values.get("at_all", False)))
-    values["targets"] = json.dumps(values.get("targets") or [], ensure_ascii=False)
-    values["name"] = values.get("name") or ""
-    values["content"] = values.get("content") or ""
-    values["rss_url"] = values.get("rss_url") or ""
-    values["source_mode"] = values.get("source_mode") or "static"
-    values["schedule"] = values.get("schedule") or "0 9 * * *"
-    values["timezone"] = values.get("timezone") or "Asia/Shanghai"
+    values = _normalize_task(data)
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO tasks(name, enabled, content, image_id, rss_url, source_mode, "
-            "at_all, targets, schedule, timezone) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO tasks(name, enabled, content, image_id, image_mode, image_ids, vars, "
+            "rss_url, source_mode, at_all, targets, schedule, timezone) "
+            "VALUES(?,?,?,?,?,?,?,?,?,?,?,?,?)",
             tuple(values[k] for k in TASK_FIELDS),
         )
         return int(cur.lastrowid)
 
 
 def update_task(task_id: int, data: dict[str, Any]) -> None:
-    fields, values = [], []
-    for k in TASK_FIELDS:
-        if k not in data:
-            continue
-        v = data[k]
-        if k in ("enabled", "at_all"):
-            v = int(bool(v))
-        elif k == "targets":
-            v = json.dumps(v or [], ensure_ascii=False)
-        elif k == "image_id":
-            v = v if v else None
-        elif v is None:
-            v = ""
-        fields.append(f"{k}=?")
-        values.append(v)
-    if not fields:
+    current = get_task(task_id)
+    if current is None:
         return
+    merged = {k: current.get(k) for k in TASK_FIELDS}
+    merged.update({k: v for k, v in data.items() if k in TASK_FIELDS})
+    values = _normalize_task(merged)
+    fields, params = [], []
+    for k in TASK_FIELDS:
+        fields.append(f"{k}=?")
+        params.append(values[k])
     fields.append("updated_at=datetime('now','localtime')")
-    values.append(task_id)
+    params.append(task_id)
     with db() as conn:
-        conn.execute(f"UPDATE tasks SET {', '.join(fields)} WHERE id=?", tuple(values))
+        conn.execute(f"UPDATE tasks SET {', '.join(fields)} WHERE id=?", tuple(params))
 
 
 def delete_task(task_id: int) -> None:
@@ -230,6 +278,83 @@ def delete_image(image_id: int) -> None:
     with db() as conn:
         conn.execute("UPDATE tasks SET image_id=NULL WHERE image_id=?", (image_id,))
         conn.execute("DELETE FROM images WHERE id=?", (image_id,))
+
+
+# ---------------- triggers（@触发回复） ----------------
+
+
+def _trigger_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
+    d = dict(row)
+    for key in ("image_ids",):
+        try:
+            d[key] = json.loads(d.get(key) or "[]")
+        except json.JSONDecodeError:
+            d[key] = []
+    d["enabled"] = bool(d["enabled"])
+    d["at_required"] = bool(d["at_required"])
+    return d
+
+
+def list_triggers() -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM triggers ORDER BY id").fetchall()
+    return [_trigger_row_to_dict(r) for r in rows]
+
+
+def get_trigger(tid: int) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM triggers WHERE id=?", (tid,)).fetchone()
+    return _trigger_row_to_dict(row) if row else None
+
+
+TRIGGER_FIELDS = ("keyword", "reply_text", "image_mode", "image_id", "image_ids",
+                  "at_required", "scope", "cooldown", "enabled")
+
+
+def create_trigger(data: dict[str, Any]) -> int:
+    v = {
+        "keyword": (data.get("keyword") or "").strip(),
+        "reply_text": data.get("reply_text") or "",
+        "image_mode": data.get("image_mode") or "none",
+        "image_id": data.get("image_id") or None,
+        "image_ids": json.dumps(data.get("image_ids") or [], ensure_ascii=False),
+        "at_required": int(bool(data.get("at_required", True))),
+        "scope": data.get("scope") or "all",
+        "cooldown": int(data.get("cooldown") or 0),
+        "enabled": int(bool(data.get("enabled", True))),
+    }
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO triggers(keyword, reply_text, image_mode, image_id, image_ids, "
+            "at_required, scope, cooldown, enabled) VALUES(?,?,?,?,?,?,?,?,?)",
+            tuple(v[k] for k in TRIGGER_FIELDS),
+        )
+        return int(cur.lastrowid)
+
+
+def update_trigger(tid: int, data: dict[str, Any]) -> None:
+    v = {
+        "keyword": (data.get("keyword") or "").strip(),
+        "reply_text": data.get("reply_text") or "",
+        "image_mode": data.get("image_mode") or "none",
+        "image_id": data.get("image_id") or None,
+        "image_ids": json.dumps(data.get("image_ids") or [], ensure_ascii=False),
+        "at_required": int(bool(data.get("at_required", True))),
+        "scope": data.get("scope") or "all",
+        "cooldown": int(data.get("cooldown") or 0),
+        "enabled": int(bool(data.get("enabled", True))),
+    }
+    with db() as conn:
+        conn.execute(
+            "UPDATE triggers SET keyword=?, reply_text=?, image_mode=?, image_id=?, "
+            "image_ids=?, at_required=?, scope=?, cooldown=?, enabled=? WHERE id=?",
+            (*[v[k] for k in TRIGGER_FIELDS], tid),
+        )
+
+
+def delete_trigger(tid: int) -> None:
+    with db() as conn:
+        conn.execute("DELETE FROM triggers WHERE id=?", (tid,))
 
 
 # ---------------- logs ----------------
