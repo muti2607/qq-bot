@@ -148,6 +148,14 @@ def handle_event(event: dict) -> None:
         onebot.send_message("group" if is_group else "private", target_id, segments_out)
         db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}", "info", None)
     except Exception as e:
+        # 带 @ 的回复失败（如提问者已退群、uid 解析失败）时降级为不带 @ 再发一次
+        if len(segments_out) > 1 and segments_out[0].get("type") == "at":
+            try:
+                onebot.send_message("group" if is_group else "private", target_id, segments_out[2:])
+                db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}（@提问者失败已降级）", "info", None)
+                return
+            except Exception:
+                pass
         db.add_log(f"触发词《{trigger['keyword']}》回复失败：{e}", "error", None)
 
 
