@@ -165,6 +165,7 @@
     display:flex;flex-direction:column;justify-content:center;gap:6px;
     background:linear-gradient(160deg,rgba(255,255,255,.85),rgba(253,240,249,.7));
     border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow);position:relative;overflow:hidden;
+    cursor:pointer;user-select:none;
   }
   .quote::before{content:"“";position:absolute;top:-14px;left:18px;font-size:110px;
     color:rgba(236,72,153,.13);font-family:Georgia,serif}
@@ -201,10 +202,10 @@
     </section>
 
     <aside style="display:grid;gap:16px;align-content:start">
-      <section class="quote">
+      <section class="quote" onclick="showQuote()" title="点击换一句">
         <p id="quote-text">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
         <div class="who" id="quote-who">网络</div>
-        <div class="qbtns"><button class="small" title="换一句" onclick="showQuote(true)">换一句</button></div>
+        <div class="qbtns"><button class="small" title="换一句" onclick="event.stopPropagation();showQuote()">换一句</button></div>
       </section>
       <section class="panel">
         <h2>运行日志 <button class="small" style="margin-left:auto" onclick="clearLogs()">清空</button></h2>
@@ -476,35 +477,45 @@
 const $ = s => document.querySelector(s);
 let tasks = [], images = [], chips = [], editingId = null, targetsCache = {group: [], private: []};
 
-// ---------- 诗意文案轮播（数据来自 /api/quotes，含用户自定义池） ----------
-let quotePool = [], quoteIdx = -1;
+// ---------- 诗意文案轮播（洗牌发牌：一轮内绝不重复） ----------
+let quotePool = [], quoteDeck = [], quoteLast = "";
 async function loadQuotePool() {
   try {
     const d = await api('/api/quotes');
     quotePool = d.quotes || [];
-    if (quoteIdx >= quotePool.length) quoteIdx = -1;
-    if (!$("#quote-text").textContent.trim()) showQuote(false);
+    quoteDeck = [];
+    showQuote(false);
   } catch {}
 }
-function showQuote(manual) {
+function refillDeck() {
+  quoteDeck = [...quotePool];
+  for (let i = quoteDeck.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [quoteDeck[i], quoteDeck[j]] = [quoteDeck[j], quoteDeck[i]];
+  }
+  // 新一轮的第一条避免和上一轮最后一条相同
+  if (quoteDeck.length > 1 && quoteDeck[0] === quoteLast) {
+    [quoteDeck[0], quoteDeck[quoteDeck.length - 1]] = [quoteDeck[quoteDeck.length - 1], quoteDeck[0]];
+  }
+}
+function showQuote() {
   if (!quotePool.length) return;
-  let next;
-  do { next = Math.floor(Math.random() * quotePool.length); }
-  while (quotePool.length > 1 && next === quoteIdx);
-  quoteIdx = next;
-  const raw = quotePool[next];
-  const [text, who] = raw.includes('|') ? raw.split(/\|(.*)/s) : [raw, ''];
+  if (!quoteDeck.length) refillDeck();
+  let raw = quoteDeck.pop();
+  if (raw === quoteLast && quoteDeck.length) raw = quoteDeck.pop();  // 双保险
+  quoteLast = raw;
+  const parts = raw.includes('|') ? raw.split(/\|(.*)/s) : [raw, ''];
   const p = $("#quote-text"), w = $("#quote-who");
   p.style.opacity = 0; w.style.opacity = 0;
   setTimeout(() => {
-    p.textContent = "“" + text.trim() + "”";
-    w.textContent = who ? who.trim() : "";
-    w.style.display = who ? '' : 'none';
+    p.textContent = "“" + parts[0].trim() + "”";
+    w.textContent = parts[1] ? parts[1].trim() : "";
+    w.style.display = parts[1] ? '' : 'none';
     p.style.opacity = 1; w.style.opacity = 1;
   }, 300);
 }
 loadQuotePool();
-setInterval(() => showQuote(false), 45000);
+setInterval(() => showQuote(), 45000);
 
 function toast(msg, isErr) {
   const t = $('#toast');
