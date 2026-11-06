@@ -1,0 +1,636 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>QQ 定时发布机器人</title>
+<style>
+  :root{
+    --bg:#0f1218; --panel:#171b24; --panel2:#1e2430; --line:#2a3140; --txt:#e7ecf3;
+    --sub:#93a0b4; --accent:#4c8bf5; --ok:#2fb673; --warn:#e0a53c; --err:#e5544b; --radius:10px;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:var(--bg);color:var(--txt);font:14px/1.55 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  a{color:var(--accent)}
+  header{display:flex;align-items:center;gap:14px;padding:12px 18px;background:var(--panel);border-bottom:1px solid var(--line);position:sticky;top:0;z-index:20}
+  header h1{font-size:16px;margin:0;flex:none}
+  .status{display:flex;align-items:center;gap:6px;font-size:13px;color:var(--sub)}
+  .dot{width:9px;height:9px;border-radius:50%;background:#666}
+  .dot.on{background:var(--ok);box-shadow:0 0 6px var(--ok)} .dot.off{background:var(--err)}
+  .spacer{flex:1}
+  main{max-width:1180px;margin:0 auto;padding:16px;display:grid;gap:14px}
+  .row{display:grid;grid-template-columns:1fr 380px;gap:14px}
+  @media (max-width:900px){.row{grid-template-columns:1fr}}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:var(--radius);padding:14px}
+  .panel h2{font-size:14px;margin:0 0 10px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:8px}
+  button{background:var(--panel2);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 13px;cursor:pointer;font:inherit;transition:.15s}
+  button:hover{border-color:var(--accent)}
+  button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  button.danger{color:#ffb3af;border-color:#5a2b2a}
+  button.small{padding:3px 9px;font-size:12px;border-radius:6px}
+  button:disabled{opacity:.5;cursor:not-allowed}
+  input,select,textarea{background:var(--bg);color:var(--txt);border:1px solid var(--line);border-radius:8px;padding:7px 9px;font:inherit;width:100%}
+  textarea{resize:vertical;min-height:90px;font-family:inherit}
+  label.field{display:block;margin-bottom:10px}
+  label.field>span{display:block;font-size:12px;color:var(--sub);margin-bottom:4px}
+  .grid2{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+  .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px}
+  .hint{font-size:12px;color:var(--sub);margin-top:4px}
+  .chips{display:flex;flex-wrap:wrap;gap:6px;min-height:34px;padding:6px;background:var(--bg);border:1px dashed var(--line);border-radius:8px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--panel2);border:1px solid var(--line);border-radius:999px;padding:3px 6px 3px 10px;font-size:12px}
+  .chip b{font-weight:500} .chip .x{cursor:pointer;color:var(--err);padding:0 3px}
+  .tag{font-size:11px;padding:1px 6px;border-radius:4px;background:#22324a;color:#9cc0ff}
+  .tag.p{background:#3a2d22;color:#f0c08a}
+  table{width:100%;border-collapse:collapse;font-size:13px}
+  th,td{text-align:left;padding:8px 6px;border-bottom:1px solid var(--line);vertical-align:middle}
+  th{color:var(--sub);font-weight:500;font-size:12px}
+  .muted{color:var(--sub)}
+  .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
+  .pill{display:inline-block;font-size:11px;padding:1px 8px;border-radius:999px;border:1px solid var(--line)}
+  .pill.on{color:#8fe3b8;border-color:#255d43;background:#12291f}
+  .pill.off{color:#9aa4b3}
+  .imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(86px,1fr));gap:8px}
+  .imgs .item{position:relative;border:1px solid var(--line);border-radius:8px;overflow:hidden;aspect-ratio:1;cursor:pointer}
+  .imgs .item.sel{outline:2px solid var(--accent)}
+  .imgs img{width:100%;height:100%;object-fit:cover;display:block}
+  .imgs .del{position:absolute;top:3px;right:3px;background:rgba(0,0,0,.65);border-radius:6px;padding:0 6px;font-size:12px}
+  .log{max-height:320px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px}
+  .log div{padding:2px 0;border-bottom:1px dashed #222a36;white-space:pre-wrap;word-break:break-all}
+  .log time{color:var(--sub);margin-right:8px}
+  .tasklist .t{display:flex;gap:8px;align-items:flex-start;padding:10px 0;border-bottom:1px solid var(--line)}
+  .tasklist .t:last-child{border-bottom:none}
+  .tasklist .body{flex:1;min-width:0}
+  .tasklist .title{font-weight:600;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+  .tasklist .meta{font-size:12px;color:var(--sub);margin-top:3px;display:flex;gap:12px;flex-wrap:wrap}
+  .tasklist .ops{display:flex;gap:6px;flex:none}
+  .tasklist .exec{
+    width:64px;height:64px;flex:none;border:none;border-radius:12px;cursor:pointer;
+    background:linear-gradient(145deg,#4c8bf5,#2f67d8);color:#fff;font-size:11px;line-height:1.2;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
+    box-shadow:0 3px 10px rgba(76,139,245,.35);transition:.15s;
+  }
+  .tasklist .exec:hover{transform:translateY(-1px);box-shadow:0 5px 14px rgba(76,139,245,.5)}
+  .tasklist .exec:active{transform:translateY(0)}
+  .tasklist .exec svg{width:18px;height:18px;fill:#fff}
+  .tasklist .exec.off{background:linear-gradient(145deg,#3a4150,#2b313d);box-shadow:none}
+  dialog{border:1px solid var(--line);background:var(--panel);color:var(--txt);border-radius:12px;padding:0;width:min(880px,94vw);max-height:90vh}
+  dialog::backdrop{background:rgba(0,0,0,.6)}
+  .dlg-head{display:flex;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line)}
+  .dlg-head h3{margin:0;font-size:15px}
+  .dlg-body{padding:16px;overflow:auto;max-height:calc(90vh - 120px)}
+  .dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:12px 16px;border-top:1px solid var(--line)}
+  .toast{position:fixed;bottom:20px;left:50%;transform:translateX(-50%);background:#243044;border:1px solid var(--line);padding:10px 16px;border-radius:10px;z-index:99;opacity:0;transition:.25s;pointer-events:none;max-width:80vw}
+  .toast.show{opacity:1}
+  .empty{color:var(--sub);text-align:center;padding:24px 0;font-size:13px}
+  .cronrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
+  .preview{white-space:pre-wrap;background:var(--bg);border:1px solid var(--line);border-radius:8px;padding:10px;min-height:60px;font-size:13px}
+</style>
+</head>
+<body>
+<header>
+  <h1>QQ 定时发布机器人</h1>
+  <div class="status"><span id="dot" class="dot"></span><span id="st-text">检测中…</span></div>
+  <div class="spacer"></div>
+  <span id="clock" class="muted" style="font-size:12px"></span>
+  <button class="small" onclick="refreshStatus()">刷新状态</button>
+  <button class="small" onclick="openSettings()">设置</button>
+  <button class="small danger" onclick="logout()">退出</button>
+</header>
+
+<main>
+  <div class="row">
+    <section class="panel">
+      <h2>任务列表 <span class="spacer"></span><button class="primary small" onclick="openTaskForm(null)">＋ 新建任务</button></h2>
+      <div id="tasklist" class="tasklist"></div>
+    </section>
+
+    <aside style="display:grid;gap:14px;align-content:start">
+      <section class="panel">
+        <h2>运行日志 <button class="small" style="margin-left:auto" onclick="clearLogs()">清空</button></h2>
+        <div id="log" class="log"></div>
+      </section>
+      <section class="panel">
+        <h2>连接信息</h2>
+        <div id="conninfo" class="muted" style="font-size:13px">—</div>
+      </section>
+    </aside>
+  </div>
+
+  <section class="panel">
+    <h2>图片库 <span class="muted" style="font-weight:400">（点击图片可复制其 ID，任务里选图片用）</span></h2>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+      <input type="file" id="upload" accept="image/*" style="max-width:320px">
+      <button id="uploadBtn" onclick="uploadImage()">上传图片</button>
+      <span id="uploadMsg" class="muted"></span>
+    </div>
+    <div id="images" class="imgs"></div>
+  </section>
+</main>
+
+<dialog id="taskDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3 id="dlg-title">新建任务</h3></div>
+    <div class="dlg-body">
+      <input type="hidden" id="f-id">
+      <div class="grid2">
+        <label class="field"><span>任务名称</span><input id="f-name" placeholder="例如 每日早报"></label>
+        <label class="field"><span>状态</span>
+          <select id="f-enabled"><option value="1">启用</option><option value="0">停用</option></select>
+        </label>
+      </div>
+
+      <label class="field"><span>内容来源</span>
+        <select id="f-mode" onchange="onModeChange()">
+          <option value="static">固定文本（可带图片）</option>
+          <option value="rss_text">RSS / 网页：只发最新一条的文字</option>
+          <option value="rss_with_link">RSS / 网页：最新一条文字 + 链接</option>
+        </select>
+      </label>
+
+      <label class="field" id="rss-wrap" style="display:none"><span>RSS 地址</span>
+        <input id="f-rss" placeholder="https://example.com/feed.xml">
+        <div class="hint">支持任意 RSS/Atom 订阅地址。示例：https://www.ithome.com/rss/</div>
+      </label>
+
+      <label class="field"><span>正文（支持占位符：{date} {time} {datetime} {weekday} {name}）</span>
+        <textarea id="f-content" placeholder="早上好！今天是 {date} {weekday}"></textarea>
+        <div class="hint">RSS 模式下，这里可以写前言（可留空），会拼在标题前面。</div>
+      </label>
+
+      <div class="grid2">
+        <label class="field"><span>配图（可选，从图片库选择）</span>
+          <select id="f-image"></select>
+        </label>
+        <label class="field"><span>@全体成员（仅群聊生效）</span>
+          <select id="f-atall"><option value="0">否</option><option value="1">是</option></select>
+        </label>
+      </div>
+
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">发送目标</span>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <select id="pick-type" style="max-width:110px" onchange="loadTargets()">
+            <option value="group">群聊</option>
+            <option value="private">好友/私聊</option>
+          </select>
+          <select id="pick-target"></select>
+          <button type="button" class="small" onclick="addTarget()">添加</button>
+          <button type="button" class="small" onclick="loadTargets(true)">刷新列表</button>
+        </div>
+        <div id="f-chips" class="chips"></div>
+        <div class="hint">也可以直接输入 QQ 号添加私聊对象。</div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input id="manual-qq" placeholder="QQ 号（仅私聊）" style="max-width:200px">
+          <button type="button" class="small" onclick="addManual()">按 QQ 号添加</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">发送时间（按 时:分 每天定时，时区 Asia/Shanghai）</span>
+        <div class="cronrow">
+          <select id="c-hour"></select>
+          <select id="c-min"></select>
+          <input id="f-cron" placeholder="或直接填 cron" style="grid-column:span 3">
+        </div>
+        <div class="hint">左边两个下拉即“每天 HH:MM”；也可以手写 cron，如 <code>0 9 * * *</code>（每天 9:00）、<code>30 8 * * 1-5</code>（工作日 8:30）。</div>
+      </div>
+
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">预览</span>
+        <div id="preview" class="preview muted">点“预览”查看实际发送内容</div>
+        <div style="margin-top:6px;display:flex;gap:8px">
+          <button type="button" class="small" onclick="doPreview()">预览</button>
+          <button type="button" class="small" onclick="testSend()">立即发送到所选目标</button>
+        </div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="document.getElementById('taskDlg').close()">取消</button>
+      <button type="button" class="primary" onclick="saveTask()">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<dialog id="setDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3>设置</h3></div>
+    <div class="dlg-body">
+      <label class="field"><span>OneBot HTTP 地址（NapCat 的 HTTP 服务）</span>
+        <input id="s-http" placeholder="http://127.0.0.1:3001">
+      </label>
+      <label class="field"><span>OneBot Access Token（没有就留空）</span>
+        <input id="s-token" placeholder="留空表示不鉴权">
+      </label>
+      <label class="field"><span>RSS 请求超时（秒）</span>
+        <input id="s-rss" type="number" min="5" max="60">
+      </label>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="grid2">
+        <label class="field"><span>原管理密码（首次设置留空）</span><input id="s-old" type="password" autocomplete="current-password"></label>
+        <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="document.getElementById('setDlg').close()">取消</button>
+      <button type="button" class="primary" onclick="saveSettings()">保存</button>
+    </div>
+  </form>
+</dialog>
+
+<div id="toast" class="toast"></div>
+
+<script>
+const $ = s => document.querySelector(s);
+let tasks = [], images = [], chips = [], editingId = null, targetsCache = {group: [], private: []};
+
+function toast(msg, isErr) {
+  const t = $('#toast');
+  t.textContent = msg;
+  t.style.borderColor = isErr ? 'var(--err)' : 'var(--line)';
+  t.classList.add('show');
+  clearTimeout(t._h);
+  t._h = setTimeout(() => t.classList.remove('show'), 2600);
+}
+
+async function api(path, opts = {}) {
+  const res = await fetch(path, {
+    headers: opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'},
+    credentials: 'same-origin',
+    ...opts,
+  });
+  if (res.status === 401) { location.href = '/login'; throw new Error('未登录'); }
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    const msg = (data && (data.detail || data.message)) || (typeof data === 'string' ? data : '') || res.statusText;
+    throw new Error(msg);
+  }
+  return data;
+}
+
+// ---------- 状态 ----------
+async function refreshStatus() {
+  try {
+    const st = await api('/api/status');
+    const dot = $('#dot'), txt = $('#st-text');
+    if (st.online) {
+      dot.className = 'dot on';
+      txt.textContent = `已连接：${st.nickname || ''} (${st.self_id || ''})`;
+    } else {
+      dot.className = 'dot off';
+      txt.textContent = '未连接 OneBot（NapCat 未启动或地址不对）';
+    }
+    $('#clock').textContent = '服务器时间 ' + (st.server_time || '');
+    $('#conninfo').innerHTML = st.online
+      ? `QQ：<b>${esc(st.nickname || '')}</b><br>账号：${st.self_id}<br>服务器时间：${st.server_time}<br><span class="muted">任务到点自动发送，日志会实时刷新。</span>`
+      : `<span class="err">${esc(st.error || '连接失败')}</span><br><span class="muted">请检查设置中的 OneBot 地址、Token，以及 NapCat 是否已登录。</span>`;
+    tasks = await api('/api/tasks');
+    renderTasks();
+  } catch (e) {
+    $('#st-text').textContent = '状态获取失败：' + e.message;
+    $('#dot').className = 'dot off';
+  }
+}
+
+function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
+
+function modeText(m) {
+  return {static: '固定文本', rss_text: 'RSS 文字', rss_with_link: 'RSS 文字+链接'}[m] || m;
+}
+
+function renderTasks() {
+  const box = $('#tasklist');
+  if (!tasks.length) { box.innerHTML = '<div class="empty">还没有任务，点右上角“新建任务”。</div>'; return; }
+  box.innerHTML = tasks.map(t => {
+    const tg = (t.targets || []).map(x => `<span class="chip"><span class="tag ${x.type === 'private' ? 'p' : ''}">${x.type === 'group' ? '群' : '私'}</span><b>${esc(x.name || x.id)}</b></span>`).join('') || '<span class="muted">未设置目标</span>';
+    const next = t.next_run ? `下次 ${esc(t.next_run)}` : (t.enabled ? '未排程（检查时间）' : '已停用');
+    const img = t.image ? `<span class="muted">🖼 ${esc(t.image.original)}</span>` : '';
+    return `<div class="t">
+      <button class="exec" title="立即执行一次" onclick="runTask(${t.id})">
+        <svg viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>立即
+      </button>
+      <div class="body">
+        <div class="title">${esc(t.name || ('任务 #' + t.id))}
+          <span class="pill ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '停用'}</span>
+          ${t.at_all ? '<span class="pill off">@全体</span>' : ''}
+        </div>
+        <div class="meta">
+          <span>⏰ <b>${t.schedule.split(' ')[1]}:${String(t.schedule.split(' ')[0]).padStart(2,'0')}</b> ${esc(t.schedule)}</span>
+          <span>📌 ${modeText(t.source_mode)}</span>
+          <span>→ ${esc(next)}</span>
+          ${img}
+        </div>
+        <div class="meta" style="margin-top:6px">${tg}</div>
+      </div>
+      <div class="ops">
+        <button class="small" onclick="toggleTask(${t.id}, ${!t.enabled})">${t.enabled ? '停用' : '启用'}</button>
+        <button class="small" onclick="openTaskForm(${t.id})">编辑</button>
+        <button class="small danger" onclick="delTask(${t.id})">删除</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+async function toggleTask(id, enabled) {
+  try { await api(`/api/tasks/${id}/toggle`, {method: 'POST', body: JSON.stringify({enabled})}); refreshStatus(); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function delTask(id) {
+  if (!confirm('确定删除这个任务？')) return;
+  try { await api(`/api/tasks/${id}`, {method: 'DELETE'}); toast('已删除'); refreshStatus(); }
+  catch (e) { toast(e.message, true); }
+}
+
+async function runTask(id) {
+  if (!confirm('立即执行一次该任务？')) return;
+  try {
+    const r = await api(`/api/tasks/${id}/run`, {method: 'POST', body: '{}'});
+    toast(`已发送 ${r.sent} 条`);
+    loadLogs();
+  } catch (e) { toast(e.message, true); loadLogs(); }
+}
+
+// ---------- 任务表单 ----------
+function fillSelects() {
+  const hours = Array.from({length: 24}, (_, i) => i);
+  const mins = Array.from({length: 60}, (_, i) => i);
+  $('#c-hour').innerHTML = hours.map(h => `<option value="${h}">${String(h).padStart(2,'0')} 时</option>`).join('');
+  $('#c-min').innerHTML = mins.map(m => `<option value="${m}">${String(m).padStart(2,'0')} 分</option>`).join('');
+  $('#c-hour').onchange = syncCron; $('#c-min').onchange = syncCron;
+  $('#f-cron').oninput = syncFromCron;
+}
+
+function syncCron() {
+  $('#f-cron').value = `${parseInt($('#c-min').value)} ${parseInt($('#c-hour').value)} * * *`;
+}
+function syncFromCron() {
+  const parts = $('#f-cron').value.trim().split(/\s+/);
+  if (parts.length === 5 && /^\d+$/.test(parts[0]) && /^\d+$/.test(parts[1]) && parts[2] === '*' && parts[3] === '*' && parts[4] === '*') {
+    $('#c-min').value = parseInt(parts[0]); $('#c-hour').value = parseInt(parts[1]);
+  }
+}
+
+async function openTaskForm(id) {
+  editingId = id;
+  $('#dlg-title').textContent = id ? `编辑任务 #${id}` : '新建任务';
+  let t = {name: '', enabled: true, content: '', image_id: null, rss_url: '', source_mode: 'static', at_all: false, targets: [], schedule: '0 9 * * *'};
+  if (id !== null) {
+    try { t = await api(`/api/tasks/${id}`); } catch (e) { toast(e.message, true); return; }
+  }
+  fillSelects();
+  $('#f-id').value = id || '';
+  $('#f-name').value = t.name || '';
+  $('#f-enabled').value = t.enabled ? '1' : '0';
+  $('#f-mode').value = t.source_mode || 'static';
+  $('#f-rss').value = t.rss_url || '';
+  $('#f-content').value = t.content || '';
+  $('#f-atall').value = t.at_all ? '1' : '0';
+  $('#f-cron').value = t.schedule || '0 9 * * *';
+  if (!/^\d+$/.test((t.schedule || '').split(' ')[0] || '') || !/^\d+$/.test((t.schedule || '').split(' ')[1] || '')) {
+    toast('这是高级 cron 表达式，只要不改时间下拉就不会被覆盖', false);
+  }
+  syncFromCron();
+  chips = (t.targets || []).map(x => ({type: x.type, id: Number(x.id), name: x.name || String(x.id)}));
+  renderChips();
+  await loadImages();
+  $('#f-image').value = t.image_id || '';
+  onModeChange();
+  await loadTargets();
+  if (t.targets && t.targets.length) {
+    // 预填下拉到已选第一个目标
+    const first = t.targets[0];
+    $('#pick-type').value = first.type;
+    await loadTargets();
+    $('#pick-target').value = String(first.id);
+  }
+  schedulerResetPreview();
+  $('#taskDlg').showModal();
+}
+
+function schedulerResetPreview() {
+  $('#preview').textContent = '点“预览”查看实际发送内容';
+  $('#preview').classList.add('muted');
+}
+
+function onModeChange() {
+  const m = $('#f-mode').value;
+  $('#rss-wrap').style.display = m === 'static' ? 'none' : '';
+}
+
+async function loadImages() {
+  try {
+    images = await api('/api/images');
+    $('#f-image').innerHTML = '<option value="">不使用图片</option>' +
+      images.map(i => `<option value="${i.id}">#${i.id} ${esc(i.original)}</option>`).join('');
+    renderImages();
+  } catch (e) { toast(e.message, true); }
+}
+
+function renderImages() {
+  $('#images').innerHTML = images.length ? images.map(i => `
+    <div class="item" title="#${i.id} ${esc(i.original)}">
+      <img src="/api/images/${i.id}/file?t=${Date.now()}" loading="lazy"
+           onerror="if(!this.dataset.fb){this.dataset.fb=1;fetch('/api/images/${i.id}/data').then(r=>r.json()).then(d=>this.src=d.data)}">
+      <span class="del" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
+    </div>`).join('') : '<div class="empty">图片库为空</div>';
+}
+
+async function uploadImage() {
+  const f = $('#upload').files[0];
+  if (!f) return toast('先选择一张图片', true);
+  const fd = new FormData(); fd.append('file', f);
+  $('#uploadBtn').disabled = true; $('#uploadMsg').textContent = '上传中…';
+  try {
+    await api('/api/images', {method: 'POST', body: fd});
+    $('#uploadMsg').textContent = '上传成功';
+    $('#upload').value = '';
+    await loadImages();
+  } catch (e) { toast(e.message, true); $('#uploadMsg').textContent = ''; }
+  finally { $('#uploadBtn').disabled = false; }
+}
+
+async function delImage(id) {
+  if (!confirm('删除这张图片？引用它的任务会取消配图。')) return;
+  try { await api(`/api/images/${id}`, {method: 'DELETE'}); await loadImages(); } catch (e) { toast(e.message, true); }
+}
+
+async function loadTargets(force) {
+  const type = $('#pick-type').value;
+  if (force || !targetsCache[type] || !targetsCache[type].length) {
+    $('#pick-target').innerHTML = '<option value="">加载中…</option>';
+    try {
+      targetsCache[type] = await api(type === 'group' ? '/api/groups' : '/api/friends');
+    } catch (e) {
+      targetsCache[type] = [];
+      $('#pick-target').innerHTML = `<option value="">获取失败：${esc(e.message)}</option>`;
+      return;
+    }
+  }
+  const list = targetsCache[type];
+  $('#pick-target').innerHTML = list.length
+    ? list.map(t => `<option value="${t.id}">${esc(t.name)}${t.type === 'group' ? '（' + (t.member_count ?? '?') + '人）' : ''}</option>`).join('')
+    : '<option value="">（空，检查 NapCat 登录）</option>';
+}
+
+function addTarget() {
+  const type = $('#pick-type').value;
+  const sel = $('#pick-target');
+  const id = Number(sel.value);
+  if (!id) return toast('没有可添加的目标', true);
+  const name = sel.options[sel.selectedIndex].textContent.replace(/（.*?人）$/, '');
+  if (chips.some(c => c.type === type && c.id === id)) return toast('已经添加过了', true);
+  chips.push({type, id, name});
+  renderChips();
+}
+
+async function addManual() {
+  const v = $('#manual-qq').value.trim();
+  if (!/^\d{5,12}$/.test(v)) return toast('请输入正确的 QQ 号', true);
+  const id = Number(v);
+  if (chips.some(c => c.type === 'private' && c.id === id)) return toast('已经添加过了', true);
+  let name = v;
+  try { const r = await api('/api/lookup', {method: 'POST', body: JSON.stringify({id})}); name = r.name || v; }
+  catch (e) { toast('查询昵称失败，仍然添加：' + e.message, true); }
+  chips.push({type: 'private', id, name});
+  $('#manual-qq').value = '';
+  renderChips();
+}
+
+function renderChips() {
+  $('#f-chips').innerHTML = chips.length ? chips.map((c, i) => `
+    <span class="chip"><span class="tag ${c.type === 'private' ? 'p' : ''}">${c.type === 'group' ? '群' : '私'}</span>
+      <b>${esc(c.name)}</b><span class="muted">${c.id}</span>
+      <span class="x" onclick="chips.splice(${i},1);renderChips()">✕</span></span>`).join('') : '<span class="muted" style="font-size:12px">还没有选择目标</span>';
+}
+
+function formData() {
+  return {
+    name: $('#f-name').value.trim(),
+    enabled: $('#f-enabled').value === '1',
+    content: $('#f-content').value,
+    image_id: $('#f-image').value ? Number($('#f-image').value) : null,
+    rss_url: $('#f-rss').value.trim(),
+    source_mode: $('#f-mode').value,
+    at_all: $('#f-atall').value === '1',
+    targets: chips,
+    schedule: $('#f-cron').value.trim() || '0 9 * * *',
+    timezone: 'Asia/Shanghai',
+  };
+}
+
+async function saveTask() {
+  const body = formData();
+  try {
+    if (editingId) await api(`/api/tasks/${editingId}`, {method: 'PUT', body: JSON.stringify(body)});
+    else await api('/api/tasks', {method: 'POST', body: JSON.stringify(body)});
+    $('#taskDlg').close();
+    toast('已保存');
+    refreshStatus();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function doPreview() {
+  const b = formData();
+  try {
+    const r = await api('/api/preview', {method: 'POST', body: JSON.stringify(b)});
+    let txt = r.text;
+    if (b.at_all && chips.some(c => c.type === 'group')) txt = '@全体成员\n' + txt;
+    if (b.image_id) txt += '\n[图片]';
+    $('#preview').textContent = txt || '（空）';
+    $('#preview').classList.remove('muted');
+  } catch (e) { toast(e.message, true); }
+}
+
+async function testSend() {
+  if (!chips.length) return toast('先添加一个发送目标', true);
+  if (!confirm(`把当前内容立即发送到：${chips.map(c => c.name).join('、')}？`)) return;
+  try {
+    let id = editingId;
+    if (!id) {
+      const r = await api('/api/tasks', {method: 'POST', body: JSON.stringify(formData())});
+      id = r.id; editingId = id;
+      toast('已先保存任务');
+    } else {
+      await api(`/api/tasks/${id}`, {method: 'PUT', body: JSON.stringify(formData())});
+    }
+    const res = await api(`/api/tasks/${id}/run`, {method: 'POST', body: '{}'});
+    toast(`已发送 ${res.sent} 条`);
+    refreshStatus();
+  } catch (e) { toast(e.message, true); }
+}
+
+// ---------- 设置 ----------
+async function openSettings() {
+  try {
+    const s = await api('/api/settings');
+    $('#s-http').value = s.onebot_http || '';
+    $('#s-token').value = s.onebot_token || '';
+    $('#s-rss').value = s.rss_timeout || 15;
+    $('#s-old').value = ''; $('#s-new').value = '';
+    $('#setDlg').showModal();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function saveSettings() {
+  try {
+    await api('/api/settings', {method: 'POST', body: JSON.stringify({
+      onebot_http: $('#s-http').value.trim(),
+      onebot_token: $('#s-token').value,
+      rss_timeout: Number($('#s-rss').value) || 15,
+    })});
+    const oldP = $('#s-old').value, newP = $('#s-new').value;
+    if (newP || oldP) {
+      await api('/api/password', {method: 'POST', body: JSON.stringify({old_password: oldP, new_password: newP})});
+    }
+    $('#setDlg').close();
+    toast('设置已保存');
+    refreshStatus();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function logout() {
+  await api('/api/logout', {method: 'POST'}).catch(() => {});
+  location.href = '/login';
+}
+
+// ---------- 日志 ----------
+function logLine(r) {
+  const cls = r.level === 'error' ? 'err' : r.level === 'warn' ? 'warn' : '';
+  return `<div class="${cls}"><time>${esc(r.created_at)}</time>${esc(r.message)}</div>`;
+}
+async function loadLogs() {
+  try {
+    const rows = await api('/api/logs?limit=200');
+    $('#log').innerHTML = rows.map(logLine).join('') || '<div class="muted">暂无日志</div>';
+  } catch {}
+}
+async function clearLogs() {
+  try { await api('/api/logs', {method: 'DELETE'}); loadLogs(); } catch (e) { toast(e.message, true); }
+}
+
+function connectSSE() {
+  try {
+    const es = new EventSource('/api/events');
+    es.onmessage = ev => {
+      const r = JSON.parse(ev.data);
+      const box = $('#log');
+      box.insertAdjacentHTML('afterbegin', logLine(r));
+      while (box.children.length > 400) box.lastChild.remove();
+    };
+    es.onerror = () => { es.close(); setTimeout(connectSSE, 8000); };
+  } catch {}
+}
+
+// ---------- 启动 ----------
+fillSelects();
+loadImages();
+refreshStatus();
+loadLogs();
+connectSSE();
+setInterval(refreshStatus, 30000);
+</script>
+</body>
+</html>

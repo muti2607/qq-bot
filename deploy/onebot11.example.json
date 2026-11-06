@@ -1,0 +1,26 @@
+{
+  "_说明": "OneBot11 HTTP 配置样例。复制到 ./napcat/config/onebot11_你的QQ号.json 后执行 docker compose restart napcat。端口3001只在容器内网使用，机器人通过 http://napcat:3001 访问。想更安全可给 token 填随机串，并在机器人后台设置里填同样的值。",
+  "network": {
+    "httpServers": [
+      {
+        "name": "http",
+        "enable": true,
+        "host": "0.0.0.0",
+        "port": 3001,
+        "enableCors": true,
+        "enableWebsocket": false,
+        "messagePostFormat": "array",
+        "token": "",
+        "debug": false
+      }
+    ],
+    "httpSseServers": [],
+    "httpClients": [],
+    "websocketServers": [],
+    "websocketClients": [],
+    "plugins": []
+  },
+  "musicSignUrl": "",
+  "enableLocalFile2Url": false,
+  "parseMultMsg": false
+}

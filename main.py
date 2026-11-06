@@ -1,0 +1,575 @@
+"""QQ 定时发布机器人 —— Web 管理端 + 调度器。"""
+from __future__ import annotations
+
+import asyncio
+import base64
+import datetime as _dt
+import hashlib
+import json
+import logging
+import os
+import secrets
+import time
+import uuid
+from pathlib import Path
+from typing import Any
+
+from apscheduler.triggers.cron import CronTrigger
+from cryptography.fernet import Fernet, InvalidToken
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
+from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel, Field
+
+import db
+import onebot
+import scheduler
+import sender
+
+BASE_DIR = Path(__file__).resolve().parent
+PORT = int(os.getenv("PORT", "8080"))
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+log = logging.getLogger("qqbot")
+
+db.init_db()
+
+# 首次启动时可用环境变量预置管理密码（之后在网页“设置”里修改）
+if os.getenv("ADMIN_PASSWORD") and not db.get_settings().get("admin_password"):
+    db.set_settings({"admin_password": os.getenv("ADMIN_PASSWORD", "")})
+
+# 首次启动时可用环境变量预设 OneBot 地址
+if os.getenv("ONEBOT_HTTP") and db.get_settings().get("onebot_http") == db.DEFAULT_SETTINGS["onebot_http"]:
+    db.set_settings({"onebot_http": os.getenv("ONEBOT_HTTP", "")})
+if os.getenv("ONEBOT_TOKEN"):
+    db.set_settings({"onebot_token": os.getenv("ONEBOT_TOKEN", "")})
+
+# OneBot 的阻塞调用统一放到线程里执行，避免卡住事件循环。
+async def _onebot_call(fn, *args):
+    return await asyncio.to_thread(fn, *args)
+
+app = FastAPI(title="QQ 定时发布机器人", docs_url=None, redoc_url=None)
+
+# ---------------- 登录（单密码 + 签名 Cookie） ----------------
+
+COOKIE_NAME = "qdb_session"
+
+
+def _fernet() -> Fernet:
+    key_file = db.DATA_DIR / "secret.key"
+    if not key_file.exists():
+        key_file.write_bytes(Fernet.generate_key())
+        try:
+            key_file.chmod(0o600)
+        except OSError:
+            pass
+    return Fernet(key_file.read_bytes().strip())
+
+
+def _sign() -> str:
+    token = f"{secrets.token_hex(8)}:{int(time.time())}:{_pwd_fingerprint()}"
+    return _fernet().encrypt(token.encode()).decode()
+
+
+def _pwd_fingerprint() -> str:
+    pwd = db.get_settings().get("admin_password", "")
+    return hashlib.sha256(pwd.encode()).hexdigest()[:12]
+
+
+def _verify(cookie: str | None) -> bool:
+    if not cookie:
+        return False
+    try:
+        raw = _fernet().decrypt(cookie.encode(), ttl=60 * 60 * 24 * 30).decode()
+    except (InvalidToken, Exception):
+        return False
+    # 密码改过之后旧会话立即失效
+    parts = raw.split(":")
+    return len(parts) == 3 and parts[2] == _pwd_fingerprint()
+
+
+def _auth_required() -> bool:
+    return bool(db.get_settings().get("admin_password"))
+
+
+async def require_auth(request: Request) -> None:
+    if not _auth_required():
+        return
+    if not _verify(request.cookies.get(COOKIE_NAME)):
+        raise HTTPException(status_code=401, detail="未登录")
+
+
+@app.middleware("http")
+async def auth_middleware(request: Request, call_next):
+    path = request.url.path
+    public = path.startswith("/login") or path.startswith("/api/login") or path.startswith("/static")
+    if not public and _auth_required() and not _verify(request.cookies.get(COOKIE_NAME)):
+        if path.startswith("/api/"):
+            return JSONResponse({"detail": "未登录"}, status_code=401)
+        return RedirectResponse("/login")
+    return await call_next(request)
+
+
+@app.get("/login", response_class=HTMLResponse)
+async def login_page():
+    return (BASE_DIR / "static" / "login.html").read_text(encoding="utf-8")
+
+
+@app.post("/api/login")
+async def api_login(request: Request):
+    body = await request.json()
+    pwd = str(body.get("password") or "")
+    if not _auth_required():
+        return {"ok": True}
+    if not secrets.compare_digest(pwd, db.get_settings().get("admin_password", "")):
+        await asyncio.sleep(0.6)
+        raise HTTPException(status_code=403, detail="密码错误")
+    resp = JSONResponse({"ok": True})
+    resp.set_cookie(COOKIE_NAME, _sign(), httponly=True, samesite="lax", max_age=60 * 60 * 24 * 30)
+    return resp
+
+
+@app.post("/api/logout")
+async def api_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie(COOKIE_NAME)
+    return resp
+
+
+# ---------------- 页面 ----------------
+
+
+@app.get("/", response_class=HTMLResponse)
+async def index():
+    return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
+
+
+# ---------------- 设置 / 状态 ----------------
+
+
+class SettingsIn(BaseModel):
+    onebot_http: str | None = None
+    onebot_token: str | None = None
+    admin_password: str | None = None
+    rss_timeout: int | None = None
+
+
+@app.get("/api/settings")
+async def api_get_settings():
+    s = db.get_settings()
+    s["onebot_token"] = "******" if s.get("onebot_token") else ""
+    s.pop("admin_password", None)
+    s["has_password"] = _auth_required()
+    return s
+
+
+@app.post("/api/settings")
+async def api_save_settings(body: SettingsIn):
+    data: dict[str, Any] = {}
+    if body.onebot_http is not None:
+        data["onebot_http"] = body.onebot_http.strip()
+    if body.onebot_token is not None and body.onebot_token != "******":
+        data["onebot_token"] = body.onebot_token.strip()
+    if body.rss_timeout is not None:
+        data["rss_timeout"] = str(body.rss_timeout)
+    db.set_settings(data)
+    return {"ok": True}
+
+
+class PasswordIn(BaseModel):
+    old_password: str = ""
+    new_password: str
+
+
+@app.post("/api/password")
+async def api_password(body: PasswordIn):
+    cur = db.get_settings().get("admin_password", "")
+    if cur and not secrets.compare_digest(body.old_password, cur):
+        raise HTTPException(403, "原密码错误")
+    new = body.new_password.strip()
+    if new and len(new) < 4:
+        raise HTTPException(400, "新密码至少 4 位")
+    db.set_settings({"admin_password": new})
+    return {"ok": True}
+
+
+@app.get("/api/status")
+async def api_status():
+    st = await _onebot_call(onebot.get_status)
+    st["next_runs"] = scheduler.next_runs()
+    st["server_time"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return st
+
+
+# ---------------- 目标列表 ----------------
+
+
+@app.get("/api/groups")
+async def api_groups():
+    try:
+        groups = await _onebot_call(onebot.get_group_list)
+    except onebot.OneBotError as e:
+        raise HTTPException(502, str(e))
+    out = [
+        {
+            "type": "group",
+            "id": g.get("group_id"),
+            "name": g.get("group_name") or str(g.get("group_id")),
+            "member_count": g.get("member_count"),
+        }
+        for g in groups
+    ]
+    out.sort(key=lambda x: str(x["name"]))
+    return out
+
+
+@app.get("/api/friends")
+async def api_friends():
+    try:
+        friends = await _onebot_call(onebot.get_friend_list)
+    except onebot.OneBotError as e:
+        raise HTTPException(502, str(e))
+    out = [
+        {
+            "type": "private",
+            "id": f.get("user_id"),
+            "name": f.get("remark") or f.get("nickname") or str(f.get("user_id")),
+        }
+        for f in friends
+    ]
+    out.sort(key=lambda x: str(x["name"]))
+    return out
+
+
+class LookupIn(BaseModel):
+    id: int
+
+
+@app.post("/api/lookup")
+async def api_lookup(body: LookupIn):
+    """按 QQ 号查昵称（用于手动添加不认识的私聊对象）。"""
+    try:
+        info = await _onebot_call(onebot.get_stranger_info, body.id)
+    except onebot.OneBotError as e:
+        raise HTTPException(502, str(e))
+    return {"type": "private", "id": body.id, "name": info.get("nickname") or str(body.id)}
+
+
+# ---------------- 任务 ----------------
+
+
+class Target(BaseModel):
+    type: str
+    id: int
+    name: str = ""
+
+
+class TaskIn(BaseModel):
+    name: str = ""
+    enabled: bool = True
+    content: str = ""
+    image_id: int | None = None
+    rss_url: str = ""
+    source_mode: str = "static"
+    at_all: bool = False
+    targets: list[Target] = Field(default_factory=list)
+    schedule: str = "0 9 * * *"
+    timezone: str = "Asia/Shanghai"
+
+
+def _validate(body: TaskIn) -> None:
+    try:
+        CronTrigger.from_crontab(body.schedule, timezone=body.timezone or "Asia/Shanghai")
+    except Exception as e:
+        raise HTTPException(400, f"cron 表达式无效：{e}")
+    if body.source_mode not in ("static", "rss_text", "rss_with_link"):
+        raise HTTPException(400, "source_mode 无效")
+    if not body.content.strip() and not body.image_id and body.source_mode == "static":
+        raise HTTPException(400, "内容和图片至少填一个")
+    if body.source_mode != "static" and not body.rss_url.strip():
+        raise HTTPException(400, "RSS 模式需要填写 RSS 地址")
+    for t in body.targets:
+        if t.type not in ("group", "private"):
+            raise HTTPException(400, f"目标类型无效：{t.type}")
+
+
+@app.get("/api/tasks")
+async def api_tasks():
+    tasks = db.list_tasks()
+    nxt = scheduler.next_runs()
+    for t in tasks:
+        t["next_run"] = nxt.get(t["id"])
+        if t.get("image_id"):
+            img = db.get_image(int(t["image_id"]))
+            t["image"] = img
+    return tasks
+
+
+@app.get("/api/tasks/{task_id}")
+async def api_task(task_id: int):
+    t = db.get_task(task_id)
+    if not t:
+        raise HTTPException(404, "任务不存在")
+    t["next_run"] = scheduler.next_runs().get(task_id)
+    return t
+
+
+@app.post("/api/tasks")
+async def api_create_task(body: TaskIn):
+    _validate(body)
+    tid = db.create_task(body.model_dump())
+    scheduler.reload_task(tid)
+    db.add_log(f"新建任务《{body.name or tid}》", "info", tid)
+    return {"ok": True, "id": tid}
+
+
+@app.put("/api/tasks/{task_id}")
+async def api_update_task(task_id: int, body: TaskIn):
+    if not db.get_task(task_id):
+        raise HTTPException(404, "任务不存在")
+    _validate(body)
+    db.update_task(task_id, body.model_dump())
+    scheduler.reload_task(task_id)
+    db.add_log(f"修改任务《{body.name or task_id}》", "info", task_id)
+    return {"ok": True}
+
+
+@app.delete("/api/tasks/{task_id}")
+async def api_delete_task(task_id: int):
+    db.delete_task(task_id)
+    scheduler.reload_task(task_id)
+    db.add_log(f"删除任务 #{task_id}", "warn", task_id)
+    return {"ok": True}
+
+
+class ToggleIn(BaseModel):
+    enabled: bool
+
+
+@app.post("/api/tasks/{task_id}/toggle")
+async def api_toggle_task(task_id: int, body: ToggleIn):
+    if not db.get_task(task_id):
+        raise HTTPException(404, "任务不存在")
+    db.update_task(task_id, {"enabled": body.enabled})
+    scheduler.reload_task(task_id)
+    db.add_log(f"任务 #{task_id} 已{'启用' if body.enabled else '停用'}", "info", task_id)
+    return {"ok": True}
+
+
+class PreviewIn(BaseModel):
+    content: str = ""
+    rss_url: str = ""
+    source_mode: str = "static"
+    name: str = ""
+    image_id: int | None = None
+
+
+@app.post("/api/preview")
+async def api_preview(body: PreviewIn):
+    """预览渲染后的文本（不发送）。"""
+    task = {
+        "content": body.content,
+        "rss_url": body.rss_url,
+        "source_mode": body.source_mode,
+        "name": body.name,
+        "image_id": None,  # 预览只展示文本
+    }
+    now = _dt.datetime.now(_tz())
+    try:
+        segments = await _onebot_call(sender.build_segments, task, now)
+    except Exception as e:
+        raise HTTPException(400, str(e))
+    parts = []
+    for seg in segments:
+        if seg["type"] == "text":
+            parts.append(seg["data"]["text"])
+        elif seg["type"] == "image":
+            parts.append("[图片]")
+    return {"text": "\n".join(parts)}
+
+
+class RunIn(BaseModel):
+    text: str | None = None
+    target_type: str | None = None  # 仅测试发送时使用
+    target_id: int | None = None
+
+
+@app.post("/api/tasks/{task_id}/run")
+async def api_run_task(task_id: int, body: RunIn | None = None):
+    if not db.get_task(task_id):
+        raise HTTPException(404, "任务不存在")
+    override_targets = None
+    if body and body.target_type and body.target_id:
+        override_targets = [{"type": body.target_type, "id": body.target_id, "name": "测试目标"}]
+    res = await _onebot_call(
+        scheduler.run_task, task_id, (body.text if body else None), override_targets
+    )
+    db.add_log(f"手动执行任务 #{task_id}：成功 {res['sent']}，失败 {res['failed']}", "info", task_id)
+    if not res["ok"]:
+        raise HTTPException(400, "；".join(res["errors"]) or "发送失败")
+    return res
+
+
+# ---------------- 图片库 ----------------
+
+
+@app.get("/api/images")
+async def api_images():
+    return db.list_images()
+
+
+@app.post("/api/images")
+async def api_upload_image(file: UploadFile = File(...)):
+    ext = Path(file.filename or "").suffix.lower() or ".png"
+    if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
+        raise HTTPException(400, "仅支持 png/jpg/jpeg/gif/webp/bmp")
+    name = Path(file.filename or "").stem[:20].replace("/", "_") or "img"
+    name = f"{name}-{uuid.uuid4().hex}{ext}"
+    dest = db.UPLOAD_DIR / name
+    size = 0
+    try:
+        with dest.open("wb") as f:
+            while chunk := await file.read(1 << 20):
+                size += len(chunk)
+                if size > 10 * 1024 * 1024:
+                    raise HTTPException(400, "图片不能超过 10MB")
+                f.write(chunk)
+    except HTTPException:
+        dest.unlink(missing_ok=True)
+        raise
+    iid = db.add_image(name, file.filename or name, size)
+    db.add_log(f"上传图片 {file.filename}（{size // 1024} KB）", "info")
+    return {"ok": True, "id": iid}
+
+
+@app.get("/api/images/{image_id}/file")
+async def api_image_file(image_id: int):
+    img = db.get_image(image_id)
+    if not img:
+        raise HTTPException(404, "图片不存在")
+    path = db.UPLOAD_DIR / img["filename"]
+    if not path.exists():
+        raise HTTPException(404, "文件丢失")
+    resp = Response(path.read_bytes(), media_type=_guess_mime(img["filename"]))
+    resp.headers["Cache-Control"] = "max-age=86400"  # 文件名是随机 uuid，可放心长缓存
+    return resp
+
+
+def _data_uri(filename: str) -> str:
+    path = db.UPLOAD_DIR / filename
+    if not path.exists():
+        raise HTTPException(404, "文件丢失")
+    b64 = base64.b64encode(path.read_bytes()).decode()
+    return f"data:{_guess_mime(filename)};base64,{b64}"
+
+
+@app.get("/api/images/{image_id}/data")
+async def api_image_data(image_id: int):
+    """返回 data URI，方便页面直接显示（某些浏览器无法加载无扩展名的图片路径）。"""
+    img = db.get_image(image_id)
+    if not img:
+        raise HTTPException(404, "图片不存在")
+    return {"data": _data_uri(img["filename"])}
+
+
+@app.delete("/api/images/{image_id}")
+async def api_delete_image(image_id: int):
+    img = db.get_image(image_id)
+    if not img:
+        raise HTTPException(404, "图片不存在")
+    db.delete_image(image_id)
+    (db.UPLOAD_DIR / img["filename"]).unlink(missing_ok=True)
+    return {"ok": True}
+
+
+def _guess_mime(name: str) -> str:
+    return {
+        ".png": "image/png",
+        ".jpg": "image/jpeg",
+        ".jpeg": "image/jpeg",
+        ".gif": "image/gif",
+        ".webp": "image/webp",
+        ".bmp": "image/bmp",
+    }.get(Path(name).suffix.lower(), "application/octet-stream")
+
+
+# ---------------- 日志 ----------------
+
+
+@app.get("/api/logs")
+async def api_logs(limit: int = 200):
+    return db.list_logs(limit)
+
+
+@app.delete("/api/logs")
+async def api_clear_logs():
+    db.clear_logs()
+    return {"ok": True}
+
+
+@app.get("/api/events")
+async def api_events(request: Request):
+    """SSE：把新日志实时推给页面。"""
+
+    async def gen():
+        last_id = 0
+        while True:
+            if await request.is_disconnected():
+                break
+            rows = db.list_logs(50)
+            new = [r for r in rows if r["id"] > last_id]
+            new.reverse()
+            for r in new:
+                last_id = r["id"]
+                yield "data: " + json.dumps(r, ensure_ascii=False) + "\n\n"
+            await asyncio.sleep(3)
+
+    return Response(
+        gen(),
+        media_type="text/event-stream",
+        headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
+    )
+
+
+def _tz():
+    from zoneinfo import ZoneInfo
+
+    return ZoneInfo("Asia/Shanghai")
+
+
+@app.on_event("startup")
+async def _startup():
+    scheduler.start()
+    if not db.list_tasks():
+        # 首次启动给一个示例任务（默认停用，避免误发）
+        tid = db.create_task(
+            {
+                "name": "每日早安（示例）",
+                "enabled": False,
+                "content": "早上好呀！今天是 {date} {weekday}，祝大家一切顺利 🌞",
+                "schedule": "0 8 * * *",
+                "timezone": "Asia/Shanghai",
+                "targets": [],
+            }
+        )
+        db.add_log(f"已创建示例任务 #{tid}（默认停用，设置目标和群后手动启用）", "info", tid)
+    log.info("服务启动，端口 %s", PORT)
+    if not _auth_required():
+        log.warning("当前未设置管理密码，任何人访问端口都能操作，建议在“设置”里立即设置！")
+
+
+@app.on_event("shutdown")
+async def _shutdown():
+    scheduler.shutdown()
+
+
+app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
+
+
+if __name__ == "__main__":
+    import uvicorn
+
+    uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")

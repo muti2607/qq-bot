@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · QQ 定时发布机器人</title>
+<style>
+  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1218;color:#e7ecf3;
+       font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
+  form{background:#171b24;border:1px solid #2a3140;border-radius:14px;padding:26px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.45)}
+  h1{font-size:17px;margin:0 0 4px}
+  p{color:#93a0b4;margin:0 0 18px;font-size:13px}
+  input{width:100%;box-sizing:border-box;background:#0f1218;color:#e7ecf3;border:1px solid #2a3140;border-radius:8px;padding:10px 12px;font:inherit}
+  button{margin-top:14px;width:100%;padding:10px;border:none;border-radius:8px;background:#4c8bf5;color:#fff;font:inherit;cursor:pointer}
+  button:disabled{opacity:.6}
+  .err{color:#e5544b;font-size:13px;min-height:18px;margin-top:8px}
+</style>
+</head>
+<body>
+<form onsubmit="login(event)">
+  <h1>QQ 定时发布机器人</h1>
+  <p>请输入管理密码</p>
+  <input id="pwd" type="password" autocomplete="current-password" autofocus>
+  <button id="btn" type="submit">登录</button>
+  <div id="err" class="err"></div>
+</form>
+<script>
+async function login(e) {
+  e.preventDefault();
+  const btn = document.getElementById('btn'), err = document.getElementById('err');
+  btn.disabled = true; err.textContent = '';
+  try {
+    const res = await fetch('/api/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({password: document.getElementById('pwd').value}),
+    });
+    if (res.ok) { location.href = '/'; return; }
+    const d = await res.json().catch(() => ({}));
+    err.textContent = d.detail || '登录失败';
+  } catch (x) { err.textContent = '网络错误：' + x.message; }
+  btn.disabled = false;
+}
+</script>
+</body>
+</html>

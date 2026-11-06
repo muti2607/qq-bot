@@ -1,0 +1,36 @@
+services:
+  # NapCat：QQ 协议端（扫码登录后即在线），对外只开 WebUI 3000
+  napcat:
+    image: mlikiowa/napcat-docker:latest
+    container_name: napcat
+    restart: unless-stopped
+    environment:
+      - NAPCAT_UID=${NAPCAT_UID:-1000}
+      - NAPCAT_GID=${NAPCAT_GID:-1000}
+      - MODE=ws
+    ports:
+      # 3000 是 NapCat WebUI 扫码登录页；只对本地回环开放，用 SSH 隧道访问
+      - "127.0.0.1:3000:3000"
+      # 3001 是 OneBot 11 HTTP 接口，只在容器内网使用，不对外暴露端口
+    volumes:
+      - ./napcat/config:/app/napcat/config
+      - ./napcat/qq:/app/.config/QQ
+    mem_limit: 900m
+
+  # 机器人：管理后台 + 定时器
+  bot:
+    build: .
+    container_name: qq-daily-bot
+    restart: unless-stopped
+    depends_on:
+      - napcat
+    environment:
+      - PORT=8080
+      - TZ=Asia/Shanghai
+      - ONEBOT_HTTP=http://napcat:3001
+    volumes:
+      - ./data:/app/data
+    ports:
+      # 管理后台：只开在本机，用 SSH 隧道 / Nginx 反代访问
+      - "127.0.0.1:8080:8080"
+    mem_limit: 400m

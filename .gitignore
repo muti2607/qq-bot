@@ -1,0 +1,10 @@
+# 敏感/运行时文件
+data/
+napcat/
+.venv/
+venv/
+__pycache__/
+*.pyc
+.env
+_selftest*.py
+.DS_Store
