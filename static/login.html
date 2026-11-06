@@ -5,15 +5,28 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>登录 · QQ 定时发布机器人</title>
 <style>
-  body{margin:0;min-height:100vh;display:grid;place-items:center;background:#0f1218;color:#e7ecf3;
-       font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif}
-  form{background:#171b24;border:1px solid #2a3140;border-radius:14px;padding:26px;width:min(360px,90vw);box-shadow:0 12px 40px rgba(0,0,0,.45)}
-  h1{font-size:17px;margin:0 0 4px}
-  p{color:#93a0b4;margin:0 0 18px;font-size:13px}
-  input{width:100%;box-sizing:border-box;background:#0f1218;color:#e7ecf3;border:1px solid #2a3140;border-radius:8px;padding:10px 12px;font:inherit}
-  button{margin-top:14px;width:100%;padding:10px;border:none;border-radius:8px;background:#4c8bf5;color:#fff;font:inherit;cursor:pointer}
+  body{margin:0;min-height:100vh;display:grid;place-items:center;color:#3f3350;
+       font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+       background:
+         radial-gradient(900px 500px at 10% -10%, #ffd6ea 0%, transparent 55%),
+         radial-gradient(800px 400px at 90% 0%, #dcd6ff 0%, transparent 50%),
+         radial-gradient(700px 500px at 50% 110%, #cfe6ff 0%, transparent 55%),
+         linear-gradient(160deg,#ffe3f1,#e9e4ff 55%,#dbeafe);
+       background-attachment:fixed}
+  form{background:rgba(255,255,255,.8);backdrop-filter:blur(12px);
+       border:1px solid rgba(255,255,255,.9);border-radius:22px;padding:30px 26px;width:min(360px,90vw);
+       box-shadow:0 18px 50px rgba(236,72,153,.18)}
+  h1{font-size:18px;margin:0 0 4px;font-weight:800;
+     background:linear-gradient(92deg,#ec4899,#8b5cf6);
+     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  p{color:#9b8fae;margin:0 0 18px;font-size:13px}
+  input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.85);color:#3f3350;border:1px solid #f3d3e3;border-radius:12px;padding:10px 12px;font:inherit}
+  input:focus{outline:none;border-color:#f472b6;box-shadow:0 0 0 3px rgba(244,114,182,.18)}
+  button{margin-top:14px;width:100%;padding:10px;border:none;border-radius:999px;color:#fff;font:inherit;cursor:pointer;
+         background:linear-gradient(92deg,#ec4899,#a855f7);box-shadow:0 6px 18px rgba(236,72,153,.35);transition:.18s}
+  button:hover{filter:brightness(1.06)}
   button:disabled{opacity:.6}
-  .err{color:#e5544b;font-size:13px;min-height:18px;margin-top:8px}
+  .err{color:#e11d48;font-size:13px;min-height:18px;margin-top:8px}
 </style>
 </head>
 <body>
