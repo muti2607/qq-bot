@@ -519,11 +519,18 @@ setInterval(() => showQuote(), 45000);
 
 function toast(msg, isErr) {
   const t = $('#toast');
+  // 弹窗(dialog)在浏览器顶层渲染，普通 fixed 元素 z-index 再高也会被盖住；
+  // 有打开的 dialog 时把 toast 挪进去，保证错误提示显示在最上层
+  const dlg = [...document.querySelectorAll('dialog[open]')].pop();
+  (dlg || document.body).appendChild(t);
   t.textContent = msg;
   t.classList.toggle('err', !!isErr);
   t.classList.add('show');
   clearTimeout(t._h);
-  t._h = setTimeout(() => t.classList.remove('show'), 2600);
+  t._h = setTimeout(() => {
+    t.classList.remove('show');
+    setTimeout(() => { if (t.parentNode !== document.body) document.body.appendChild(t); }, 400);
+  }, 2600);
 }
 
 async function api(path, opts = {}) {
