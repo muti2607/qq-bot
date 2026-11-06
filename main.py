@@ -464,6 +464,48 @@ async def onebot_event(request: Request):
     return {"ok": True}
 
 
+# ---------------- 群组预设 ----------------
+
+
+class PresetIn(BaseModel):
+    name: str
+    targets: list[Target] = Field(default_factory=list)
+
+
+@app.get("/api/presets")
+async def api_presets():
+    return db.list_presets()
+
+
+@app.post("/api/presets")
+async def api_create_preset(body: PresetIn):
+    if not body.name.strip():
+        raise HTTPException(400, "预设名称不能为空")
+    for t in body.targets:
+        if t.type not in ("group", "private"):
+            raise HTTPException(400, f"目标类型无效：{t.type}")
+    pid = db.create_preset(body.name, [t.model_dump() for t in body.targets])
+    db.add_log(f"新建群组预设《{body.name}》（{len(body.targets)} 个目标）", "info")
+    return {"ok": True, "id": pid}
+
+
+@app.put("/api/presets/{pid}")
+async def api_update_preset(pid: int, body: PresetIn):
+    if not any(p["id"] == pid for p in db.list_presets()):
+        raise HTTPException(404, "预设不存在")
+    if not body.name.strip():
+        raise HTTPException(400, "预设名称不能为空")
+    db.update_preset(pid, body.name, [t.model_dump() for t in body.targets])
+    return {"ok": True}
+
+
+@app.delete("/api/presets/{pid}")
+async def api_delete_preset(pid: int):
+    db.delete_preset(pid)
+    db.add_log(f"删除群组预设 #{pid}", "warn")
+    return {"ok": True}
+
+
 # ---------------- 触发词 ----------------
 
 

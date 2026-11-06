@@ -70,6 +70,13 @@ CREATE TABLE IF NOT EXISTS settings (
     key   TEXT PRIMARY KEY,
     value TEXT NOT NULL
 );
+
+CREATE TABLE IF NOT EXISTS presets (
+    id       INTEGER PRIMARY KEY AUTOINCREMENT,
+    name     TEXT NOT NULL,
+    targets  TEXT NOT NULL DEFAULT '[]',  -- JSON: [{"type":"group","id":123,"name":"xx"}]
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 """
 
 
@@ -278,6 +285,45 @@ def delete_image(image_id: int) -> None:
     with db() as conn:
         conn.execute("UPDATE tasks SET image_id=NULL WHERE image_id=?", (image_id,))
         conn.execute("DELETE FROM images WHERE id=?", (image_id,))
+
+
+# ---------------- presets（群组预设） ----------------
+
+
+def list_presets() -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM presets ORDER BY id").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        try:
+            d["targets"] = json.loads(d.get("targets") or "[]")
+        except json.JSONDecodeError:
+            d["targets"] = []
+        out.append(d)
+    return out
+
+
+def create_preset(name: str, targets: list[dict]) -> int:
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO presets(name, targets) VALUES(?,?)",
+            (name.strip(), json.dumps(targets, ensure_ascii=False)),
+        )
+        return int(cur.lastrowid)
+
+
+def update_preset(pid: int, name: str, targets: list[dict]) -> None:
+    with db() as conn:
+        conn.execute(
+            "UPDATE presets SET name=?, targets=? WHERE id=?",
+            (name.strip(), json.dumps(targets, ensure_ascii=False), pid),
+        )
+
+
+def delete_preset(pid: int) -> None:
+    with db() as conn:
+        conn.execute("DELETE FROM presets WHERE id=?", (pid,))
 
 
 # ---------------- triggers（@触发回复） ----------------

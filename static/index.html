@@ -205,6 +205,12 @@
           <button type="button" class="small" onclick="addTarget()">添加</button>
           <button type="button" class="small" onclick="loadTargets(true)">刷新列表</button>
         </div>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <select id="f-preset" style="max-width:220px"></select>
+          <button type="button" class="small" onclick="applyPreset()">载入预设</button>
+          <button type="button" class="small" onclick="saveAsPreset()">把当前目标存为预设</button>
+          <button type="button" class="small danger" onclick="delPreset()">删除预设</button>
+        </div>
         <div id="f-chips" class="chips"></div>
         <div class="hint">也可以直接输入 QQ 号添加私聊对象。</div>
         <div style="display:flex;gap:8px;margin-top:6px">
@@ -492,6 +498,7 @@ async function openTaskForm(id) {
   chips = (t.targets || []).map(x => ({type: x.type, id: Number(x.id), name: x.name || String(x.id)}));
   renderChips();
   renderVars(t.vars || []);
+  loadPresets();
   await loadImages();
   $('#f-image').value = t.image_id || '';
   poolSel = new Set((t.image_ids || []).map(Number));
@@ -650,6 +657,45 @@ function renderChips() {
     <span class="chip"><span class="tag ${c.type === 'private' ? 'p' : ''}">${c.type === 'group' ? '群' : '私'}</span>
       <b>${esc(c.name)}</b><span class="muted">${c.id}</span>
       <span class="x" onclick="chips.splice(${i},1);renderChips()">✕</span></span>`).join('') : '<span class="muted" style="font-size:12px">还没有选择目标</span>';
+}
+
+// ---------- 群组预设 ----------
+let presets = [];
+async function loadPresets() {
+  try { presets = await api('/api/presets'); } catch { presets = []; }
+  $('#f-preset').innerHTML = presets.length
+    ? presets.map(p => `<option value="${p.id}">${esc(p.name)}（${p.targets.length}）</option>`).join('')
+    : '<option value="">（暂无预设）</option>';
+}
+function applyPreset() {
+  const p = presets.find(x => x.id === Number($('#f-preset').value));
+  if (!p) return toast('先选择一个预设', true);
+  let added = 0;
+  for (const t of p.targets) {
+    const c = {type: t.type, id: Number(t.id), name: t.name || String(t.id)};
+    if (!chips.some(x => x.type === c.type && x.id === c.id)) { chips.push(c); added++; }
+  }
+  renderChips();
+  toast(`已载入《${p.name}》：新增 ${added} 个目标`);
+}
+async function saveAsPreset() {
+  if (!chips.length) return toast('当前没有目标可保存', true);
+  const name = (prompt('预设名称，例如「比赛通知组」', '') || '').trim();
+  if (!name) return;
+  try {
+    await api('/api/presets', {method: 'POST', body: JSON.stringify({name, targets: chips})});
+    await loadPresets();
+    $('#f-preset').value = String(presets[presets.length - 1].id);
+    toast(`已存为预设《${name}》`);
+  } catch (e) { toast(e.message, true); }
+}
+async function delPreset() {
+  const id = Number($('#f-preset').value);
+  const p = presets.find(x => x.id === id);
+  if (!p) return toast('先选择一个预设', true);
+  if (!confirm(`删除预设《${p.name}》？`)) return;
+  try { await api(`/api/presets/${id}`, {method: 'DELETE'}); await loadPresets(); toast('已删除'); }
+  catch (e) { toast(e.message, true); }
 }
 
 function formData() {
@@ -905,6 +951,7 @@ function connectSSE() {
 fillSelects();
 loadImages();
 loadTriggers();
+loadPresets();
 refreshStatus();
 loadLogs();
 connectSSE();
