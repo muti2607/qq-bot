@@ -277,6 +277,11 @@
       </div>
       <div class="field" id="t-scope-groups" style="display:none">
         <span style="font-size:12px;color:var(--sub)">指定群（可多选）</span>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <select id="t-preset" style="max-width:220px"></select>
+          <button type="button" class="small" onclick="applyPresetToGroups()">载入预设</button>
+          <button type="button" class="small" onclick="saveGroupsAsPreset()">把勾选存为预设</button>
+        </div>
         <div style="display:flex;gap:8px">
           <select id="t-group-select" multiple size="6" style="flex:1"></select>
         </div>
@@ -827,6 +832,8 @@ async function openTriggerForm(id) {
   let scopeVal = t.scope || 'all';
   if (scopeVal.startsWith('group:')) scopeVal = 'group_ids';
   $('#t-scope').value = scopeVal;
+  if (!presets.length) { try { presets = await api('/api/presets'); } catch {} }
+  renderPresetSelect();
   await fillGroupSelect(t.scope);
   onScopeChange();
   onTrigImageMode();
@@ -846,6 +853,34 @@ async function fillGroupSelect(scope) {
 
 function onScopeChange() {
   $('#t-scope-groups').style.display = $('#t-scope').value === 'group_ids' ? '' : 'none';
+}
+
+function renderPresetSelect() {
+  $('#t-preset').innerHTML = presets.length
+    ? presets.map(p => `<option value="${p.id}">${esc(p.name)}（${p.targets.length}）</option>`).join('')
+    : '<option value="">（暂无预设）</option>';
+}
+function applyPresetToGroups() {
+  const p = presets.find(x => x.id === Number($('#t-preset').value));
+  if (!p) return toast('先选择一个预设', true);
+  const ids = new Set(p.targets.filter(t => t.type === 'group').map(t => String(t.id)));
+  if (!ids.size) return toast('该预设里没有群聊目标', true);
+  [...$('#t-group-select').options].forEach(o => { if (ids.has(o.value)) o.selected = true; });
+  toast(`已载入《${p.name}》里的 ${ids.size} 个群`);
+}
+async function saveGroupsAsPreset() {
+  const chosen = [...$('#t-group-select').selectedOptions];
+  if (!chosen.length) return toast('先在列表里勾选几个群', true);
+  const name = (prompt('预设名称，例如「比赛通知组」', '') || '').trim();
+  if (!name) return;
+  const targets = chosen.map(o => ({type: 'group', id: Number(o.value), name: o.textContent}));
+  try {
+    await api('/api/presets', {method: 'POST', body: JSON.stringify({name, targets})});
+    await loadPresets();
+    renderPresetSelect();
+    $('#t-preset').value = String(presets[presets.length - 1].id);
+    toast(`已存为预设《${name}》`);
+  } catch (e) { toast(e.message, true); }
 }
 
 function onTrigImageMode() {
