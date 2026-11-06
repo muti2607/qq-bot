@@ -161,15 +161,19 @@
   .preview{white-space:pre-wrap;background:rgba(255,255,255,.6);
     border:1px dashed var(--line2);border-radius:14px;padding:12px;min-height:64px;font-size:13px}
   .quote{
-    text-align:center;padding:26px 18px 22px;border-radius:var(--radius);
+    text-align:center;padding:38px 26px 30px;border-radius:var(--radius);min-height:220px;
+    display:flex;flex-direction:column;justify-content:center;gap:6px;
     background:linear-gradient(160deg,rgba(255,255,255,.85),rgba(253,240,249,.7));
     border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow);position:relative;overflow:hidden;
   }
-  .quote::before{content:"“";position:absolute;top:-6px;left:16px;font-size:74px;
-    color:rgba(236,72,153,.14);font-family:Georgia,serif}
-  .quote p{margin:0;font-size:14px;line-height:1.9;color:#6b5b7f;font-style:italic}
-  .quote .who{margin-top:10px;font-size:12px;color:var(--pink);font-weight:600}
+  .quote::before{content:"“";position:absolute;top:-14px;left:18px;font-size:110px;
+    color:rgba(236,72,153,.13);font-family:Georgia,serif}
+  .quote p{margin:0;font-size:17px;line-height:2;color:#5b4a72;font-style:italic;
+    transition:opacity .5s;font-weight:500}
+  .quote .who{margin-top:12px;font-size:13px;color:var(--pink);font-weight:600;transition:opacity .5s}
   .quote .who::before{content:"—— "}
+  .quote .qbtns{position:absolute;bottom:8px;right:12px;display:flex;gap:6px;opacity:.35;transition:.2s}
+  .quote:hover .qbtns{opacity:1}
   .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
   .stat{background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.8);
     border-radius:14px;padding:8px 4px;text-align:center}
@@ -200,6 +204,7 @@
       <section class="quote">
         <p id="quote-text">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
         <div class="who" id="quote-who">网络</div>
+        <div class="qbtns"><button class="small" title="换一句" onclick="showQuote(true)">换一句</button></div>
       </section>
       <section class="panel">
         <h2>运行日志 <button class="small" style="margin-left:auto" onclick="clearLogs()">清空</button></h2>
@@ -358,13 +363,25 @@
           <select id="t-enabled"><option value="1">启用</option><option value="0">停用</option></select>
         </label>
       </div>
-      <label class="field"><span>回复内容（支持全部占位符；留空则只发图片）</span>
+      <label class="field"><span>回复内容（支持全部占位符，含 {quote} 随机名言；留空则只发图片/名言）</span>
         <textarea id="t-reply" placeholder="距离1209考核还有{days:1209}天"></textarea>
       </label>
       <div class="grid3">
         <label class="field"><span>必须 @机器人 才触发</span>
           <select id="t-at"><option value="1">是（推荐）</option><option value="0">否（提到关键词就回）</option></select>
         </label>
+        <label class="field"><span>随机名言</span>
+          <select id="t-quote">
+            <option value="off">关闭</option>
+            <option value="append">正文后附一句</option>
+            <option value="replace">只回复名言</option>
+          </select>
+        </label>
+        <label class="field"><span>冷却秒数（同群同词最短间隔）</span>
+          <input id="t-cd" type="number" min="0" max="3600" value="10">
+        </label>
+      </div>
+      <div class="grid2">
         <label class="field"><span>生效范围</span>
           <select id="t-scope" onchange="onScopeChange()">
             <option value="all">所有群+私聊</option>
@@ -372,9 +389,6 @@
             <option value="private">仅私聊</option>
             <option value="group_ids">指定群…</option>
           </select>
-        </label>
-        <label class="field"><span>冷却秒数（同群同词最短间隔）</span>
-          <input id="t-cd" type="number" min="0" max="3600" value="10">
         </label>
       </div>
       <div class="field" id="t-scope-groups" style="display:none">
@@ -434,6 +448,15 @@
         <input id="s-rss" type="number" min="5" max="60">
       </label>
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">名言池（右侧卡片轮播 &amp; 触发回复的随机名言都用它；每行一条，格式：内容|出处）</span>
+        <textarea id="s-quotes" style="min-height:150px;font-size:12px" placeholder="一行一条，例如：&#10;星光不问赶路人，时光不负有心人。|大冰"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <span id="quotes-count" class="hint"></span>
+          <button type="button" class="small" onclick="resetQuotes()">恢复内置默认</button>
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
       <div class="grid2">
         <label class="field"><span>原管理密码（首次设置留空）</span><input id="s-old" type="password" autocomplete="current-password"></label>
         <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
@@ -453,26 +476,35 @@
 const $ = s => document.querySelector(s);
 let tasks = [], images = [], chips = [], editingId = null, targetsCache = {group: [], private: []};
 
-// ---------- 诗意文案轮播 ----------
-const QUOTES = [
-  ["语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。", "网络"],
-  ["种一棵树最好的时间是十年前，其次是现在。", "谚语"],
-  ["把每天该说的话准时说出，就是机器人全部的浪漫。", "本机"],
-  ["岁月不居，时节如流。", "孔融《论盛孝章书》"],
-  ["星光不问赶路人，时光不负有心人。", "大冰"],
-  ["凡是过往，皆为序章。", "莎士比亚"],
-  ["行到水穷处，坐看云起时。", "王维"],
-  ["人生天地之间，若白驹之过隙，忽然而已。", "庄子"],
-  ["念念不忘，必有回响。", "《一代宗师》"],
-  ["海内存知己，天涯若比邻。", "王勃"],
-  ["万物皆有裂痕，那是光照进来的地方。", "莱昂纳德·科恩"],
-  ["你未看此花时，此花与汝心同归于寂。", "王阳明"],
-];
-(function rotateQuote() {
-  const q = QUOTES[Math.floor(Math.random() * QUOTES.length)];
-  $("#quote-text").textContent = "“" + q[0] + "”";
-  $("#quote-who").textContent = q[1];
-})();
+// ---------- 诗意文案轮播（数据来自 /api/quotes，含用户自定义池） ----------
+let quotePool = [], quoteIdx = -1;
+async function loadQuotePool() {
+  try {
+    const d = await api('/api/quotes');
+    quotePool = d.quotes || [];
+    if (quoteIdx >= quotePool.length) quoteIdx = -1;
+    if (!$("#quote-text").textContent.trim()) showQuote(false);
+  } catch {}
+}
+function showQuote(manual) {
+  if (!quotePool.length) return;
+  let next;
+  do { next = Math.floor(Math.random() * quotePool.length); }
+  while (quotePool.length > 1 && next === quoteIdx);
+  quoteIdx = next;
+  const raw = quotePool[next];
+  const [text, who] = raw.includes('|') ? raw.split(/\|(.*)/s) : [raw, ''];
+  const p = $("#quote-text"), w = $("#quote-who");
+  p.style.opacity = 0; w.style.opacity = 0;
+  setTimeout(() => {
+    p.textContent = "“" + text.trim() + "”";
+    w.textContent = who ? who.trim() : "";
+    w.style.display = who ? '' : 'none';
+    p.style.opacity = 1; w.style.opacity = 1;
+  }, 300);
+}
+loadQuotePool();
+setInterval(() => showQuote(false), 45000);
 
 function toast(msg, isErr) {
   const t = $('#toast');
@@ -913,12 +945,14 @@ function renderTriggers() {
   box.innerHTML = triggers.map(t => {
     const scopeTxt = {all: '所有会话', group: '所有群', private: '仅私聊'}[t.scope] || (t.scope.startsWith('group:') ? '指定群' : t.scope);
     const imgTxt = t.image_mode === 'random' ? '随机图' : t.image_mode === 'fixed' ? '固定图' : '';
+    const qTxt = t.quote_mode === 'replace' ? '只回名言' : t.quote_mode === 'append' ? '附名言' : '';
     return `<div class="t">
       <div class="body">
         <div class="title">${esc(t.keyword)}
           <span class="pill ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '停用'}</span>
           <span class="pill off">${t.at_required ? '需@' : '免@'}</span>
           <span class="pill off">${esc(scopeTxt)}</span>
+          ${qTxt ? `<span class="pill off">💬 ${qTxt}</span>` : ''}
           ${imgTxt ? `<span class="pill off">🖼 ${imgTxt}</span>` : ''}
         </div>
         <div class="meta"><span>${esc((t.reply_text || '').slice(0, 60)) || '（仅图片）'}</span><span>冷却 ${t.cooldown}s</span></div>
@@ -950,7 +984,7 @@ async function delTrigger(id) {
 async function openTriggerForm(id) {
   trigEditing = id;
   $('#trig-dlg-title').textContent = id ? `编辑触发 #${id}` : '新建触发';
-  let t = {keyword: '', reply_text: '', image_mode: 'none', image_id: null, image_ids: [], at_required: true, scope: 'all', cooldown: 10, enabled: true};
+  let t = {keyword: '', reply_text: '', image_mode: 'none', image_id: null, image_ids: [], at_required: true, scope: 'all', cooldown: 10, quote_mode: 'off', enabled: true};
   if (id !== null) {
     t = triggers.find(x => x.id === id) || t;
   }
@@ -959,6 +993,7 @@ async function openTriggerForm(id) {
   $('#t-reply').value = t.reply_text || '';
   $('#t-enabled').value = t.enabled ? '1' : '0';
   $('#t-at').value = t.at_required ? '1' : '0';
+  $('#t-quote').value = t.quote_mode || 'off';
   $('#t-cd').value = t.cooldown ?? 10;
   $('#t-imagemode').value = t.image_mode || 'none';
   $('#t-image').value = t.image_id || '';
@@ -1042,6 +1077,7 @@ async function saveTrigger() {
     at_required: $('#t-at').value === '1',
     scope,
     cooldown: Number($('#t-cd').value) || 0,
+    quote_mode: $('#t-quote').value,
     enabled: $('#t-enabled').value === '1',
   };
   try {
@@ -1062,7 +1098,26 @@ async function openSettings() {
     $('#s-post-token').value = s.post_token || '';
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-old').value = ''; $('#s-new').value = '';
+    loadQuoteEditor();
     $('#setDlg').showModal();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function loadQuoteEditor() {
+  try {
+    const d = await api('/api/quotes');
+    $('#s-quotes').value = d.quotes.join('\n');
+    $('#quotes-count').textContent = `${d.quotes.length} 条${d.custom ? '（自定义）' : '（内置默认 ' + d.default_count + ' 条）'}`;
+  } catch (e) { toast(e.message, true); }
+}
+
+async function resetQuotes() {
+  if (!confirm('恢复内置默认名言池？你的自定义名言会被清除。')) return;
+  try {
+    await api('/api/quotes', {method: 'DELETE'});
+    await loadQuoteEditor();
+    await loadQuotePool();
+    toast('已恢复默认名言池');
   } catch (e) { toast(e.message, true); }
 }
 
@@ -1074,6 +1129,11 @@ async function saveSettings() {
       post_token: $('#s-post-token').value,
       rss_timeout: Number($('#s-rss').value) || 15,
     })});
+    const quoteLines = ($('#s-quotes').value || '').split('\n').map(x => x.trim()).filter(Boolean);
+    if (quoteLines.length) {
+      await api('/api/quotes', {method: 'POST', body: JSON.stringify({quotes: quoteLines})});
+      await loadQuotePool();
+    }
     const oldP = $('#s-old').value, newP = $('#s-new').value;
     if (newP || oldP) {
       await api('/api/password', {method: 'POST', body: JSON.stringify({old_password: oldP, new_password: newP})});

@@ -112,9 +112,18 @@ def _fmt_num(x) -> str:
     return str(x)
 
 
+def random_quote() -> str:
+    """从名言池随机取一条，格式：「名言」 ——出处"""
+    q = random.choice(db.get_quotes())
+    if "|" in q:
+        text, who = q.split("|", 1)
+        return f"“{text.strip()}” ——{who.strip()}"
+    return f"“{q.strip()}”"
+
+
 def render_template(content: str, task: dict, now: _dt.datetime) -> str:
     """支持占位符：
-    {date} {time} {datetime} {weekday} {name}
+    {date} {time} {datetime} {weekday} {name} {quote}
     自定义变量：任务 vars 里的 {key}
     倒计时：{days:1209} {days:2027-03-01} {date:1209} {label:1209} {weekday_of:1209}
     算术：{=115-30} {=(2027-2026)*365}
@@ -134,6 +143,8 @@ def render_template(content: str, task: dict, now: _dt.datetime) -> str:
 
     def repl(m: re.Match) -> str:
         key = m.group(1)
+        if key == "quote":
+            return random_quote()
         return mapping.get(key, m.group(0))
 
     text = re.sub(r"\{(\w+)\}", repl, content or "")

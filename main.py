@@ -518,6 +518,7 @@ class TriggerIn(BaseModel):
     at_required: bool = True
     scope: str = "all"
     cooldown: int = 10
+    quote_mode: str = "off"   # off | replace | append
     enabled: bool = True
 
 
@@ -526,8 +527,10 @@ def _validate_trigger(body: TriggerIn) -> None:
         raise HTTPException(400, "触发词不能为空")
     if body.image_mode not in ("none", "fixed", "random"):
         raise HTTPException(400, "image_mode 无效")
-    if not body.reply_text.strip() and body.image_mode == "none":
-        raise HTTPException(400, "回复内容和图片至少填一个")
+    if body.quote_mode not in ("off", "replace", "append"):
+        raise HTTPException(400, "quote_mode 无效")
+    if not body.reply_text.strip() and body.image_mode == "none" and body.quote_mode == "off":
+        raise HTTPException(400, "回复内容、图片和随机名言至少选一个")
     if body.scope not in ("all", "group", "private") and not body.scope.startswith("group:"):
         raise HTTPException(400, "scope 无效")
 
@@ -559,6 +562,38 @@ async def api_update_trigger(tid: int, body: TriggerIn):
 async def api_delete_trigger(tid: int):
     db.delete_trigger(tid)
     db.add_log(f"删除触发词 #{tid}", "warn")
+    return {"ok": True}
+
+
+# ---------------- 名言池 ----------------
+
+
+class QuotesIn(BaseModel):
+    quotes: list[str]
+
+
+@app.get("/api/quotes")
+async def api_quotes():
+    custom = bool((db.get_settings().get("quotes") or "").strip())
+    return {"custom": custom, "quotes": db.get_quotes(), "default_count": len(db.DEFAULT_QUOTES)}
+
+
+@app.post("/api/quotes")
+async def api_save_quotes(body: QuotesIn):
+    items = [q.strip() for q in body.quotes if q.strip()]
+    if not items:
+        raise HTTPException(400, "名言列表不能为空（想恢复默认请点重置）")
+    if len(items) > 2000:
+        raise HTTPException(400, "最多 2000 条")
+    db.set_settings({"quotes": json.dumps(items, ensure_ascii=False)})
+    db.add_log(f"更新自定义名言池（{len(items)} 条）", "info")
+    return {"ok": True, "count": len(items)}
+
+
+@app.delete("/api/quotes")
+async def api_reset_quotes():
+    db.set_settings({"quotes": ""})
+    db.add_log("名言池已恢复默认", "info")
     return {"ok": True}
 
 

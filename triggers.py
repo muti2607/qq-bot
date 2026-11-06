@@ -124,6 +124,14 @@ def handle_event(event: dict) -> None:
         db.add_log(f"触发词《{trigger['keyword']}》回复渲染失败：{e}", "error", None)
         return
 
+    # 随机名言模式：replace=整条回复只发名言；append=正文后另起一段附名言
+    qmode = trigger.get("quote_mode") or "off"
+    if qmode == "replace":
+        rendered = sender.random_quote()
+    elif qmode == "append":
+        quote = sender.random_quote()
+        rendered = f"{rendered}\n{quote}" if rendered.strip() else quote
+
     segments_out = []
     if is_group and self_qq:
         # 群里回复时先 @ 回提问者

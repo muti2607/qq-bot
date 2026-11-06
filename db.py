@@ -46,6 +46,7 @@ CREATE TABLE IF NOT EXISTS triggers (
     at_required INTEGER NOT NULL DEFAULT 1,        -- 必须 @机器人 才触发
     scope       TEXT    NOT NULL DEFAULT 'all',    -- all | group:123,456 | private
     cooldown    INTEGER NOT NULL DEFAULT 10,       -- 同一会话同一触发词的最小间隔秒数
+    quote_mode  TEXT    NOT NULL DEFAULT 'off',    -- off | replace | append（随机名言）
     enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT    NOT NULL DEFAULT (datetime('now','localtime'))
 );
@@ -123,6 +124,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     ):
         if name not in task_cols:
             conn.execute(f"ALTER TABLE tasks ADD COLUMN {name} {ddl}")
+    trig_cols = cols("triggers")
+    if "quote_mode" not in trig_cols:
+        conn.execute("ALTER TABLE triggers ADD COLUMN quote_mode TEXT NOT NULL DEFAULT 'off'")
 
 
 # ---------------- settings ----------------
@@ -134,6 +138,93 @@ DEFAULT_SETTINGS = {
     "admin_password": "",
     "rss_timeout": "15",
 }
+
+DEFAULT_QUOTES = [
+    "语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。|网络",
+    "种一棵树最好的时间是十年前，其次是现在。|谚语",
+    "岁月不居，时节如流。|孔融《论盛孝章书》",
+    "星光不问赶路人，时光不负有心人。|大冰",
+    "凡是过往，皆为序章。|莎士比亚",
+    "行到水穷处，坐看云起时。|王维《终南别业》",
+    "人生天地之间，若白驹之过隙，忽然而已。|《庄子·知北游》",
+    "念念不忘，必有回响。|《一代宗师》",
+    "海内存知己，天涯若比邻。|王勃《送杜少府之任蜀州》",
+    "万物皆有裂痕，那是光照进来的地方。|莱昂纳德·科恩",
+    "你未看此花时，此花与汝心同归于寂。|王阳明《传习录》",
+    "关关雎鸠，在河之洲。|《诗经·周南》",
+    "路漫漫其修远兮，吾将上下而求索。|屈原《离骚》",
+    "长风破浪会有时，直挂云帆济沧海。|李白《行路难》",
+    "会当凌绝顶，一览众山小。|杜甫《望岳》",
+    "竹杖芒鞋轻胜马，谁怕？一蓑烟雨任平生。|苏轼《定风波》",
+    "大漠孤烟直，长河落日圆。|王维《使至塞上》",
+    "落霞与孤鹜齐飞，秋水共长天一色。|王勃《滕王阁序》",
+    "千淘万漉虽辛苦，吹尽狂沙始到金。|刘禹锡《浪淘沙》",
+    "沉舟侧畔千帆过，病树前头万木春。|刘禹锡《酬乐天扬州初逢席上见赠》",
+    "山重水复疑无路，柳暗花明又一村。|陆游《游山西村》",
+    "纸上得来终觉浅，绝知此事要躬行。|陆游《冬夜读书示子聿》",
+    "问渠那得清如许？为有源头活水来。|朱熹《观书有感》",
+    "不畏浮云遮望眼，自缘身在最高层。|王安石《登飞来峰》",
+    "春风得意马蹄疾，一日看尽长安花。|孟郊《登科后》",
+    "天生我材必有用，千金散尽还复来。|李白《将进酒》",
+    "安能摧眉折腰事权贵，使我不得开心颜。|李白《梦游天姥吟留别》",
+    "捐躯赴国难，视死忽如归。|曹植《白马篇》",
+    "老骥伏枥，志在千里。|曹操《龟虽寿》",
+    "鞠躬尽瘁，死而后已。|诸葛亮《后出师表》",
+    "非淡泊无以明志，非宁静无以致远。|诸葛亮《诫子书》",
+    "先天下之忧而忧，后天下之乐而乐。|范仲淹《岳阳楼记》",
+    "醉翁之意不在酒，在乎山水之间也。|欧阳修《醉翁亭记》",
+    "出淤泥而不染，濯清涟而不妖。|周敦颐《爱莲说》",
+    "不以物喜，不以己悲。|范仲淹《岳阳楼记》",
+    "天行健，君子以自强不息。|《周易》",
+    "地势坤，君子以厚德载物。|《周易》",
+    "己所不欲，勿施于人。|《论语·颜渊》",
+    "三军可夺帅也，匹夫不可夺志也。|《论语·子罕》",
+    "学而不思则罔，思而不学则殆。|《论语·为政》",
+    "知之者不如好之者，好之者不如乐之者。|《论语·雍也》",
+    "苟日新，日日新，又日新。|《大学》",
+    "独学而无友，则孤陋而寡闻。|《礼记·学记》",
+    "玉不琢，不成器；人不学，不知道。|《礼记·学记》",
+    "千里之行，始于足下。|《道德经》",
+    "合抱之木，生于毫末。|《道德经》",
+    "上善若水，水善利万物而不争。|《道德经》",
+    "知人者智，自知者明。|《道德经》",
+    "吾生也有涯，而知也无涯。|《庄子·养生主》",
+    "相濡以沫，不如相忘于江湖。|《庄子·大宗师》",
+    "鹏程万里，扶摇直上。|《庄子·逍遥游》",
+    "亦余心之所善兮，虽九死其犹未悔。|屈原《离骚》",
+    "世界是你们的，也是我们的，但是归根结底是你们的。|毛泽东",
+    "牢骚太盛防肠断，风物长宜放眼量。|毛泽东《和柳亚子先生》",
+    "世上无难事，只要肯登攀。|毛泽东《水调歌头·重上井冈山》",
+    "身体是革命的本钱。|毛泽东",
+    "黑夜无论怎样悠长，白昼总会到来。|莎士比亚",
+    "活着的人总要比死去的人辛苦。|路遥《平凡的世界》",
+    "生活不能等待别人来安排，要自己去争取和奋斗。|路遥《平凡的世界》",
+    "人间值得，未来可期。|网络",
+    "但行好事，莫问前程。|《增广贤文》",
+    "博观而约取，厚积而薄发。|苏轼《稼说送张琥》",
+    "立志欲坚不欲锐，成功在久不在速。|张孝祥《论治体札子》",
+    "古之立大事者，不惟有超世之才，亦必有坚忍不拔之志。|苏轼《晁错论》",
+    "功不唐捐，玉汝于成。|张载（西铭）",
+    "追风赶月莫停留，平芜尽处是春山。|网络",
+    "少年应有鸿鹄志，当骑骏马踏平川。|网络",
+    "鲜衣怒马少年时，不负韶华行且知。|网络",
+    "道阻且长，行则将至。|《诗经·蒹葭》化用",
+    "心心在一艺，其艺必工；心心在一职，其职必举。|《围炉夜话》",
+    "运营是设计出来的，不是救火救出来的。|工程师谚语",
+    "把每天该说的话准时说出，就是机器人全部的浪漫。|本机",
+]
+
+
+def get_quotes() -> list[str]:
+    raw = get_settings().get("quotes", "")
+    if raw.strip():
+        try:
+            data = json.loads(raw)
+            if isinstance(data, list) and data:
+                return [str(x) for x in data]
+        except json.JSONDecodeError:
+            pass
+    return list(DEFAULT_QUOTES)
 
 
 def get_settings() -> dict[str, str]:
@@ -354,11 +445,11 @@ def get_trigger(tid: int) -> dict[str, Any] | None:
 
 
 TRIGGER_FIELDS = ("keyword", "reply_text", "image_mode", "image_id", "image_ids",
-                  "at_required", "scope", "cooldown", "enabled")
+                  "at_required", "scope", "cooldown", "quote_mode", "enabled")
 
 
-def create_trigger(data: dict[str, Any]) -> int:
-    v = {
+def _trigger_values(data: dict[str, Any]) -> dict[str, Any]:
+    return {
         "keyword": (data.get("keyword") or "").strip(),
         "reply_text": data.get("reply_text") or "",
         "image_mode": data.get("image_mode") or "none",
@@ -367,33 +458,28 @@ def create_trigger(data: dict[str, Any]) -> int:
         "at_required": int(bool(data.get("at_required", True))),
         "scope": data.get("scope") or "all",
         "cooldown": int(data.get("cooldown") or 0),
+        "quote_mode": data.get("quote_mode") or "off",
         "enabled": int(bool(data.get("enabled", True))),
     }
+
+
+def create_trigger(data: dict[str, Any]) -> int:
+    v = _trigger_values(data)
     with db() as conn:
         cur = conn.execute(
             "INSERT INTO triggers(keyword, reply_text, image_mode, image_id, image_ids, "
-            "at_required, scope, cooldown, enabled) VALUES(?,?,?,?,?,?,?,?,?)",
+            "at_required, scope, cooldown, quote_mode, enabled) VALUES(?,?,?,?,?,?,?,?,?,?)",
             tuple(v[k] for k in TRIGGER_FIELDS),
         )
         return int(cur.lastrowid)
 
 
 def update_trigger(tid: int, data: dict[str, Any]) -> None:
-    v = {
-        "keyword": (data.get("keyword") or "").strip(),
-        "reply_text": data.get("reply_text") or "",
-        "image_mode": data.get("image_mode") or "none",
-        "image_id": data.get("image_id") or None,
-        "image_ids": json.dumps(data.get("image_ids") or [], ensure_ascii=False),
-        "at_required": int(bool(data.get("at_required", True))),
-        "scope": data.get("scope") or "all",
-        "cooldown": int(data.get("cooldown") or 0),
-        "enabled": int(bool(data.get("enabled", True))),
-    }
+    v = _trigger_values(data)
     with db() as conn:
         conn.execute(
             "UPDATE triggers SET keyword=?, reply_text=?, image_mode=?, image_id=?, "
-            "image_ids=?, at_required=?, scope=?, cooldown=?, enabled=? WHERE id=?",
+            "image_ids=?, at_required=?, scope=?, cooldown=?, quote_mode=?, enabled=? WHERE id=?",
             (*[v[k] for k in TRIGGER_FIELDS], tid),
         )
 
