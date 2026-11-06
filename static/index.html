@@ -152,9 +152,9 @@
         <div class="hint">支持任意 RSS/Atom 订阅地址。示例：https://www.ithome.com/rss/</div>
       </label>
 
-      <label class="field"><span>正文（支持占位符：{date} {time} {datetime} {weekday} {name}）</span>
-        <textarea id="f-content" placeholder="早上好！今天是 {date} {weekday}"></textarea>
-        <div class="hint">RSS 模式下，这里可以写前言（可留空），会拼在标题前面。</div>
+      <label class="field"><span>正文（占位符：{date} {time} {datetime} {weekday} {name}；倒计时：{days:1209} {days:2027-03-01} {label:1209} {weekday_of:1209}）</span>
+        <textarea id="f-content" placeholder="早上好！今天是 {date} {weekday}&#10;距离1209考核还有{days:1209}天"></textarea>
+        <div class="hint">RSS 模式下，这里可以写前言（可留空），会拼在标题前面。<br>{days:1209} 会在每次发送时自动算出还剩几天；只写月日时若今年已过会自动顺延到明年。</div>
       </label>
 
       <div class="grid2">

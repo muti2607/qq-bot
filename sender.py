@@ -28,8 +28,45 @@ def strip_html(text: str) -> str:
     return text.strip()
 
 
+_COUNTDOWN_RE = re.compile(
+    r"\{(days|date|label|weekday_of):([0-9]{3,4}|[0-9]{1,2}[-/][0-9]{1,2}|[0-9]{4}-[0-9]{2}-[0-9]{2})\}"
+)
+
+
+def _parse_target(raw: str, now: _dt.datetime) -> _dt.date:
+    """把 1209 / 12-09 / 12/9 / 2027-03-01 解析成具体日期。
+    只给月日时：若今年已过，自动顺延到明年。"""
+    s = raw.replace("/", "-")
+    if re.fullmatch(r"\d{3,4}", s):  # MMDD 或 MDD，如 1209 / 129
+        if len(s) == 4:
+            month, day = int(s[:2]), int(s[2:])
+        else:
+            month, day = int(s[0]), int(s[1:])
+    elif re.fullmatch(r"\d{1,2}-\d{1,2}", s):
+        month, day = (int(x) for x in s.split("-"))
+    else:
+        try:
+            y, m, d = (int(x) for x in s.split("-"))
+            return _dt.date(y, m, d)
+        except ValueError as e:
+            raise ValueError(f"无法识别的日期 {raw}（应写成 1209、12-09 或 2027-03-01）：{e}") from e
+    try:
+        target = _dt.date(now.year, month, day)
+    except ValueError as e:
+        raise ValueError(f"非法日期 {raw}：{e}") from e
+    if target < now.date():
+        try:
+            target = _dt.date(now.year + 1, month, day)
+        except ValueError as e:
+            raise ValueError(f"非法日期 {raw}：{e}") from e
+    return target
+
+
 def render_template(content: str, task: dict, now: _dt.datetime) -> str:
-    """支持占位符：{date} {time} {datetime} {weekday} {name}"""
+    """支持占位符：
+    {date} {time} {datetime} {weekday} {name}
+    倒计时：{days:1209} {days:2027-03-01} {date:1209} {label:1209} {weekday_of:1209}
+    """
     weekday_cn = "一二三四五六日"[now.weekday()]
     mapping = {
         "date": now.strftime("%Y-%m-%d"),
@@ -43,7 +80,23 @@ def render_template(content: str, task: dict, now: _dt.datetime) -> str:
         key = m.group(1)
         return mapping.get(key, m.group(0))
 
-    return re.sub(r"\{(\w+)\}", repl, content or "")
+    text = re.sub(r"\{(\w+)\}", repl, content or "")
+
+    def cd_repl(m: re.Match) -> str:
+        kind, raw = m.group(1), m.group(2)
+        try:
+            target = _parse_target(raw, now)
+        except ValueError as e:
+            return f"[{e}]"
+        if kind == "days":
+            return str((target - now.date()).days)
+        if kind == "date":
+            return target.strftime("%Y-%m-%d")
+        if kind == "label":
+            return f"{target.month}月{target.day}日"
+        return f"星期{'一二三四五六日'[target.weekday()]}"
+
+    return _COUNTDOWN_RE.sub(cd_repl, text)
 
 
 def fetch_rss(url: str, timeout: int = 15) -> dict:
