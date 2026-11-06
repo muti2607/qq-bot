@@ -6,7 +6,7 @@ set -euo pipefail
 APP_DIR="/opt/qq-bot"
 if [[ $EUID -ne 0 ]]; then echo "请用 root 或 sudo 运行"; exit 1; fi
 
-echo "==> 1/5 检查 Docker"
+echo "==> 1/6 检查 Docker"
 if ! command -v docker >/dev/null 2>&1; then
   echo "未检测到 Docker，尝试安装（阿里云镜像源）…"
   if command -v dnf >/dev/null 2>&1; then
@@ -32,7 +32,7 @@ if ! command -v docker >/dev/null 2>&1; then
 fi
 systemctl enable --now docker
 
-echo "==> 2/5 配置 Docker 镜像加速（国内拉不动镜像时用）"
+echo "==> 2/6 配置 Docker 镜像加速（国内拉不动镜像时用）"
 mkdir -p /etc/docker
 if [[ ! -f /etc/docker/daemon.json ]]; then
   cat > /etc/docker/daemon.json <<'EOF'
@@ -49,7 +49,7 @@ EOF
   systemctl restart docker
 fi
 
-echo "==> 3/5 复制程序到 $APP_DIR"
+echo "==> 3/6 复制程序到 $APP_DIR"
 SRC_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 mkdir -p "$APP_DIR"
 if [[ "$SRC_DIR" != "$APP_DIR" ]]; then
@@ -62,10 +62,36 @@ cd "$APP_DIR"
 mkdir -p data napcat/config napcat/qq
 chmod -R 777 napcat data || true
 
-echo "==> 4/5 构建并启动容器"
+echo "==> 4/6 预拉基础镜像（走国内加速，避免 buildkit 直连 Docker Hub 卡住）"
+# 国内直连 Docker Hub 基本不可用（实测 3KB/s），先从 daocloud 拉取再打本地标签，
+# docker compose build 时就直接命中本地镜像，不会再等 metadata 下载。
+MIRROR="m.daocloud.io/docker.io"
+pull_with_tag() {
+  local src="$1" dst="$2"
+  if docker image inspect "$dst" >/dev/null 2>&1; then
+    echo "    $dst 已存在，跳过"
+    return 0
+  fi
+  echo "    拉取 $src …"
+  if docker pull "$src"; then
+    docker tag "$src" "$dst"
+  else
+    echo "    !! 拉取 $src 失败，构建时可能直连 Docker Hub 而非常慢"
+  fi
+}
+
+pull_with_tag "$MIRROR/mlikiowa/napcat-docker:latest" "mlikiowa/napcat-docker:latest"
+pull_with_tag "$MIRROR/library/python:3.11-slim"    "python:3.11-slim"
+
+# 让 Dockerfile 的 FROM 也直接命中本地镜像
+if grep -q '^FROM python:3.11-slim' Dockerfile; then
+  sed -i "1s|^FROM python:3.11-slim|FROM $MIRROR/library/python:3.11-slim|" Dockerfile
+fi
+
+echo "==> 5/6 构建并启动容器（pip 已默认走阿里云 PyPI 源）"
 docker compose up -d --build
 
-echo "==> 5/5 安装开机自启"
+echo "==> 6/6 安装开机自启"
 if [[ -d /etc/systemd/system ]]; then
   cp deploy/qq-bot.service /etc/systemd/system/qq-bot.service 2>/dev/null || true
   systemctl daemon-reload

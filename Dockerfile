@@ -1,18 +1,17 @@
 FROM python:3.11-slim
 
-# 国内服务器构建时走清华 PyPI 镜像，加速依赖安装
-ARG PIP_INDEX_URL=https://pypi.tuna.tsinghua.edu.cn/simple
-
+# ---- 国内加速：默认走阿里云 PyPI 镜像，可用 --build-arg 覆盖 ----
+ARG PIP_INDEX_URL=https://mirrors.aliyun.com/pypi/simple/
 ENV PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_INDEX_URL=${PIP_INDEX_URL} \
-    PIP_TRUSTED_HOST=pypi.tuna.tsinghua.edu.cn \
+    PIP_TRUSTED_HOST=mirrors.aliyun.com \
     TZ=Asia/Shanghai
 
 WORKDIR /app
 
 COPY requirements.txt .
-RUN pip install --no-cache-dir -r requirements.txt
+RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
 
 COPY . .
 
