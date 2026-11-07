@@ -8,10 +8,7 @@ services:
       - NAPCAT_UID=${NAPCAT_UID:-1000}
       - NAPCAT_GID=${NAPCAT_GID:-1000}
       - MODE=ws
-    ports:
-      # 6099 是 NapCat WebUI 扫码登录页（实际端口以日志为准）；只对本地回环开放
-      - "127.0.0.1:6099:6099"
-      # 3001 是 OneBot 11 HTTP 接口，只在容器内网使用，不对外暴露端口
+    # 6099 WebUI 已停用（QQ 掉线靠 autoLogin 自动恢复，无需 WebUI）；3001 仅容器内网使用
     volumes:
       - ./napcat/config:/app/napcat/config
       - ./napcat/qq:/app/.config/QQ
