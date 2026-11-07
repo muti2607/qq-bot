@@ -5,28 +5,72 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>登录 · QQ 定时发布机器人</title>
 <style>
-  body{margin:0;min-height:100vh;display:grid;place-items:center;color:#3f3350;
+  :root{
+    --bg1:#ffe3f1; --bg2:#e9e4ff; --bg3:#dbeafe;
+    --glow1:#ffd6ea; --glow2:#dcd6ff; --glow3:#cfe6ff;
+    --card:rgba(255,255,255,.8); --txt:#3f3350; --sub:#9b8fae;
+    --line:#f3d3e3; --pink:#ec4899; --pink2:#f472b6;
+    --grad:linear-gradient(92deg,#ec4899,#a855f7);
+    --input-bg:rgba(255,255,255,.85);
+  }
+  [data-theme="midnight"]{
+    --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
+    --glow1:#233a63; --glow2:#34265e; --glow3:#16304a;
+    --card:rgba(30,38,58,.8); --txt:#e6e9f5; --sub:#8b93ad;
+    --line:#39415c; --pink:#818cf8; --pink2:#a78bfa;
+    --grad:linear-gradient(92deg,#818cf8,#c084fc);
+    --input-bg:rgba(24,31,48,.85);
+  }
+  [data-theme="forest"]{
+    --bg1:#e3f7ec; --bg2:#d9f0e3; --bg3:#e8f5d9;
+    --glow1:#c7f0d8; --glow2:#d5eec0; --glow3:#bfe9e0;
+    --card:rgba(255,255,255,.82); --txt:#264038; --sub:#7a9b8e;
+    --line:#c9e8d8; --pink:#10b981; --pink2:#34d399;
+    --grad:linear-gradient(92deg,#10b981,#0d9488);
+    --input-bg:rgba(255,255,255,.88);
+  }
+  [data-theme="sunset"]{
+    --bg1:#fff1e0; --bg2:#ffe4e0; --bg3:#fde8f0;
+    --glow1:#ffe0b2; --glow2:#ffd0c0; --glow3:#ffd6e8;
+    --card:rgba(255,255,255,.84); --txt:#4a3527; --sub:#a8896f;
+    --line:#fbd9c4; --pink:#f97316; --pink2:#fb923c;
+    --grad:linear-gradient(92deg,#f97316,#ef4444);
+    --input-bg:rgba(255,255,255,.9);
+  }
+  [data-theme="ink"]{
+    --bg1:#f4f4f2; --bg2:#eceae6; --bg3:#e6e8e4;
+    --glow1:#e8e6e1; --glow2:#dfe2dc; --glow3:#e4e4e6;
+    --card:rgba(255,255,255,.88); --txt:#2d3236; --sub:#8a8d86;
+    --line:#d8d6d0; --pink:#4b5563; --pink2:#6b7280;
+    --grad:linear-gradient(92deg,#374151,#1f2937);
+    --input-bg:rgba(255,255,255,.9);
+  }
+  body{margin:0;min-height:100vh;display:grid;place-items:center;color:var(--txt);
        font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
        background:
-         radial-gradient(900px 500px at 10% -10%, #ffd6ea 0%, transparent 55%),
-         radial-gradient(800px 400px at 90% 0%, #dcd6ff 0%, transparent 50%),
-         radial-gradient(700px 500px at 50% 110%, #cfe6ff 0%, transparent 55%),
-         linear-gradient(160deg,#ffe3f1,#e9e4ff 55%,#dbeafe);
-       background-attachment:fixed}
-  form{background:rgba(255,255,255,.8);backdrop-filter:blur(12px);
-       border:1px solid rgba(255,255,255,.9);border-radius:22px;padding:30px 26px;width:min(360px,90vw);
+         radial-gradient(900px 500px at 10% -10%, var(--glow1) 0%, transparent 55%),
+         radial-gradient(800px 400px at 90% 0%, var(--glow2) 0%, transparent 50%),
+         radial-gradient(700px 500px at 50% 110%, var(--glow3) 0%, transparent 55%),
+         linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
+       background-attachment:fixed;transition:background .35s ease,color .35s ease}
+  form{background:var(--card);backdrop-filter:blur(12px);
+       border:1px solid rgba(255,255,255,.5);border-radius:22px;padding:30px 26px;width:min(360px,90vw);
        box-shadow:0 18px 50px rgba(236,72,153,.18)}
   h1{font-size:18px;margin:0 0 4px;font-weight:800;
-     background:linear-gradient(92deg,#ec4899,#8b5cf6);
+     background:var(--grad);
      -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
-  p{color:#9b8fae;margin:0 0 18px;font-size:13px}
-  input{width:100%;box-sizing:border-box;background:rgba(255,255,255,.85);color:#3f3350;border:1px solid #f3d3e3;border-radius:12px;padding:10px 12px;font:inherit}
-  input:focus{outline:none;border-color:#f472b6;box-shadow:0 0 0 3px rgba(244,114,182,.18)}
+  p{color:var(--sub);margin:0 0 18px;font-size:13px}
+  input{width:100%;box-sizing:border-box;background:var(--input-bg);color:var(--txt);
+        border:1px solid var(--line);border-radius:12px;padding:10px 12px;font:inherit}
+  input:focus{outline:none;border-color:var(--pink2);box-shadow:0 0 0 3px rgba(244,114,182,.18)}
   button{margin-top:14px;width:100%;padding:10px;border:none;border-radius:999px;color:#fff;font:inherit;cursor:pointer;
-         background:linear-gradient(92deg,#ec4899,#a855f7);box-shadow:0 6px 18px rgba(236,72,153,.35);transition:.18s}
+         background:var(--grad);box-shadow:0 6px 18px rgba(236,72,153,.35);transition:.18s}
   button:hover{filter:brightness(1.06)}
   button:disabled{opacity:.6}
   .err{color:#e11d48;font-size:13px;min-height:18px;margin-top:8px}
+  .themebar{position:fixed;bottom:18px;right:18px;display:flex;gap:8px}
+  .themebar button{width:auto;margin:0;padding:6px 14px;font-size:12px;
+    background:var(--card);color:var(--txt);border:1px solid var(--line);box-shadow:none}
 </style>
 </head>
 <body>
@@ -37,7 +81,28 @@
   <button id="btn" type="submit">登录</button>
   <div id="err" class="err"></div>
 </form>
+<div class="themebar"><button onclick="cycleTheme()" id="theme-btn">◐ 主题</button></div>
 <script>
+const THEMES = [
+  {id: 'sakura', name: '樱花粉'}, {id: 'midnight', name: '午夜蓝'},
+  {id: 'forest', name: '森野绿'}, {id: 'sunset', name: '暖阳橙'},
+  {id: 'ink', name: '墨竹灰'},
+];
+function applyTheme(id) {
+  const t = THEMES.some(x => x.id === id) ? id : 'sakura';
+  if (t === 'sakura') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('qqbot-theme', t);
+  const b = document.getElementById('theme-btn');
+  if (b) b.textContent = '◐ ' + THEMES.find(x => x.id === t).name;
+}
+function cycleTheme() {
+  const cur = localStorage.getItem('qqbot-theme') || 'sakura';
+  const i = THEMES.findIndex(x => x.id === cur);
+  applyTheme(THEMES[(i + 1) % THEMES.length].id);
+}
+applyTheme(localStorage.getItem('qqbot-theme') || 'sakura');
+
 async function login(e) {
   e.preventDefault();
   const btn = document.getElementById('btn'), err = document.getElementById('err');

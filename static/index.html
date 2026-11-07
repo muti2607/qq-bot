@@ -5,37 +5,111 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>QQ 定时发布机器人</title>
 <style>
+  /* ========== 主题变量 ========== */
   :root{
     --bg1:#ffe3f1; --bg2:#e9e4ff; --bg3:#dbeafe;
+    --glow1:#ffd6ea; --glow2:#dcd6ff; --glow3:#cfe6ff;
     --card:rgba(255,255,255,.78);
+    --card-soft:rgba(255,255,255,.55);
     --line:rgba(236,72,153,.14); --line2:#f3d3e3;
-    --txt:#3f3350; --sub:#9b8fae; --pink:#ec4899; --pink2:#f472b6;
-    --violet:#8b5cf6; --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
+    --txt:#3f3350; --sub:#9b8fae;
+    --pink:#ec4899; --pink2:#f472b6; --violet:#8b5cf6;
+    --grad:linear-gradient(92deg,#ec4899,#a855f7);
+    --grad-soft:linear-gradient(140deg,#f472b6,#a855f7);
+    --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
     --radius:18px; --shadow:0 10px 32px rgba(236,72,153,.10);
+    --header-bg:rgba(255,255,255,.6);
+    --chip-bg:#fff;
+    --input-bg:rgba(255,255,255,.85);
+    --dlg-bg:#fff;
+    --dlg-head:linear-gradient(92deg,#fdf2f8,#f5f3ff);
   }
+
+  /* 深色 · 午夜 */
+  [data-theme="midnight"]{
+    --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
+    --glow1:#233a63; --glow2:#34265e; --glow3:#16304a;
+    --card:rgba(30,38,58,.72); --card-soft:rgba(38,48,72,.5);
+    --line:rgba(129,140,248,.18); --line2:#39415c;
+    --txt:#e6e9f5; --sub:#8b93ad;
+    --pink:#818cf8; --pink2:#a78bfa; --violet:#c084fc;
+    --grad:linear-gradient(92deg,#818cf8,#c084fc);
+    --grad-soft:linear-gradient(140deg,#6366f1,#a855f7);
+    --shadow:0 10px 32px rgba(0,0,0,.35);
+    --header-bg:rgba(22,28,44,.78);
+    --chip-bg:rgba(45,55,82,.9);
+    --input-bg:rgba(24,31,48,.85);
+    --dlg-bg:#1a2135;
+    --dlg-head:linear-gradient(92deg,#1e2740,#2a2145);
+  }
+
+  /* 森野 · 绿 */
+  [data-theme="forest"]{
+    --bg1:#e3f7ec; --bg2:#d9f0e3; --bg3:#e8f5d9;
+    --glow1:#c7f0d8; --glow2:#d5eec0; --glow3:#bfe9e0;
+    --card:rgba(255,255,255,.8); --card-soft:rgba(255,255,255,.55);
+    --line:rgba(16,185,129,.16); --line2:#c9e8d8;
+    --txt:#264038; --sub:#7a9b8e;
+    --pink:#10b981; --pink2:#34d399; --violet:#0d9488;
+    --grad:linear-gradient(92deg,#10b981,#0d9488);
+    --grad-soft:linear-gradient(140deg,#34d399,#059669);
+    --shadow:0 10px 32px rgba(16,185,129,.10);
+    --header-bg:rgba(255,255,255,.62);
+  }
+
+  /* 暖阳 · 橙 */
+  [data-theme="sunset"]{
+    --bg1:#fff1e0; --bg2:#ffe4e0; --bg3:#fde8f0;
+    --glow1:#ffe0b2; --glow2:#ffd0c0; --glow3:#ffd6e8;
+    --card:rgba(255,255,255,.82); --card-soft:rgba(255,255,255,.58);
+    --line:rgba(249,115,22,.16); --line2:#fbd9c4;
+    --txt:#4a3527; --sub:#a8896f;
+    --pink:#f97316; --pink2:#fb923c; --violet:#ef4444;
+    --grad:linear-gradient(92deg,#f97316,#ef4444);
+    --grad-soft:linear-gradient(140deg,#fb923c,#ef4444);
+    --shadow:0 10px 32px rgba(249,115,22,.12);
+    --header-bg:rgba(255,255,255,.65);
+  }
+
+  /* 墨竹 · 墨黑金 */
+  [data-theme="ink"]{
+    --bg1:#f4f4f2; --bg2:#eceae6; --bg3:#e6e8e4;
+    --glow1:#e8e6e1; --glow2:#dfe2dc; --glow3:#e4e4e6;
+    --card:rgba(255,255,255,.86); --card-soft:rgba(255,255,255,.6);
+    --line:rgba(75,85,99,.14); --line2:#d8d6d0;
+    --txt:#2d3236; --sub:#8a8d86;
+    --pink:#4b5563; --pink2:#6b7280; --violet:#1f2937;
+    --grad:linear-gradient(92deg,#374151,#1f2937);
+    --grad-soft:linear-gradient(140deg,#4b5563,#111827);
+    --shadow:0 10px 28px rgba(45,50,54,.10);
+    --header-bg:rgba(255,255,255,.72);
+  }
+
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
   body{
     margin:0;color:var(--txt);min-height:100vh;
     font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
     background:
-      radial-gradient(1200px 600px at 8% -10%, #ffd6ea 0%, transparent 55%),
-      radial-gradient(1000px 500px at 92% 0%, #dcd6ff 0%, transparent 50%),
-      radial-gradient(900px 700px at 50% 110%, #cfe6ff 0%, transparent 55%),
+      radial-gradient(1200px 600px at 8% -10%, var(--glow1) 0%, transparent 55%),
+      radial-gradient(1000px 500px at 92% 0%, var(--glow2) 0%, transparent 50%),
+      radial-gradient(900px 700px at 50% 110%, var(--glow3) 0%, transparent 55%),
       linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
     background-attachment:fixed;
+    transition:background .35s ease, color .35s ease;
   }
   a{color:var(--pink)}
   ::selection{background:#fbcfe8}
   header{
     display:flex;align-items:center;gap:14px;padding:14px 22px;
-    background:rgba(255,255,255,.6);backdrop-filter:blur(14px);
-    border-bottom:1px solid rgba(255,255,255,.7);
+    background:var(--header-bg);backdrop-filter:blur(14px);
+    border-bottom:1px solid var(--line);
     position:sticky;top:0;z-index:20;box-shadow:0 4px 24px rgba(236,72,153,.06);
+    transition:background .35s ease;
   }
   header h1{
     font-size:18px;margin:0;flex:none;font-weight:800;letter-spacing:.5px;
-    background:linear-gradient(92deg,#ec4899,#8b5cf6);
+    background:var(--grad);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
   }
   .status{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--sub)}
@@ -60,7 +134,7 @@
   }
   .panel{
     background:var(--card);backdrop-filter:blur(10px);
-    border:1px solid rgba(255,255,255,.75);
+    border:1px solid var(--line);
     border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);
   }
   .panel h2{
@@ -70,14 +144,14 @@
   .panel h2::before{content:"";width:5px;height:16px;border-radius:3px;
     background:linear-gradient(180deg,var(--pink),var(--violet))}
   button{
-    background:#fff;color:var(--txt);border:1px solid var(--line2);
+    background:var(--dlg-bg);color:var(--txt);border:1px solid var(--line2);
     border-radius:999px;padding:7px 15px;cursor:pointer;font:inherit;
     transition:.18s;box-shadow:0 2px 8px rgba(236,72,153,.06);
   }
   button:hover{border-color:var(--pink2);color:var(--pink);transform:translateY(-1px);
     box-shadow:0 6px 16px rgba(236,72,153,.14)}
   button.primary{
-    background:linear-gradient(92deg,#ec4899,#a855f7);border:none;color:#fff;
+    background:var(--grad);border:none;color:#fff;
     box-shadow:0 6px 18px rgba(236,72,153,.35);
   }
   button.primary:hover{color:#fff;filter:brightness(1.06)}
@@ -86,7 +160,7 @@
   button.small{padding:4px 11px;font-size:12px}
   button:disabled{opacity:.5;cursor:not-allowed;transform:none}
   input,select,textarea{
-    background:rgba(255,255,255,.85);color:var(--txt);
+    background:var(--input-bg);color:var(--txt);
     border:1px solid var(--line2);border-radius:12px;padding:8px 12px;font:inherit;width:100%;
     transition:.15s;
   }
@@ -99,8 +173,8 @@
   .grid3{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px}
   .hint{font-size:12px;color:var(--sub);margin-top:5px;line-height:1.7}
   .chips{display:flex;flex-wrap:wrap;gap:7px;min-height:38px;padding:8px;
-    background:rgba(255,255,255,.5);border:1.5px dashed var(--line2);border-radius:14px}
-  .chip{display:inline-flex;align-items:center;gap:6px;background:#fff;
+    background:var(--card-soft);border:1.5px dashed var(--line2);border-radius:14px}
+  .chip{display:inline-flex;align-items:center;gap:6px;background:var(--chip-bg);
     border:1px solid var(--line2);border-radius:999px;padding:3px 7px 3px 11px;font-size:12px;
     box-shadow:0 2px 6px rgba(236,72,153,.07)}
   .chip b{font-weight:500}
@@ -115,32 +189,32 @@
   .muted{color:var(--sub)}
   .ok{color:var(--ok)} .warn{color:var(--warn)} .err{color:var(--err)}
   .pill{display:inline-block;font-size:11px;padding:1px 9px;border-radius:999px;
-    border:1px solid var(--line2);background:#fff;color:var(--sub)}
+    border:1px solid var(--line2);background:var(--chip-bg);color:var(--sub)}
   .pill.on{color:#059669;border-color:#a7f3d0;background:#ecfdf5}
   .pill.off{color:#a8a1b7;background:#f5f3f7}
   .imgs{display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));gap:9px}
   .imgs .item{position:relative;border:1px solid var(--line2);border-radius:14px;
-    overflow:hidden;aspect-ratio:1;cursor:pointer;background:#fff;transition:.18s}
+    overflow:hidden;aspect-ratio:1;cursor:pointer;background:var(--chip-bg);transition:.18s}
   .imgs .item:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(236,72,153,.16)}
   .imgs .item.sel{outline:3px solid var(--pink2);outline-offset:-1px}
   .imgs img{width:100%;height:100%;object-fit:cover;display:block}
-  .imgs .del{position:absolute;top:4px;right:4px;background:rgba(255,255,255,.92);
+  .imgs .del{position:absolute;top:4px;right:4px;background:var(--chip-bg);
     color:#e05d6c;border-radius:999px;padding:1px 8px;font-size:12px;opacity:0;transition:.15s}
   .imgs .item:hover .del{opacity:1}
   .log{max-height:330px;overflow:auto;font-family:ui-monospace,Consolas,monospace;font-size:12px;
-    background:rgba(255,255,255,.5);border-radius:14px;padding:8px 12px}
-  .log div{padding:3px 0;border-bottom:1px dashed #f0dce8;white-space:pre-wrap;word-break:break-all}
+    background:var(--card-soft);border-radius:14px;padding:8px 12px}
+  .log div{padding:3px 0;border-bottom:1px dashed var(--line);white-space:pre-wrap;word-break:break-all}
   .log div:last-child{border-bottom:none}
   .log time{color:#c4b5d4;margin-right:8px}
   .tasklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;align-items:stretch}
   .tasklist .t{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;
-    background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.9);
+    background:var(--card-soft);border:1px solid var(--line);
     border-radius:16px;box-shadow:0 4px 14px rgba(236,72,153,.07);transition:.18s}
   .tasklist .t:hover{box-shadow:0 8px 22px rgba(236,72,153,.13);transform:translateY(-1px)}
   .tasklist .add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
     min-height:96px;border:1.5px dashed var(--line2);border-radius:16px;color:var(--sub);
-    cursor:pointer;font-size:13px;background:rgba(255,255,255,.28);transition:.18s}
-  .tasklist .add:hover{border-color:var(--pink2);color:var(--pink);background:rgba(255,255,255,.6)}
+    cursor:pointer;font-size:13px;background:var(--card-soft);transition:.18s}
+  .tasklist .add:hover{border-color:var(--pink2);color:var(--pink);background:var(--card)}
   .tasklist .add b{font-size:22px;font-weight:400;line-height:1}
   .tasklist .body{flex:1;min-width:0}
   .tasklist .title{font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
@@ -148,7 +222,7 @@
   .tasklist .ops{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:120px}
   .tasklist .exec{
     width:54px;height:54px;flex:none;border:none;border-radius:16px;cursor:pointer;
-    background:linear-gradient(140deg,#f472b6,#a855f7);color:#fff;font-size:10px;line-height:1.15;
+    background:var(--grad-soft);color:#fff;font-size:10px;line-height:1.15;
     display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
     box-shadow:0 6px 16px rgba(236,72,153,.32);transition:.18s;
   }
@@ -156,19 +230,19 @@
   .tasklist .exec:active{transform:scale(.97)}
   .tasklist .exec svg{width:18px;height:18px;fill:#fff}
   dialog{
-    border:1px solid rgba(255,255,255,.8);background:#fff;color:var(--txt);
+    border:1px solid var(--line);background:var(--dlg-bg);color:var(--txt);
     border-radius:22px;padding:0;width:min(880px,94vw);max-height:90vh;
     box-shadow:0 24px 70px rgba(139,92,246,.25);overflow:hidden;
   }
   dialog::backdrop{background:rgba(90,60,110,.35);backdrop-filter:blur(4px)}
   .dlg-head{display:flex;align-items:center;padding:14px 20px;
-    background:linear-gradient(92deg,#fdf2f8,#f5f3ff);border-bottom:1px solid #f7e3ee}
+    background:var(--dlg-head);border-bottom:1px solid var(--line2)}
   .dlg-head h3{margin:0;font-size:15px;font-weight:800;
-    background:linear-gradient(92deg,#ec4899,#8b5cf6);
+    background:var(--grad);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .dlg-body{padding:18px 20px;overflow:auto;max-height:calc(90vh - 130px)}
   .dlg-foot{display:flex;justify-content:flex-end;gap:8px;padding:13px 20px;
-    border-top:1px solid #f7e3ee;background:#fdf7fb}
+    border-top:1px solid var(--line2);background:var(--dlg-head)}
   .toast{position:fixed;bottom:26px;left:50%;transform:translateX(-50%) translateY(8px);
     background:rgba(63,51,80,.94);color:#fff;padding:10px 20px;border-radius:999px;z-index:99;
     opacity:0;transition:.3s;pointer-events:none;max-width:80vw;
@@ -177,27 +251,27 @@
   .toast.err{background:rgba(225,29,72,.95)}
   .empty{color:var(--sub);text-align:center;padding:30px 0;font-size:13px}
   .cronrow{display:grid;grid-template-columns:repeat(5,1fr);gap:8px}
-  .preview{white-space:pre-wrap;background:rgba(255,255,255,.6);
+  .preview{white-space:pre-wrap;background:var(--card-soft);
     border:1px dashed var(--line2);border-radius:14px;padding:12px;min-height:64px;font-size:13px}
   .quote{
     text-align:center;padding:38px 26px 30px;border-radius:var(--radius);min-height:220px;
     display:flex;flex-direction:column;justify-content:center;gap:6px;
-    background:linear-gradient(160deg,rgba(255,255,255,.85),rgba(253,240,249,.7));
-    border:1px solid rgba(255,255,255,.8);box-shadow:var(--shadow);position:relative;overflow:hidden;
+    background:var(--card);
+    border:1px solid var(--line);box-shadow:var(--shadow);position:relative;overflow:hidden;
     cursor:pointer;user-select:none;
   }
   .quote::before{content:"“";position:absolute;top:-14px;left:18px;font-size:110px;
     color:rgba(236,72,153,.13);font-family:Georgia,serif}
-  .quote p{margin:0;font-size:17px;line-height:2;color:#5b4a72;font-style:italic;
+  .quote p{margin:0;font-size:17px;line-height:2;color:var(--txt);font-style:italic;
     transition:opacity .5s;font-weight:500}
   .quote .who{margin-top:12px;font-size:13px;color:var(--pink);font-weight:600;transition:opacity .5s}
   .quote .who::before{content:"—— "}
   .quote .qbtns{position:absolute;bottom:8px;right:12px;display:flex;gap:6px;opacity:.35;transition:.2s}
   .quote:hover .qbtns{opacity:1}
   .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
-  .stat{background:rgba(255,255,255,.6);border:1px solid rgba(255,255,255,.8);
+  .stat{background:var(--card-soft);border:1px solid var(--line);
     border-radius:14px;padding:8px 4px;text-align:center}
-  .stat b{display:block;font-size:17px;background:linear-gradient(92deg,#ec4899,#8b5cf6);
+  .stat b{display:block;font-size:17px;background:var(--grad);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .stat span{font-size:11px;color:var(--sub)}
 </style>
@@ -208,6 +282,7 @@
   <div class="status"><span id="dot" class="dot"></span><span id="st-text">检测中…</span></div>
   <div class="spacer"></div>
   <span id="clock" class="muted" style="font-size:12px"></span>
+  <button class="small" onclick="cycleTheme()" id="theme-btn" title="切换主题">◐ 主题</button>
   <button class="small" onclick="refreshStatus()">刷新状态</button>
   <button class="small" onclick="openSettings()">设置</button>
   <button class="small danger" onclick="logout()">退出</button>
@@ -498,6 +573,33 @@
 <script>
 const $ = s => document.querySelector(s);
 let tasks = [], images = [], chips = [], editingId = null, targetsCache = {group: [], private: []};
+
+// ---------- 主题切换 ----------
+const THEMES = [
+  {id: 'sakura',  name: '樱花粉'},
+  {id: 'midnight', name: '午夜蓝'},
+  {id: 'forest',  name: '森野绿'},
+  {id: 'sunset',  name: '暖阳橙'},
+  {id: 'ink',     name: '墨竹灰'},
+];
+
+function applyTheme(id) {
+  const t = THEMES.find(x => x.id === id) ? id : 'sakura';
+  if (t === 'sakura') document.documentElement.removeAttribute('data-theme');
+  else document.documentElement.setAttribute('data-theme', t);
+  localStorage.setItem('qqbot-theme', t);
+  const meta = THEMES.find(x => x.id === t);
+  const btn = $('#theme-btn');
+  if (btn) btn.textContent = '◐ ' + meta.name;
+}
+function cycleTheme() {
+  const cur = localStorage.getItem('qqbot-theme') || 'sakura';
+  const i = THEMES.findIndex(x => x.id === cur);
+  applyTheme(THEMES[(i + 1) % THEMES.length].id);
+  toast('主题：' + THEMES[(i + 1) % THEMES.length].name);
+}
+// 首屏立刻应用，避免闪烁
+applyTheme(localStorage.getItem('qqbot-theme') || 'sakura');
 
 // ---------- 诗意文案轮播（洗牌发牌：一轮内绝不重复） ----------
 let quotePool = [], quoteDeck = [], quoteLast = "";
