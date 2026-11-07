@@ -257,8 +257,8 @@
     #sec-logs.active{height:calc(100dvh - 170px)}
   }
   .panel{scroll-margin-top:84px}
-  .workspace{min-width:0;padding:16px 18px 30px;max-width:1200px}
-  .row{display:grid;grid-template-columns:minmax(0,1fr) 380px;gap:16px;align-items:start}
+  .workspace{min-width:0;padding:18px 24px 40px;max-width:1400px}
+  .row{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:20px;align-items:start}
   @media (max-width:980px){.row{grid-template-columns:1fr}}
   /* 单页模式：col-main 只承载当前激活的一页 */
   .col-main{display:flex;flex-direction:column;gap:16px;min-width:0}
@@ -397,7 +397,7 @@
   .preview{white-space:pre-wrap;background:var(--card-soft);
     border:1px dashed var(--line2);border-radius:14px;padding:12px;min-height:64px;font-size:13px}
   .quote{
-    text-align:center;padding:38px 26px 30px;border-radius:var(--radius);min-height:220px;
+    text-align:center;padding:42px 24px 32px;border-radius:var(--radius);min-height:220px;
     display:flex;flex-direction:column;justify-content:center;gap:6px;
     background:var(--card);
     border:1px solid var(--line);box-shadow:var(--shadow);position:relative;overflow:hidden;
@@ -411,10 +411,10 @@
   .quote .who::before{content:"—— "}
   .quote .qbtns{position:absolute;bottom:8px;right:12px;display:flex;gap:6px;opacity:.35;transition:.2s}
   .quote:hover .qbtns{opacity:1}
-  .statgrid{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-top:10px}
+  .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
   .stat{background:var(--card-soft);border:1px solid var(--line);
-    border-radius:14px;padding:8px 4px;text-align:center}
-  .stat b{display:block;font-size:17px;background:var(--grad);
+    border-radius:14px;padding:14px 6px;text-align:center}
+  .stat b{display:block;font-size:22px;background:var(--grad);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .stat span{font-size:11px;color:var(--sub)}
 
