@@ -320,11 +320,15 @@ async def api_metrics():
         d = shutil.disk_usage("/")
         out["disk_total"] = d.total
         out["disk_used"] = d.used
+        out["disk_free"] = d.free
         out["disk_percent"] = round(d.used / d.total * 100, 1)
+        out["disk_free_percent"] = round(d.free / d.total * 100, 1)
         out["disk_total_h"] = _fmt_bytes(d.total)
         out["disk_used_h"] = _fmt_bytes(d.used)
+        out["disk_free_h"] = _fmt_bytes(d.free)
     except Exception:
-        out.update(disk_total=0, disk_used=0, disk_percent=0, disk_total_h="?", disk_used_h="?")
+        out.update(disk_total=0, disk_used=0, disk_free=0, disk_percent=0,
+                   disk_free_percent=0, disk_total_h="?", disk_used_h="?", disk_free_h="?")
 
     # 负载
     try:

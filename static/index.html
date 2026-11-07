@@ -382,7 +382,7 @@
   .m-info .big{font-size:20px;font-weight:800;color:var(--txt);line-height:1.3}
   .m-info .lbl{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.9}
   .m-info .lbl b{color:var(--pink);font-weight:600}
-  .m-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px}
+  .m-strip{display:grid;grid-template-columns:repeat(7,1fr);gap:10px;margin-top:14px}
   .m-strip .cell{background:var(--card);border:1px solid var(--line);border-radius:14px;
     padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
   .m-strip .cell b{display:block;font-size:16px;font-weight:800;color:var(--txt);
@@ -524,14 +524,16 @@
               <div class="lbl">
                 总量 <b id="m-mem-total">—</b> · 已用 <b id="m-mem-used">—</b><br>
                 Swap <b id="m-swap">—</b><br>
-                机器人容器 <b id="m-container">—</b>
+                机器人容器 <b id="m-container">—</b><br>
+                磁盘总量 <b id="m-disk-total">—</b> · 剩余 <b id="m-disk-summary">—</b>
               </div>
             </div>
           </div>
         </div>
 
         <div class="m-strip">
-          <div class="cell"><b id="m-disk-val">—</b><span>磁盘占用</span><div class="m-bar"><i id="m-disk-bar"></i></div></div>
+          <div class="cell"><b id="m-disk-val">—</b><span>磁盘占用 · 剩 <b id="m-disk-free" style="font-size:12px">—</b></span><div class="m-bar"><i id="m-disk-bar"></i></div></div>
+          <div class="cell"><b id="m-disk-free-big">—</b><span>剩余空间</span></div>
           <div class="cell"><b id="m-uptime">—</b><span>运行时间</span></div>
           <div class="cell"><b id="m-load1">—</b><span>1分钟负载</span></div>
           <div class="cell"><b id="m-server-time">—</b><span>服务器时间</span></div>
@@ -1050,6 +1052,10 @@ async function loadMetrics() {
     $('#m-container').textContent = d.container_mem_used ? `${d.container_mem_used_h} (${d.container_mem_percent}%)` : '—';
 
     $('#m-disk-val').textContent = d.disk_percent + '%';
+    $('#m-disk-free').textContent = d.disk_free_h || '—';
+    $('#m-disk-free-big').textContent = d.disk_free_h || '—';
+    $('#m-disk-total').textContent = d.disk_total_h || '—';
+    $('#m-disk-summary').textContent = d.disk_free_h || '—';
     $('#m-disk-bar').style.width = d.disk_percent + '%';
     $('#m-uptime').textContent = d.uptime;
     $('#m-load1').textContent = (d.load || [0])[0];
