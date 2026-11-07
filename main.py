@@ -10,8 +10,10 @@ import logging
 import os
 import re
 import secrets
+import threading
 import time
 import uuid
+from collections import defaultdict, deque
 from pathlib import Path
 from typing import Any
 
@@ -156,6 +158,7 @@ class SettingsIn(BaseModel):
     onebot_http: str | None = None
     onebot_token: str | None = None
     post_token: str | None = None
+    remote_token: str | None = None
     admin_password: str | None = None
     rss_timeout: int | None = None
 
@@ -165,6 +168,7 @@ async def api_get_settings():
     s = db.get_settings()
     s["onebot_token"] = "******" if s.get("onebot_token") else ""
     s["post_token"] = "******" if s.get("post_token") else ""
+    s["remote_token"] = "******" if s.get("remote_token") else ""
     s.pop("admin_password", None)
     s["has_password"] = _auth_required()
     return s
@@ -179,6 +183,8 @@ async def api_save_settings(body: SettingsIn):
         data["onebot_token"] = body.onebot_token.strip()
     if body.post_token is not None and body.post_token != "******":
         data["post_token"] = body.post_token.strip()
+    if body.remote_token is not None and body.remote_token != "******":
+        data["remote_token"] = body.remote_token.strip()
     if body.rss_timeout is not None:
         data["rss_timeout"] = str(body.rss_timeout)
     db.set_settings(data)
@@ -711,6 +717,153 @@ def _guess_mime(name: str) -> str:
         ".webp": "image/webp",
         ".bmp": "image/bmp",
     }.get(Path(name).suffix.lower(), "application/octet-stream")
+
+
+# ---------------- 远程上传 API（防 DoS） ----------------
+
+# 滑动窗口限流：每 IP 在窗口期内最多 N 次请求
+_RATE_LOCK = threading.Lock()
+_RATE_WINDOWS: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=64))
+_RATE_LIMIT = 20          # 每窗口期最多请求次数
+_RATE_WINDOW = 60.0       # 窗口期秒数
+_BAN_UNTIL: dict[str, float] = {}          # ip -> 解封时间戳
+_BAN_THRESHOLD = 3        # 窗口期内超限次数达到该值即封禁
+_BAN_SECONDS = 600        # 封禁时长（10 分钟）
+# 上传体积限制（防止超大文件打满磁盘/带宽）
+_REMOTE_MAX_FILE_MB = 10
+_REMOTE_MAX_BODY_MB = 12
+
+
+def _client_ip(request: Request) -> str:
+    """取真实客户端 IP（若有反代 X-Forwarded-For 则取第一个）。"""
+    xff = request.headers.get("x-forwarded-for", "")
+    if xff:
+        return xff.split(",")[0].strip() or (request.client.host if request.client else "?")
+    return request.client.host if request.client else "?"
+
+
+def _rate_check(ip: str) -> tuple[bool, str]:
+    """返回 (是否放行, 拒绝原因)。"""
+    now = time.time()
+    with _RATE_LOCK:
+        # 封禁检查
+        ban_until = _BAN_UNTIL.get(ip, 0)
+        if ban_until > now:
+            return False, f"请求过于频繁，已临时封禁至 {_dt.datetime.fromtimestamp(ban_until).strftime('%H:%M:%S')}"
+        # 清理过期封禁（惰性）
+        if _BAN_UNTIL and len(_BAN_UNTIL) > 1000:
+            for k in [k for k, v in _BAN_UNTIL.items() if v <= now]:
+                _BAN_UNTIL.pop(k, None)
+        win = _RATE_WINDOWS[ip]
+        win.append(now)
+        # 只留窗口期内的
+        while win and now - win[0] > _RATE_WINDOW:
+            win.popleft()
+        if len(win) > _RATE_LIMIT:
+            hits = _BAN_UNTIL.get(ip + ":hits", 0) + 1
+            if hits >= _BAN_THRESHOLD:
+                _BAN_UNTIL[ip] = now + _BAN_SECONDS
+                _BAN_UNTIL.pop(ip + ":hits", None)
+                _RATE_WINDOWS.pop(ip, None)  # 封禁期间不再计数
+                db.add_log(f"远程上传：IP {ip} 触发限流被临时封禁 {_BAN_SECONDS}s", "warn")
+                return False, "请求过于频繁，已临时封禁 10 分钟"
+            _BAN_UNTIL[ip + ":hits"] = hits
+            return False, f"请求过于频繁（每 {_RATE_WINDOW:.0f}s 最多 {_RATE_LIMIT} 次），请稍后再试"
+        return True, ""
+
+
+async def _guard_remote_upload(request: Request) -> str:
+    """远程上传的公共防护：限流 + Token 鉴权 + 体积检查。返回客户端 ip。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    expected = db.get_settings().get("remote_token") or ""
+    if expected:
+        got = (request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+               or request.headers.get("X-Upload-Token", "").strip())
+        if not secrets.compare_digest(got, expected):
+            raise HTTPException(401, "上传 Token 无效")
+    length = request.headers.get("content-length")
+    if length and int(length) > _REMOTE_MAX_BODY_MB * 1024 * 1024:
+        raise HTTPException(413, f"请求体超过 {_REMOTE_MAX_BODY_MB}MB 限制")
+    return ip
+
+
+class RemoteUploadIn(BaseModel):
+    """base64 上传（适合脚本/手机快捷指令推送）。"""
+    filename: str = ""
+    data: str  # base64，不带 data: 前缀也行
+
+
+@app.post("/remote/upload")
+async def remote_upload_json(request: Request, body: RemoteUploadIn):
+    """远程 JSON/base64 上传：POST /remote/upload，Token 见设置。"""
+    ip = await _guard_remote_upload(request)
+    raw_b64 = body.data.strip()
+    if raw_b64.startswith("data:"):
+        raw_b64 = raw_b64.split(",", 1)[-1]
+    if not raw_b64:
+        raise HTTPException(400, "data 为空")
+    if len(raw_b64) > _REMOTE_MAX_FILE_MB * 1024 * 1024 * 4 / 3:
+        raise HTTPException(413, f"文件超过 {_REMOTE_MAX_FILE_MB}MB 限制")
+    try:
+        raw = base64.b64decode(raw_b64, validate=True)
+    except Exception:
+        raise HTTPException(400, "data 不是有效的 base64")
+    if len(raw) > _REMOTE_MAX_FILE_MB * 1024 * 1024:
+        raise HTTPException(413, f"文件超过 {_REMOTE_MAX_FILE_MB}MB 限制")
+    name = Path(body.filename or "remote.png").name[:40].replace("/", "_") or "remote"
+    ext = Path(name).suffix.lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
+        ext = ".png"
+    fname = f"{name.rsplit(ext, 1)[0][:20]}-{uuid.uuid4().hex}{ext}"
+    dest = db.UPLOAD_DIR / fname
+    dest.write_bytes(raw)
+    iid = db.add_image(fname, name, len(raw))
+    db.add_log(f"远程上传图片 {name}（{len(raw) // 1024} KB）来自 {ip}", "info")
+    return {"ok": True, "id": iid, "size": len(raw)}
+
+
+@app.post("/remote/upload-file")
+async def remote_upload_file(request: Request, file: UploadFile = File(...)):
+    """远程 multipart 文件上传：POST /remote/upload-file。"""
+    ip = await _guard_remote_upload(request)
+    name = Path(file.filename or "remote.png").name[:40] or "remote.png"
+    ext = Path(name).suffix.lower()
+    if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
+        raise HTTPException(400, "仅支持 png/jpg/jpeg/gif/webp/bmp")
+    fname = f"{name.rsplit(ext, 1)[0][:20]}-{uuid.uuid4().hex}{ext}"
+    dest = db.UPLOAD_DIR / fname
+    size = 0
+    try:
+        with dest.open("wb") as f:
+            while chunk := await file.read(1 << 20):
+                size += len(chunk)
+                if size > _REMOTE_MAX_FILE_MB * 1024 * 1024:
+                    raise HTTPException(413, f"文件超过 {_REMOTE_MAX_FILE_MB}MB 限制")
+                f.write(chunk)
+    except HTTPException:
+        dest.unlink(missing_ok=True)
+        raise
+    iid = db.add_image(fname, name, size)
+    db.add_log(f"远程上传图片 {name}（{size // 1024} KB）来自 {ip}", "info")
+    return {"ok": True, "id": iid, "size": size}
+
+
+@app.get("/remote/ping")
+async def remote_ping(request: Request):
+    """连通性检查：带正确 Token 即返回 ok（同样受限流保护）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    expected = db.get_settings().get("remote_token") or ""
+    got = (request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
+           or request.headers.get("X-Upload-Token", "").strip())
+    if expected and not secrets.compare_digest(got, expected):
+        raise HTTPException(401, "上传 Token 无效")
+    return {"ok": True, "images": len(db.list_images())}
 
 
 # ---------------- 日志 ----------------

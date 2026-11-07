@@ -142,6 +142,21 @@ ssh -N -L 3000:127.0.0.1:3000 -L 8080:127.0.0.1:8080 root@你的服务器IP
 
 ---
 
+## 二点五、远程上传图片（脚本 / 手机快捷指令）
+
+不需要打开后台，直接调 HTTP 接口把图片推进图片库：
+
+| 接口 | 说明 |
+| --- | --- |
+| `POST /remote/upload` | JSON：`{"filename":"a.png","data":"<base64>"}` |
+| `POST /remote/upload-file` | multipart 文件域 `file` |
+| `GET /remote/ping` | 连通性测试 |
+
+- 鉴权：请求头带 `Authorization: Bearer <远程上传Token>`（在「设置 → 远程上传 Token」里配置；留空则不鉴权，**公网部署务必设置**）
+- 限制：单张 ≤10MB；每 IP 每 60 秒最多 20 次请求；连续超限 3 次自动封禁 10 分钟（防 DoS）
+- 手机快捷指令（iOS）/ Tasker / curl 都可以推送，示例：
+  `curl -X POST http://服务器:8080/remote/upload -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"filename":"x.png","data":"<base64>"}'`
+
 ## 三、务必注意的坑
 
 1. **协议端合规**：NapCat 属于第三方 QQ 协议端，非腾讯官方接口。用小号、控制发送频率

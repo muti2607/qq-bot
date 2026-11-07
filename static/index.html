@@ -341,6 +341,7 @@
     <button class="nav active" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico">📋</span><span class="t">任务列表</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico">💬</span><span class="t">触发回复</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico">📁</span><span class="t">群组预设</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
     <div class="side-sep"></div>
@@ -379,6 +380,26 @@
         <h2>群组预设 <span class="muted" style="font-weight:400">（把常用的一批群/私聊存成组，建任务时一键载入）</span>
           <span class="spacer"></span><button class="primary small" onclick="openPresetForm(null)">＋ 新建预设</button></h2>
         <div id="presetlist" class="tasklist"></div>
+      </section>
+
+      <section class="panel" id="sec-groups">
+        <h2>群组管理 <span class="muted" style="font-weight:400">（机器人所在的所有群；勾选后可存为预设或直接测试发送）</span>
+          <span class="spacer"></span>
+          <button class="small" onclick="loadGroupMgr(true)">刷新群列表</button>
+          <button class="small" onclick="groupsToPreset()">把勾选存为预设</button>
+          <button class="small primary" onclick="groupsTestSend()">给勾选的发消息</button>
+        </h2>
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <input id="group-search" placeholder="按群名/群号筛选" style="max-width:200px" oninput="renderGroupMgr()">
+          <span id="group-count" class="muted" style="font-size:12px"></span>
+        </div>
+        <div id="grouplist" style="max-height:420px;overflow:auto;border:1px solid var(--line);border-radius:14px;background:var(--card-soft)"></div>
+        <div class="hint" style="margin-top:6px">
+          「给勾选的发消息」会先保存为临时任务再立即发送；发送内容用下面输入框：
+          <div style="display:flex;gap:8px;margin-top:6px">
+            <input id="group-test-text" placeholder="要发送的测试文本，支持 {date} 等占位符" style="flex:1">
+          </div>
+        </div>
       </section>
 
       <section class="panel" id="sec-images">
@@ -671,6 +692,18 @@
       <label class="field"><span>事件上报 Token（NapCat POST 到本服务 /post 时校验用，留空=不校验）</span>
         <input id="s-post-token" placeholder="触发回复功能需要，建议设置">
       </label>
+      <label class="field"><span>远程上传 Token（脚本 / 手机快捷指令推图用，留空=不鉴权）</span>
+        <input id="s-remote-token" placeholder="远程上传接口的鉴权 Token">
+      </label>
+      <div class="hint" style="margin-bottom:12px">
+        <b>远程上传接口</b>（图片会直接进图片库）：<br>
+        <code>POST /remote/upload</code>　JSON：<code>{"filename":"a.png","data":"&lt;base64&gt;"}</code><br>
+        <code>POST /remote/upload-file</code>　multipart 文件域 <code>file</code><br>
+        <code>GET /remote/ping</code>　连通性测试<br>
+        头部带 <code>Authorization: Bearer 与上面一致</code>。限制：单张 ≤10MB；
+        每 IP 每 60 秒最多 20 次请求，连续超限 3 次封禁 10 分钟（防 DoS）。示例：
+        <code>curl -X POST http://服务器:8080/remote/upload -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"filename":"x.png","data":"&lt;base64&gt;"}'</code>
+      </div>
       <div class="hint" style="margin-bottom:12px">启用「触发回复」需要在 NapCat WebUI → 网络配置 → HTTP POST 里新增一条：
         地址 <code>http://qq-daily-bot:8080/post</code>，
         HTTP Header 加 <code>Authorization: Bearer 与上面一致</code>，
@@ -720,7 +753,7 @@ function navTo(id, btn) {
 }
 // 滚动时自动高亮当前区块
 (function setupScrollSpy() {
-  const ids = ['sec-tasks', 'sec-triggers', 'sec-presets', 'sec-images', 'sec-logs'];
+  const ids = ['sec-tasks', 'sec-triggers', 'sec-presets', 'sec-groups', 'sec-images', 'sec-logs'];
   const obs = new IntersectionObserver(entries => {
     const vis = entries.filter(e => e.isIntersecting)
       .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -1575,6 +1608,77 @@ async function saveGroupsAsPreset() {
   } catch (e) { toast(e.message, true); }
 }
 
+// ---------- 群组管理 ----------
+let mgrSel = new Set();
+async function loadGroupMgr(force) {
+  if (force || !targetsCache.group || !targetsCache.group.length) {
+    try { targetsCache.group = await api('/api/groups'); }
+    catch (e) { toast('获取群列表失败：' + e.message, true); targetsCache.group = []; }
+  }
+  renderGroupMgr();
+}
+function renderGroupMgr() {
+  const box = $('#grouplist');
+  if (!box) return;
+  const q = ($('#group-search')?.value || '').trim().toLowerCase();
+  const all = targetsCache.group || [];
+  const list = q ? all.filter(g => String(g.id).includes(q) || (g.name || '').toLowerCase().includes(q)) : all;
+  const cnt = $('#group-count');
+  if (cnt) cnt.textContent = all.length ? (list.length === all.length ? `共 ${all.length} 个群` : `显示 ${list.length} / 共 ${all.length} 个群`) : '（未获取）';
+  if (!list.length) { box.innerHTML = '<div class="empty">没有群数据，先刷新或检查 NapCat 登录</div>'; return; }
+  box.innerHTML = list.map(g => `
+    <label style="display:flex;align-items:center;gap:10px;padding:8px 12px;border-bottom:1px solid var(--line);cursor:pointer">
+      <input type="checkbox" ${mgrSel.has(g.id) ? 'checked' : ''} onchange="mgrSel.has(${g.id}) ? mgrSel.delete(${g.id}) : mgrSel.add(${g.id});updateMgrUI()"
+             style="width:auto;flex:none">
+      <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${esc(g.name)}</span>
+      <span class="muted" style="font-size:12px;flex:none">${g.id}${g.member_count != null ? ' · ' + g.member_count + '人' : ''}</span>
+      <span class="tag">${'群'}</span>
+    </label>`).join('');
+}
+function updateMgrUI() { renderGroupMgr(); }
+
+async function groupsToPreset() {
+  if (!mgrSel.size) return toast('先勾选几个群', true);
+  const name = (prompt('预设名称（将勾选的 ' + mgrSel.size + ' 个群存入）：', '') || '').trim();
+  if (!name) return;
+  const targets = [...mgrSel].map(id => {
+    const g = (targetsCache.group || []).find(x => x.id === id);
+    return {type: 'group', id, name: g ? g.name : String(id)};
+  });
+  try {
+    await api('/api/presets', {method: 'POST', body: JSON.stringify({name, targets})});
+    await loadPresets();
+    toast(`已存为预设《${name}》（${targets.length} 个群）`);
+  } catch (e) { toast(e.message, true); }
+}
+
+async function groupsTestSend() {
+  if (!mgrSel.size) return toast('先勾选要发送的群', true);
+  const text = $('#group-test-text').value.trim();
+  if (!text) return toast('先在下方输入要发送的文本', true);
+  if (!confirm(`把内容发送到勾选的 ${mgrSel.size} 个群？`)) return;
+  try {
+    const r = await api('/api/tasks', {method: 'POST', body: JSON.stringify({
+      name: '群管理测试',
+      enabled: false,
+      content: text,
+      image_mode: 'none',
+      source_mode: 'static',
+      targets: [...mgrSel].map(id => {
+        const g = (targetsCache.group || []).find(x => x.id === id);
+        return {type: 'group', id, name: g ? g.name : String(id)};
+      }),
+      schedule: '0 9 * * *',
+      timezone: 'Asia/Shanghai',
+    })});
+    const tid = r.id;
+    const res = await api(`/api/tasks/${tid}/run`, {method: 'POST', body: '{}'});
+    await api(`/api/tasks/${tid}`, {method: 'DELETE'});
+    toast(`已发送 ${res.sent} 条` + (res.failed ? `，失败 ${res.failed}` : ''));
+    loadLogs();
+  } catch (e) { toast(e.message, true); }
+}
+
 function onTrigImageMode() {
   const m = $('#t-imagemode').value;
   $('#t-img-fixed-wrap').style.display = m === 'fixed' ? '' : 'none';
@@ -1619,6 +1723,7 @@ async function openSettings() {
     $('#s-http').value = s.onebot_http || '';
     $('#s-token').value = s.onebot_token || '';
     $('#s-post-token').value = s.post_token || '';
+    $('#s-remote-token').value = s.remote_token || '';
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();
@@ -1650,6 +1755,7 @@ async function saveSettings() {
       onebot_http: $('#s-http').value.trim(),
       onebot_token: $('#s-token').value,
       post_token: $('#s-post-token').value,
+      remote_token: $('#s-remote-token').value,
       rss_timeout: Number($('#s-rss').value) || 15,
     })});
     const quoteLines = ($('#s-quotes').value || '').split('\n').map(x => x.trim()).filter(Boolean);
