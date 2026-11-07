@@ -19,7 +19,7 @@ from typing import Any
 
 from apscheduler.triggers.cron import CronTrigger
 from cryptography.fernet import Fernet, InvalidToken
-from fastapi import FastAPI, File, HTTPException, Request, UploadFile
+from fastapi import APIRouter, FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.responses import HTMLResponse, JSONResponse, RedirectResponse, Response
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
@@ -32,6 +32,7 @@ import triggers
 
 BASE_DIR = Path(__file__).resolve().parent
 PORT = int(os.getenv("PORT", "8080"))
+REMOTE_PORT = int(os.getenv("REMOTE_PORT", "8001"))
 
 logging.basicConfig(
     level=logging.INFO,
@@ -721,6 +722,8 @@ def _guess_mime(name: str) -> str:
 
 # ---------------- 远程上传 API（防 DoS） ----------------
 
+remote_router = APIRouter()
+
 # 滑动窗口限流：每 IP 在窗口期内最多 N 次请求
 _RATE_LOCK = threading.Lock()
 _RATE_WINDOWS: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=64))
@@ -796,7 +799,7 @@ class RemoteUploadIn(BaseModel):
     data: str  # base64，不带 data: 前缀也行
 
 
-@app.post("/remote/upload")
+@remote_router.post("/remote/upload")
 async def remote_upload_json(request: Request, body: RemoteUploadIn):
     """远程 JSON/base64 上传：POST /remote/upload，Token 见设置。"""
     ip = await _guard_remote_upload(request)
@@ -825,7 +828,7 @@ async def remote_upload_json(request: Request, body: RemoteUploadIn):
     return {"ok": True, "id": iid, "size": len(raw)}
 
 
-@app.post("/remote/upload-file")
+@remote_router.post("/remote/upload-file")
 async def remote_upload_file(request: Request, file: UploadFile = File(...)):
     """远程 multipart 文件上传：POST /remote/upload-file。"""
     ip = await _guard_remote_upload(request)
@@ -851,7 +854,7 @@ async def remote_upload_file(request: Request, file: UploadFile = File(...)):
     return {"ok": True, "id": iid, "size": size}
 
 
-@app.get("/remote/ping")
+@remote_router.get("/remote/ping")
 async def remote_ping(request: Request):
     """连通性检查：带正确 Token 即返回 ok（同样受限流保护）。"""
     ip = _client_ip(request)
@@ -939,7 +942,40 @@ async def _shutdown():
 app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 
+# ========== 独立上传服务（单独端口暴露，不包含后台任何功能） ==========
+
+# 从主应用摘出远程上传相关的路由，组成一个精简 app
+remote_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
+remote_app.include_router(remote_router)
+
+
+@remote_app.get("/")
+async def remote_root():
+    return {"service": "qq-bot remote upload", "endpoints": ["/remote/ping", "/remote/upload", "/remote/upload-file"]}
+
+
+@remote_app.middleware("http")
+async def remote_404_guard(request: Request, call_next):
+    """只放行 /remote/* 路径，其余一律 404，防探测。"""
+    if not request.url.path.startswith("/remote"):
+        return JSONResponse({"detail": "Not Found"}, status_code=404)
+    return await call_next(request)
+
+
 if __name__ == "__main__":
+    # 同时跑两个端口：主后台(8080) + 独立上传服务(8001，只含 /remote/*)
+    # 用子进程方式最稳（uvicorn 多 app 单进程不支持）
+    import subprocess
+    import sys as _sys
     import uvicorn
 
-    uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
+    remote_proc = subprocess.Popen(
+        [_sys.executable, "-m", "uvicorn", "main:remote_app",
+         "--host", "0.0.0.0", "--port", str(REMOTE_PORT), "--log-level", "warning"],
+        cwd=str(BASE_DIR),
+    )
+    try:
+        uvicorn.run("main:app", host="0.0.0.0", port=PORT, log_level="info")
+    finally:
+        remote_proc.terminate()
+

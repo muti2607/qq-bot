@@ -15,6 +15,8 @@ RUN pip install --no-cache-dir --index-url "$PIP_INDEX_URL" -r requirements.txt
 
 COPY . .
 
-EXPOSE 8080
+RUN chmod +x start.sh
 
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8080", "--proxy-headers", "--forwarded-allow-ips", "*"]
+EXPOSE 8080 8001
+
+CMD ["sh", "start.sh"]
