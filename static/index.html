@@ -44,8 +44,11 @@
   .dot.off{background:var(--err);box-shadow:0 0 0 4px rgba(239,68,68,.15)}
   .spacer{flex:1}
   main{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:grid;gap:16px}
-  .row{display:grid;grid-template-columns:1fr 390px;gap:16px;align-items:start}
-  @media (max-width:920px){.row{grid-template-columns:1fr}}
+  .row{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
+  @media (max-width:980px){.row{grid-template-columns:1fr}}
+  .col-main{display:grid;gap:16px;align-content:start;min-width:0}
+  .col-side{display:grid;gap:16px;align-content:start;position:sticky;top:76px;min-width:0}
+  @media (max-width:980px){.col-side{position:static}}
   .panel{
     background:var(--card);backdrop-filter:blur(10px);
     border:1px solid rgba(255,255,255,.75);
@@ -203,12 +206,30 @@
 
 <main>
   <div class="row">
-    <section class="panel">
-      <h2>任务列表 <span class="spacer"></span><button class="primary small" onclick="openTaskForm(null)">＋ 新建任务</button></h2>
-      <div id="tasklist" class="tasklist"></div>
-    </section>
+    <div class="col-main">
+      <section class="panel">
+        <h2>任务列表 <span class="spacer"></span><button class="primary small" onclick="openTaskForm(null)">＋ 新建任务</button></h2>
+        <div id="tasklist" class="tasklist"></div>
+      </section>
 
-    <aside style="display:grid;gap:16px;align-content:start">
+      <section class="panel">
+        <h2>触发回复 <span class="muted" style="font-weight:400">（群里 @机器人+关键词 时自动回复）</span>
+          <span class="spacer"></span><button class="primary small" onclick="openTriggerForm(null)">＋ 新建触发</button></h2>
+        <div id="triggerlist" class="tasklist"></div>
+      </section>
+
+      <section class="panel">
+        <h2>图片库 <span class="muted" style="font-weight:400">（任务里可选用，支持随机抽取）</span></h2>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
+          <input type="file" id="upload" accept="image/*" style="max-width:320px">
+          <button id="uploadBtn" onclick="uploadImage()">上传图片</button>
+          <span id="uploadMsg" class="muted"></span>
+        </div>
+        <div id="images" class="imgs"></div>
+      </section>
+    </div>
+
+    <aside class="col-side">
       <section class="quote" onclick="showQuote()" title="点击换一句">
         <p id="quote-text">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
         <div class="who" id="quote-who">网络</div>
@@ -230,22 +251,6 @@
       </section>
     </aside>
   </div>
-
-  <section class="panel">
-    <h2>触发回复 <span class="muted" style="font-weight:400">（群里 @机器人+关键词 时自动回复；需在 NapCat 里配置 HTTP POST 上报）</span>
-      <span class="spacer"></span><button class="primary small" onclick="openTriggerForm(null)">＋ 新建触发</button></h2>
-    <div id="triggerlist" class="tasklist"></div>
-  </section>
-
-  <section class="panel">
-    <h2>图片库 <span class="muted" style="font-weight:400">（点击图片可复制其 ID，任务里选图片用）</span></h2>
-    <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-      <input type="file" id="upload" accept="image/*" style="max-width:320px">
-      <button id="uploadBtn" onclick="uploadImage()">上传图片</button>
-      <span id="uploadMsg" class="muted"></span>
-    </div>
-    <div id="images" class="imgs"></div>
-  </section>
 </main>
 
 <dialog id="taskDlg">
