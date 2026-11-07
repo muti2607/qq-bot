@@ -9,8 +9,8 @@ services:
       - NAPCAT_GID=${NAPCAT_GID:-1000}
       - MODE=ws
     ports:
-      # 3000 是 NapCat WebUI 扫码登录页；只对本地回环开放，用 SSH 隧道访问
-      - "127.0.0.1:3000:3000"
+      # 6099 是 NapCat WebUI 扫码登录页（实际端口以日志为准）；只对本地回环开放
+      - "127.0.0.1:6099:6099"
       # 3001 是 OneBot 11 HTTP 接口，只在容器内网使用，不对外暴露端口
     volumes:
       - ./napcat/config:/app/napcat/config
