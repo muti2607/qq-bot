@@ -425,7 +425,7 @@
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
-    <button class="nav" onclick="openSettings()"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
+    <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
 
     <div class="side-quote" onclick="showQuote()" title="点击换一句">
       <p id="quote-text-side">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
@@ -549,6 +549,59 @@
       </section>
 
 
+      <section class="panel view" id="sec-settings">
+        <h2>系统设置 <span class="muted" style="font-weight:400">（改动后记得点最下方「保存设置」）</span></h2>
+
+      <label class="field"><span>OneBot HTTP 地址（NapCat 的 HTTP 服务）</span>
+        <input id="s-http" placeholder="http://127.0.0.1:3001">
+      </label>
+      <label class="field"><span>OneBot Access Token（调用 NapCat 用的，没有就留空）</span>
+        <input id="s-token" placeholder="留空表示不鉴权">
+      </label>
+      <label class="field"><span>事件上报 Token（NapCat POST 到本服务 /post 时校验用，留空=不校验）</span>
+        <input id="s-post-token" placeholder="触发回复功能需要，建议设置">
+      </label>
+      <label class="field"><span>远程上传 Token（脚本 / 手机快捷指令推图用，留空=不鉴权）</span>
+        <input id="s-remote-token" placeholder="远程上传接口的鉴权 Token">
+      </label>
+      <div class="hint" style="margin-bottom:12px">
+        <b>远程上传接口</b>（图片会直接进图片库）：<br>
+        <code>POST /remote/upload</code>　JSON：<code>{"filename":"a.png","data":"&lt;base64&gt;"}</code><br>
+        <code>POST /remote/upload-file</code>　multipart 文件域 <code>file</code><br>
+        <code>GET /remote/ping</code>　连通性测试<br>
+        头部带 <code>Authorization: Bearer 与上面一致</code>。限制：单张 ≤10MB；
+        每 IP 每 60 秒最多 20 次请求，连续超限 3 次封禁 10 分钟（防 DoS）。示例：
+        <code>curl -X POST http://服务器:8080/remote/upload -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"filename":"x.png","data":"&lt;base64&gt;"}'</code>
+      </div>
+      <div class="hint" style="margin-bottom:12px">启用「触发回复」需要在 NapCat WebUI → 网络配置 → HTTP POST 里新增一条：
+        地址 <code>http://qq-daily-bot:8080/post</code>，
+        HTTP Header 加 <code>Authorization: Bearer 与上面一致</code>，
+        事件订阅勾选「消息事件」（group / private 的 message）。</div>
+      <label class="field"><span>RSS 请求超时（秒）</span>
+        <input id="s-rss" type="number" min="5" max="60">
+      </label>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">名言池（右侧卡片轮播 &amp; 触发回复的随机名言都用它；每行一条，格式：内容|出处）</span>
+        <textarea id="s-quotes" style="min-height:150px;font-size:12px" placeholder="一行一条，例如：&#10;星光不问赶路人，时光不负有心人。|大冰"></textarea>
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
+          <span id="quotes-count" class="hint"></span>
+          <button type="button" class="small" onclick="resetQuotes()">恢复内置默认</button>
+        </div>
+      </div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="grid2">
+        <label class="field"><span>原管理密码（首次设置留空）</span><input id="s-old" type="password" autocomplete="current-password"></label>
+        <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
+      </div>
+      <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
+    </div>
+    
+        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap">
+          <button class="small" onclick="loadQuoteEditor()">重载名言</button>
+          <button class="primary" onclick="saveSettings()">💾 保存设置</button>
+        </div>
+      </section>
     </div>
 
     <aside class="col-side">
@@ -803,60 +856,7 @@
   </form>
 </dialog>
 
-<dialog id="setDlg">
-  <form method="dialog" onsubmit="return false">
-    <div class="dlg-head"><h3>设置</h3></div>
-    <div class="dlg-body">
-      <label class="field"><span>OneBot HTTP 地址（NapCat 的 HTTP 服务）</span>
-        <input id="s-http" placeholder="http://127.0.0.1:3001">
-      </label>
-      <label class="field"><span>OneBot Access Token（调用 NapCat 用的，没有就留空）</span>
-        <input id="s-token" placeholder="留空表示不鉴权">
-      </label>
-      <label class="field"><span>事件上报 Token（NapCat POST 到本服务 /post 时校验用，留空=不校验）</span>
-        <input id="s-post-token" placeholder="触发回复功能需要，建议设置">
-      </label>
-      <label class="field"><span>远程上传 Token（脚本 / 手机快捷指令推图用，留空=不鉴权）</span>
-        <input id="s-remote-token" placeholder="远程上传接口的鉴权 Token">
-      </label>
-      <div class="hint" style="margin-bottom:12px">
-        <b>远程上传接口</b>（图片会直接进图片库）：<br>
-        <code>POST /remote/upload</code>　JSON：<code>{"filename":"a.png","data":"&lt;base64&gt;"}</code><br>
-        <code>POST /remote/upload-file</code>　multipart 文件域 <code>file</code><br>
-        <code>GET /remote/ping</code>　连通性测试<br>
-        头部带 <code>Authorization: Bearer 与上面一致</code>。限制：单张 ≤10MB；
-        每 IP 每 60 秒最多 20 次请求，连续超限 3 次封禁 10 分钟（防 DoS）。示例：
-        <code>curl -X POST http://服务器:8080/remote/upload -H "Authorization: Bearer TOKEN" -H "Content-Type: application/json" -d '{"filename":"x.png","data":"&lt;base64&gt;"}'</code>
-      </div>
-      <div class="hint" style="margin-bottom:12px">启用「触发回复」需要在 NapCat WebUI → 网络配置 → HTTP POST 里新增一条：
-        地址 <code>http://qq-daily-bot:8080/post</code>，
-        HTTP Header 加 <code>Authorization: Bearer 与上面一致</code>，
-        事件订阅勾选「消息事件」（group / private 的 message）。</div>
-      <label class="field"><span>RSS 请求超时（秒）</span>
-        <input id="s-rss" type="number" min="5" max="60">
-      </label>
-      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-      <div class="field">
-        <span style="font-size:12px;color:var(--sub)">名言池（右侧卡片轮播 &amp; 触发回复的随机名言都用它；每行一条，格式：内容|出处）</span>
-        <textarea id="s-quotes" style="min-height:150px;font-size:12px" placeholder="一行一条，例如：&#10;星光不问赶路人，时光不负有心人。|大冰"></textarea>
-        <div style="display:flex;gap:8px;margin-top:6px;align-items:center">
-          <span id="quotes-count" class="hint"></span>
-          <button type="button" class="small" onclick="resetQuotes()">恢复内置默认</button>
-        </div>
-      </div>
-      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-      <div class="grid2">
-        <label class="field"><span>原管理密码（首次设置留空）</span><input id="s-old" type="password" autocomplete="current-password"></label>
-        <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
-      </div>
-      <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
-    </div>
-    <div class="dlg-foot">
-      <button type="button" onclick="document.getElementById('setDlg').close()">取消</button>
-      <button type="button" class="primary" onclick="saveSettings()">保存</button>
-    </div>
-  </form>
-</dialog>
+
 
 <div id="toast" class="toast"></div>
 
@@ -870,12 +870,17 @@ function navTo(id, btn) {
   document.querySelectorAll('.sidebar .nav[data-nav]').forEach(b => b.classList.remove('active'));
   const b = btn || document.querySelector(`.sidebar .nav[data-nav="${id}"]`);
   if (b) b.classList.add('active');
+  // 设置按钮没有 data-nav，切到设置页时点亮它
+  document.querySelectorAll('.sidebar .nav').forEach(x => {
+    if (!x.dataset.nav && x.textContent.includes('设置')) x.classList.toggle('active', id === 'sec-settings');
+  });
   window.scrollTo({top: 0, behavior: 'instant'});
   // 切到性能页立即刷新一次（不等下一个周期）
   if (id === 'sec-metrics') loadMetrics();
   if (id === 'sec-logs') loadLogs();
   if (id === 'sec-groups') loadGroupMgr();
   if (id === 'sec-images') loadImages();
+  if (id === 'sec-settings') { loadSettingsIntoForm(); }
   try { localStorage.setItem('qqbot-view', id); } catch {}
 }
 // 启动时恢复上次页面（默认性能）
@@ -1890,9 +1895,9 @@ async function openSettings() {
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();
-    $('#setDlg').showModal();
   } catch (e) { toast(e.message, true); }
 }
+async function loadSettingsIntoForm() { await openSettings(); }
 
 let quoteEditorOriginal = [];
 async function loadQuoteEditor() {
@@ -1934,7 +1939,6 @@ async function saveSettings() {
     if (newP || oldP) {
       await api('/api/password', {method: 'POST', body: JSON.stringify({old_password: oldP, new_password: newP})});
     }
-    $('#setDlg').close();
     toast('设置已保存');
     refreshStatus();
   } catch (e) { toast(e.message, true); }
