@@ -133,8 +133,10 @@ def handle_event(event: dict) -> None:
         rendered = f"{rendered}\n{quote}" if rendered.strip() else quote
 
     segments_out = []
-    if is_group and self_qq:
-        # 群里回复时先 @ 回提问者
+    # 是否 @ 触发者：at_reply = 0 不带、1 带（默认）；私聊无需 @
+    at_reply = trigger.get("at_reply")
+    at_reply = True if at_reply is None else bool(int(at_reply))
+    if is_group and self_qq and at_reply:
         uid = event.get("sender", {}).get("user_id")
         if uid:
             segments_out.append({"type": "at", "data": {"qq": str(uid)}})

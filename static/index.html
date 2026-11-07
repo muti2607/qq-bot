@@ -543,6 +543,14 @@
         <label class="field"><span>必须 @机器人 才触发</span>
           <select id="t-at"><option value="1">是（推荐）</option><option value="0">否（提到关键词就回）</option></select>
         </label>
+        <label class="field"><span>回复时 @ 触发者</span>
+          <select id="t-atreply"><option value="1">是（默认）</option><option value="0">否（只发内容）</option></select>
+        </label>
+        <label class="field"><span>冷却秒数（同群同词最短间隔）</span>
+          <input id="t-cd" type="number" min="0" max="3600" value="10">
+        </label>
+      </div>
+      <div class="grid2">
         <label class="field"><span>随机名言</span>
           <select id="t-quote">
             <option value="off">关闭</option>
@@ -550,11 +558,6 @@
             <option value="replace">只回复名言</option>
           </select>
         </label>
-        <label class="field"><span>冷却秒数（同群同词最短间隔）</span>
-          <input id="t-cd" type="number" min="0" max="3600" value="10">
-        </label>
-      </div>
-      <div class="grid2">
         <label class="field"><span>生效范围</span>
           <select id="t-scope" onchange="onScopeChange()">
             <option value="all">所有群+私聊</option>
@@ -1207,6 +1210,7 @@ function renderTriggers() {
         <div class="title">${esc(t.keyword)}
           <span class="pill ${t.enabled ? 'on' : 'off'}">${t.enabled ? '启用' : '停用'}</span>
           <span class="pill off">${t.at_required ? '需@' : '免@'}</span>
+          <span class="pill off">${t.at_reply === false ? '不@人' : '@提问者'}</span>
           <span class="pill off">${esc(scopeTxt)}</span>
           ${qTxt ? `<span class="pill off">💬 ${qTxt}</span>` : ''}
           ${imgTxt ? `<span class="pill off">🖼 ${imgTxt}</span>` : ''}
@@ -1240,7 +1244,7 @@ async function delTrigger(id) {
 async function openTriggerForm(id) {
   trigEditing = id;
   $('#trig-dlg-title').textContent = id ? `编辑触发 #${id}` : '新建触发';
-  let t = {keyword: '', reply_text: '', image_mode: 'none', image_id: null, image_ids: [], at_required: true, scope: 'all', cooldown: 10, quote_mode: 'off', enabled: true};
+  let t = {keyword: '', reply_text: '', image_mode: 'none', image_id: null, image_ids: [], at_required: true, at_reply: true, scope: 'all', cooldown: 10, quote_mode: 'off', enabled: true};
   if (id !== null) {
     t = triggers.find(x => x.id === id) || t;
   }
@@ -1249,6 +1253,7 @@ async function openTriggerForm(id) {
   $('#t-reply').value = t.reply_text || '';
   $('#t-enabled').value = t.enabled ? '1' : '0';
   $('#t-at').value = t.at_required ? '1' : '0';
+  $('#t-atreply').value = (t.at_reply === false || t.at_reply === 0) ? '0' : '1';
   $('#t-quote').value = t.quote_mode || 'off';
   $('#t-cd').value = t.cooldown ?? 10;
   $('#t-imagemode').value = t.image_mode || 'none';
@@ -1331,6 +1336,7 @@ async function saveTrigger() {
     image_id: $('#t-imagemode').value === 'fixed' && $('#t-image').value ? Number($('#t-image').value) : null,
     image_ids: $('#t-imagemode').value === 'random' ? [...trigPoolSel] : [],
     at_required: $('#t-at').value === '1',
+    at_reply: $('#t-atreply').value === '1',
     scope,
     cooldown: Number($('#t-cd').value) || 0,
     quote_mode: $('#t-quote').value,

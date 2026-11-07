@@ -516,6 +516,7 @@ class TriggerIn(BaseModel):
     image_id: int | None = None
     image_ids: list[int] = Field(default_factory=list)
     at_required: bool = True
+    at_reply: bool = True      # 回复时是否 @ 触发者
     scope: str = "all"
     cooldown: int = 10
     quote_mode: str = "off"   # off | replace | append

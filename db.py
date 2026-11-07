@@ -44,6 +44,7 @@ CREATE TABLE IF NOT EXISTS triggers (
     image_id    INTEGER,
     image_ids   TEXT    NOT NULL DEFAULT '[]',
     at_required INTEGER NOT NULL DEFAULT 1,        -- 必须 @机器人 才触发
+    at_reply    INTEGER NOT NULL DEFAULT 1,        -- 回复时是否 @ 触发者
     scope       TEXT    NOT NULL DEFAULT 'all',    -- all | group:123,456 | private
     cooldown    INTEGER NOT NULL DEFAULT 10,       -- 同一会话同一触发词的最小间隔秒数
     quote_mode  TEXT    NOT NULL DEFAULT 'off',    -- off | replace | append（随机名言）
@@ -127,6 +128,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     trig_cols = cols("triggers")
     if "quote_mode" not in trig_cols:
         conn.execute("ALTER TABLE triggers ADD COLUMN quote_mode TEXT NOT NULL DEFAULT 'off'")
+    if "at_reply" not in trig_cols:
+        conn.execute("ALTER TABLE triggers ADD COLUMN at_reply INTEGER NOT NULL DEFAULT 1")
 
 
 # ---------------- settings ----------------
@@ -357,6 +360,7 @@ def _trigger_row_to_dict(row: sqlite3.Row) -> dict[str, Any]:
             d[key] = []
     d["enabled"] = bool(d["enabled"])
     d["at_required"] = bool(d["at_required"])
+    d["at_reply"] = bool(d.get("at_reply", 1))
     return d
 
 
@@ -373,7 +377,7 @@ def get_trigger(tid: int) -> dict[str, Any] | None:
 
 
 TRIGGER_FIELDS = ("keyword", "reply_text", "image_mode", "image_id", "image_ids",
-                  "at_required", "scope", "cooldown", "quote_mode", "enabled")
+                  "at_required", "at_reply", "scope", "cooldown", "quote_mode", "enabled")
 
 
 def _trigger_values(data: dict[str, Any]) -> dict[str, Any]:
@@ -384,6 +388,7 @@ def _trigger_values(data: dict[str, Any]) -> dict[str, Any]:
         "image_id": data.get("image_id") or None,
         "image_ids": json.dumps(data.get("image_ids") or [], ensure_ascii=False),
         "at_required": int(bool(data.get("at_required", True))),
+        "at_reply": int(bool(data.get("at_reply", True))),
         "scope": data.get("scope") or "all",
         "cooldown": int(data.get("cooldown") or 0),
         "quote_mode": data.get("quote_mode") or "off",
@@ -396,7 +401,7 @@ def create_trigger(data: dict[str, Any]) -> int:
     with db() as conn:
         cur = conn.execute(
             "INSERT INTO triggers(keyword, reply_text, image_mode, image_id, image_ids, "
-            "at_required, scope, cooldown, quote_mode, enabled) VALUES(?,?,?,?,?,?,?,?,?,?)",
+            "at_required, at_reply, scope, cooldown, quote_mode, enabled) VALUES(?,?,?,?,?,?,?,?,?,?,?)",
             tuple(v[k] for k in TRIGGER_FIELDS),
         )
         return int(cur.lastrowid)
@@ -407,7 +412,7 @@ def update_trigger(tid: int, data: dict[str, Any]) -> None:
     with db() as conn:
         conn.execute(
             "UPDATE triggers SET keyword=?, reply_text=?, image_mode=?, image_id=?, "
-            "image_ids=?, at_required=?, scope=?, cooldown=?, quote_mode=?, enabled=? WHERE id=?",
+            "image_ids=?, at_required=?, at_reply=?, scope=?, cooldown=?, quote_mode=?, enabled=? WHERE id=?",
             (*[v[k] for k in TRIGGER_FIELDS], tid),
         )
 
