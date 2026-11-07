@@ -1272,7 +1272,9 @@ async def remote_apply(request: Request, body: ApplyDoneIn):
         db.set_apply_status(aid, "rejected")
         raise HTTPException(400, "账号名已被使用，换一个账号名")
     db.add_log(f"邮箱注册自动通过：{username}（{body.mail}）", "info")
+    rec = db.get_upload_user(username)
     return {"ok": True, "aid": aid, "auto": True,
+            "uid_number": (rec or {}).get("uid_number") or "",
             "msg": "注册成功！邮箱验证通过，账号已生效，可直接登录"}
 
 
@@ -1299,7 +1301,9 @@ async def remote_login(request: Request, body: UploadLoginIn):
     if not db.verify_upload_user(body.username.strip(), body.password):
         raise HTTPException(401, "账号或密码错误")
     tok = _make_upload_token(body.username.strip())
-    resp = JSONResponse({"ok": True, "username": body.username.strip(), "token": tok})
+    rec = db.get_upload_user(body.username.strip())
+    resp = JSONResponse({"ok": True, "username": body.username.strip(),
+                         "uid_number": (rec or {}).get("uid_number") or "", "token": tok})
     resp.set_cookie("upload_session", tok, httponly=True, samesite="lax",
                     max_age=_UPLOAD_SESSION_HOURS * 3600)
     return resp
@@ -1313,7 +1317,8 @@ async def remote_logout():
 @remote_router.get("/remote/me")
 async def remote_me(request: Request):
     u = _upload_user_from(request)
-    return {"ok": True, "username": u}
+    rec = db.get_upload_user(u)
+    return {"ok": True, "username": u, "uid_number": (rec or {}).get("uid_number") or ""}
 
 @remote_router.get("/remote/mine")
 async def remote_mine(request: Request):

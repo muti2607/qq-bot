@@ -1281,6 +1281,7 @@ async function loadUploadUsers() {
     <div class="t">
       <div class="body">
         <div class="title">👤 ${esc(u.username)}
+          <span class="pill on" style="background:rgba(56,189,248,.15);color:var(--pink)" title="数字登录ID">#${esc(u.uid_number || '—')}</span>
           <span class="pill ${u.enabled ? 'on' : 'off'}">${u.enabled ? '启用' : '停用'}</span>
         </div>
         <div class="meta"><span>${esc(u.note || '无备注')}</span><span>创建于 ${esc(u.created_at || '')}</span></div>
@@ -1731,6 +1732,9 @@ function renderImages() {
   const list = visibleImages();
   const box = $('#images');
   const stLabel = {pending: '待审核', approved: '已通过', rejected: '未通过'};
+  // 用户名 → 数字ID 映射（从上传账号列表取，拿不到就只显示用户名）
+  const uidMap = {};
+  (typeof uploadUsers !== 'undefined' ? uploadUsers : []).forEach(u => { uidMap[u.username] = u.uid_number; });
   box.innerHTML = list.length ? list.map(i => `
     <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}"
          title="#${i.id} ${esc(i.original)}${i.uploader ? ' · 上传者 ' + esc(i.uploader) : ''} · ${stLabel[i.status] || '已通过'}">
@@ -1738,7 +1742,7 @@ function renderImages() {
            onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
       <span class="zoom" title="放大查看" onclick="showLightbox(${i.id});event.stopPropagation()">🔍 放大</span>
       <span class="badge ${i.status || 'approved'}">${stLabel[i.status] || '已通过'}</span>
-      ${i.uploader ? `<span class="up">@${esc(i.uploader)}</span>` : ''}
+      ${i.uploader ? `<span class="up">@${esc(i.uploader)}${uidMap[i.uploader] ? ' #' + esc(uidMap[i.uploader]) : ''}</span>` : ''}
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
     </div>`).join('')
     : `<div class="empty">${images.length ? '没有匹配的图片' : '图片库为空，先上传几张'}</div>`;

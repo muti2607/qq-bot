@@ -77,6 +77,7 @@ CREATE TABLE IF NOT EXISTS upload_users (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     username    TEXT NOT NULL UNIQUE,
     password    TEXT NOT NULL,        -- sha256 hex
+    uid_number  TEXT UNIQUE,          -- 5-9 位纯数字登录ID
     note        TEXT NOT NULL DEFAULT '',
     enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -160,6 +161,20 @@ def _migrate(conn: sqlite3.Connection) -> None:
     ):
         if name not in img_cols:
             conn.execute(f"ALTER TABLE images ADD COLUMN {name} {ddl}")
+    uu_cols = cols("upload_users")
+    if "uid_number" not in uu_cols:
+        conn.execute("ALTER TABLE upload_users ADD COLUMN uid_number TEXT")
+    # 给没有数字ID的账号补分配
+    import random as _random
+    used = {r["uid_number"] for r in conn.execute(
+        "SELECT uid_number FROM upload_users WHERE uid_number IS NOT NULL").fetchall()}
+    for row in conn.execute("SELECT id FROM upload_users WHERE uid_number IS NULL").fetchall():
+        while True:
+            num = str(_random.randint(10000, 999999999))
+            if num not in used:
+                break
+        used.add(num)
+        conn.execute("UPDATE upload_users SET uid_number=? WHERE id=?", (num, row["id"]))
 
 
 # ---------------- settings ----------------
@@ -400,8 +415,11 @@ def list_upload_users() -> list[dict[str, Any]]:
 
 
 def get_upload_user(username: str) -> dict[str, Any] | None:
+    """按用户名或 5-9 位纯数字ID查找（数字ID也可用于登录）。"""
     with db() as conn:
         row = conn.execute("SELECT * FROM upload_users WHERE username=?", (username,)).fetchone()
+        if not row and username.isdigit() and 5 <= len(username) <= 9:
+            row = conn.execute("SELECT * FROM upload_users WHERE uid_number=?", (username,)).fetchone()
     return dict(row) if row else None
 
 
@@ -413,12 +431,23 @@ def verify_upload_user(username: str, password: str) -> bool:
     return secrets.compare_digest(u["password"], _hash_pw(password))
 
 
+def alloc_uid_number(conn: sqlite3.Connection) -> str:
+    """分配一个不冲突的 5-9 位纯数字ID。"""
+    import random
+    while True:
+        num = str(random.randint(10000, 999999999))
+        row = conn.execute("SELECT 1 FROM upload_users WHERE uid_number=?", (num,)).fetchone()
+        if not row:
+            return num
+
+
 def create_upload_user(username: str, password: str, note: str = "") -> int | None:
     try:
         with db() as conn:
+            num = alloc_uid_number(conn)
             cur = conn.execute(
-                "INSERT INTO upload_users(username, password, note, enabled) VALUES(?,?,?,1)",
-                (username.strip(), _hash_pw(password), note.strip()),
+                "INSERT INTO upload_users(username, password, uid_number, note, enabled) VALUES(?,?,?,?,1)",
+                (username.strip(), _hash_pw(password), num, note.strip()),
             )
             return int(cur.lastrowid)
     except sqlite3.IntegrityError:
@@ -497,9 +526,10 @@ def approve_apply(aid: int) -> int | None:
         return None
     try:
         with db() as conn:
+            num = alloc_uid_number(conn)
             cur = conn.execute(
-                "INSERT INTO upload_users(username, password, note, enabled) VALUES(?,?,?,1)",
-                (a["username"], a["password"], f"邮箱注册 {a['mail']}"),
+                "INSERT INTO upload_users(username, password, uid_number, note, enabled) VALUES(?,?,?,?,1)",
+                (a["username"], a["password"], num, f"邮箱注册 {a['mail']}"),
             )
             uid = int(cur.lastrowid)
     except sqlite3.IntegrityError:

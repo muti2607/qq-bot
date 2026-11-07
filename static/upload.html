@@ -224,13 +224,13 @@ async function doLogin() {
   try {
     const d = await post('/remote/login', {username: u, password: p});
     localStorage.setItem('qqbot-upload-token', d.token);
-    enterUpload(d.username);
+    enterUpload(d.username, d.uid_number);
   } catch (e) { setSt('#loginStatus', e.message, true); }
   $('#loginBtn').disabled = false;
 }
 
-function enterUpload(username) {
-  $('#whoami').textContent = username;
+function enterUpload(username, uidNumber) {
+  $('#whoami').textContent = uidNumber ? `${username} (#${uidNumber})` : username;
   $('#loginCard').classList.add('hidden');
   $('#adminCard').classList.add('hidden');
   $('#uploadCard').classList.remove('hidden');
@@ -258,10 +258,10 @@ async function doApply() {
         username = $('#r-user').value.trim(), password = $('#r-pass').value;
   if (!mail || !code || !username || !password) return setSt('#loginStatus', '请填写完整', true);
   try {
-    await post('/remote/apply', {mail, code, username, password});
+    const d = await post('/remote/apply', {mail, code, username, password});
     setSt('#loginStatus', '', false);
-    $('#applyStatus').textContent = '✅ 注册成功！账号「' + username + '」已生效，返回登录即可上传。';
-    // 自动填入账号名，引导直接登录
+    $('#applyStatus').textContent = '✅ 注册成功！账号「' + username + '」' +
+      (d.uid_number ? '（数字ID #' + d.uid_number + '）' : '') + '已生效，返回登录即可上传。';
     showReg(false);
     $('#u').value = username;
   } catch (e) { setSt('#loginStatus', e.message, true); }
@@ -421,7 +421,7 @@ document.getElementById('lightbox').classList.add('hidden');
   if (localStorage.getItem('qqbot-upload-token')) {
     try {
       const me = await fetch('/remote/me', {credentials: 'same-origin', headers: H()}).then(r => r.json());
-      if (me.ok) { $('#whoami').textContent = me.username; showUpload(); return; }
+      if (me.ok) { enterUpload(me.username, me.uid_number); return; }
     } catch {}
     localStorage.removeItem('qqbot-upload-token');
   }
