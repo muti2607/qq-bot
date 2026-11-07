@@ -1255,14 +1255,29 @@ async function updateStats() {
 let uploadUsers = [];
 async function loadUploadUsers() {
   try { uploadUsers = await api('/api/upload-users'); } catch { uploadUsers = []; }
+  // 待批注册申请
+  let applies = [];
+  try { applies = await api('/api/apply-requests?status=pending'); } catch {}
   const box = $('#uploaduserlist');
   if (!box) return;
   const addCard = `<div class="add" onclick="openUploadUserForm()"><b>＋</b><span>新建账号</span></div>`;
+  const applyHtml = applies.length ? `
+    <div class="t" style="border-color:var(--warn)">
+      <div class="body">
+        <div class="title">📝 待批注册申请 <span class="pill on">${applies.length}</span></div>
+        ${applies.map(a => `
+          <div class="meta" style="display:flex;align-items:center;gap:8px">
+            <span style="flex:1">👤 <b>${esc(a.username)}</b> · ${esc(a.mail)} · ${esc(a.created_at || '')}</span>
+            <button class="small" onclick="approveApply(${a.id})">✅ 批准</button>
+            <button class="small danger" onclick="rejectApply(${a.id})">驳回</button>
+          </div>`).join('')}
+      </div>
+    </div>` : '';
   if (!uploadUsers.length) {
-    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有上传账号。创建后把账号密码发给对方，让他们在 http://服务器:8001 登录上传。</div>` + addCard;
+    box.innerHTML = applyHtml + `<div class="empty" style="grid-column:1/-1">还没有上传账号。别人可在 http://服务器:8001 用 QQ 邮箱自助申请，或点「新建账号」直接创建。</div>` + addCard;
     return;
   }
-  box.innerHTML = uploadUsers.map(u => `
+  box.innerHTML = applyHtml + uploadUsers.map(u => `
     <div class="t">
       <div class="body">
         <div class="title">👤 ${esc(u.username)}
@@ -1276,6 +1291,17 @@ async function loadUploadUsers() {
         <button class="small danger" onclick="delUploadUser(${u.id})">删除</button>
       </div>
     </div>`).join('') + addCard;
+}
+
+async function approveApply(aid) {
+  if (!confirm('批准该注册申请？批准后账号立即生效。')) return;
+  try { await api(`/api/apply-requests/${aid}/approve`, {method: 'POST', body: '{}'}); toast('已批准，账号生效'); loadUploadUsers(); }
+  catch (e) { toast(e.message, true); }
+}
+async function rejectApply(aid) {
+  if (!confirm('驳回该注册申请？')) return;
+  try { await api(`/api/apply-requests/${aid}/reject`, {method: 'POST', body: '{}'}); toast('已驳回'); loadUploadUsers(); }
+  catch (e) { toast(e.message, true); }
 }
 
 function openUploadUserForm(id) {
