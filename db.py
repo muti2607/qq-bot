@@ -488,12 +488,21 @@ def set_apply_status(aid: int, status: str) -> None:
 
 
 def approve_apply(aid: int) -> int | None:
-    """批准申请：创建上传账号并标记 approved。返回账号 id，用户名冲突返回 None。"""
+    """批准申请：创建上传账号并标记 approved。返回账号 id，用户名冲突返回 None。
+
+    注意：apply.password 已是哈希，直接入库，不能再哈希一次。
+    """
     a = get_apply(aid)
     if not a or a["status"] != "pending":
         return None
-    uid = create_upload_user(a["username"], a["password"], f"邮箱注册 {a['mail']}")
-    if uid is None:
+    try:
+        with db() as conn:
+            cur = conn.execute(
+                "INSERT INTO upload_users(username, password, note, enabled) VALUES(?,?,?,1)",
+                (a["username"], a["password"], f"邮箱注册 {a['mail']}"),
+            )
+            uid = int(cur.lastrowid)
+    except sqlite3.IntegrityError:
         return None
     set_apply_status(aid, "approved")
     return uid
