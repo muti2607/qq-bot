@@ -157,12 +157,56 @@
   .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:4px}
   .side-note{font-size:10.5px;color:var(--sub);text-align:center;padding:6px 0 0;opacity:.8}
   @media (max-width:980px){
-    .app-shell{grid-template-columns:1fr}
-    .sidebar{position:static;height:auto;min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;padding:10px}
-    .sidebar .brand{width:100%;border-bottom:none;padding:2px 6px 6px;margin:0}
-    .sidebar nav{display:flex;flex-wrap:wrap;gap:6px}
-    .sidebar .nav{width:auto;padding:7px 12px}
-    .sidebar .side-quote,.sidebar .side-foot,.sidebar .side-sep,.sidebar .side-note{display:none}
+    .app-shell{grid-template-columns:1fr;padding:10px 10px 86px}  /* 底部留出 tabbar 空间 */
+    .sidebar{
+      position:fixed;bottom:0;left:0;right:0;z-index:50;
+      height:auto;min-height:0;flex-direction:row;align-items:stretch;gap:0;padding:6px 4px;
+      border-radius:20px 20px 0 0;border:1px solid var(--line);border-bottom:none;
+      background:var(--header-bg);backdrop-filter:blur(16px);
+      box-shadow:0 -6px 24px rgba(0,0,0,.10);
+      overflow:visible;
+    }
+    .sidebar .brand,.sidebar .side-quote,.sidebar .side-sep,.sidebar .side-note{display:none}
+    .sidebar .nav{
+      flex:1;flex-direction:column;gap:2px;align-items:center;justify-content:center;
+      width:auto;padding:6px 2px;border-radius:12px;font-size:10.5px;min-height:52px;
+    }
+    .sidebar .nav .ico{width:auto;font-size:19px}
+    .sidebar .nav .t{font-size:10.5px;font-weight:500}
+    .sidebar .nav .dotmark{display:none}
+    .sidebar .nav.active{box-shadow:none;background:rgba(236,72,153,.12);color:var(--pink)}
+    .sidebar .side-foot{margin:0;display:contents}
+  }
+  /* 手机底部 tabbar：显示时隐藏原生侧栏的次要项 */
+  @media (max-width:980px){
+    .sidebar .nav[data-nav]{display:flex}
+  }
+  /* ========== 手机触屏优化 ========== */
+  @media (max-width:980px){
+    header{padding:10px 14px}
+    header h1{font-size:15px}
+    main{padding:0 0 76px}  /* 底部 tabbar 高度 */
+    .app-shell{padding:10px 10px 10px}
+    .panel{padding:14px 12px;border-radius:16px}
+    .panel h2{font-size:13.5px;flex-wrap:wrap;gap:6px}
+    .panel h2 .small{padding:6px 12px;font-size:12px}  /* 面板按钮加大可点 */
+    .tasklist{grid-template-columns:1fr;gap:10px}
+    .tasklist .t{padding:12px}
+    .tasklist .ops{max-width:none;width:100%;justify-content:flex-end}
+    .tasklist .ops .small{padding:8px 14px;font-size:12.5px}  /* 操作按钮拇指可点 */
+    .tasklist .exec{width:56px;height:56px}
+    .imgs{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
+    .log{max-height:280px;font-size:11.5px}
+    dialog{width:100vw;max-height:100vh;height:100dvh;border-radius:0;max-width:none}
+    .dlg-body{max-height:calc(100dvh - 120px);padding:14px}
+    .grid2,.grid3{grid-template-columns:1fr}
+    .cronrow{grid-template-columns:1fr 1fr}
+    .cronrow input{grid-column:span 2}
+    input,select,textarea{font-size:16px}  /* 防 iOS 聚焦缩放 */
+    button{min-height:38px}
+    .toast{bottom:calc(76px + 12px)}  /* 避开 tabbar */
+    .statgrid{grid-template-columns:repeat(4,1fr)}
+    .side-quote{display:none}
   }
   .panel{scroll-margin-top:84px}
   .row{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
@@ -325,11 +369,11 @@
 </head>
 <body>
 <header>
-  <h1>✦ QQ 定时发布机器人</h1>
-  <div class="status"><span id="dot" class="dot"></span><span id="st-text">检测中…</span></div>
+  <h1>✦ QQ 机器人</h1>
+  <div class="status"><span id="dot" class="dot" title="连接状态"></span></div>
   <div class="spacer"></div>
   <span id="clock" class="muted" style="font-size:12px"></span>
-  <button class="small" onclick="cycleTheme()" id="theme-btn" title="切换主题">◐ 主题</button>
+  <button class="small" onclick="cycleTheme()" id="theme-btn" title="切换主题">◐</button>
 </header>
 
 <main>
@@ -344,10 +388,7 @@
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
-    <div class="side-sep"></div>
-    <button class="nav" onclick="openSettings()"><span class="ico">⚙️</span><span class="t">系统设置</span><span class="dotmark"></span></button>
-    <button class="nav" onclick="cycleTheme()"><span class="ico">◐</span><span class="t">切换主题</span><span class="dotmark"></span></button>
-    <button class="nav" onclick="refreshStatus()"><span class="ico">🔄</span><span class="t">刷新状态</span><span class="dotmark"></span></button>
+    <button class="nav" onclick="openSettings()"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
 
     <div class="side-quote" onclick="showQuote()" title="点击换一句">
       <p id="quote-text-side">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
@@ -875,17 +916,18 @@ async function api(path, opts = {}) {
 async function refreshStatus() {
   try {
     const st = await api('/api/status');
-    const dot = $('#dot'), txt = $('#st-text');
+    const dot = $('#dot');
+    document.title = st.online ? `✅ ${st.nickname || '机器人'} · QQ 机器人` : '❌ 未连接 · QQ 机器人';
     if (st.online) {
       dot.className = 'dot on';
-      txt.textContent = `已连接：${st.nickname || ''} (${st.self_id || ''})`;
+      dot.title = `已连接：${st.nickname || ''} (${st.self_id || ''})`;
       $('#side-status').textContent = (st.nickname || '在线');
     } else {
       dot.className = 'dot off';
-      txt.textContent = '未连接 OneBot（NapCat 未启动或地址不对）';
+      dot.title = '未连接 OneBot（NapCat 未启动或地址不对）';
       $('#side-status').textContent = '未连接';
     }
-    $('#clock').textContent = '服务器时间 ' + (st.server_time || '');
+    $('#clock').textContent = st.server_time || '';
     $('#conninfo').innerHTML = st.online
       ? `QQ：<b>${esc(st.nickname || '')}</b><br>账号：${st.self_id}<br>服务器时间：${st.server_time}<br><span class="muted">任务到点自动发送，日志会实时刷新。</span>`
       : `<span class="err">${esc(st.error || '连接失败')}</span><br><span class="muted">请检查设置中的 OneBot 地址、Token，以及 NapCat 是否已登录。</span>`;
@@ -893,7 +935,6 @@ async function refreshStatus() {
     renderTasks();
     updateStats();
   } catch (e) {
-    $('#st-text').textContent = '状态获取失败：' + e.message;
     $('#dot').className = 'dot off';
     $('#side-status').textContent = '连接失败';
   }
