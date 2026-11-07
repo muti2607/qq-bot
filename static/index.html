@@ -1731,10 +1731,12 @@ async function openSettings() {
   } catch (e) { toast(e.message, true); }
 }
 
+let quoteEditorOriginal = [];
 async function loadQuoteEditor() {
   try {
     const d = await api('/api/quotes');
     $('#s-quotes').value = d.quotes.join('\n');
+    quoteEditorOriginal = [...d.quotes];
     $('#quotes-count').textContent = `${d.quotes.length} 条${d.custom ? '（自定义）' : '（内置默认 ' + d.default_count + ' 条）'}`;
   } catch (e) { toast(e.message, true); }
 }
@@ -1758,8 +1760,10 @@ async function saveSettings() {
       remote_token: $('#s-remote-token').value,
       rss_timeout: Number($('#s-rss').value) || 15,
     })});
+    // 名言只在内容有变化时才提交（避免 2000+ 条大 payload 反复发送/误触校验）
     const quoteLines = ($('#s-quotes').value || '').split('\n').map(x => x.trim()).filter(Boolean);
-    if (quoteLines.length) {
+    const origQuotes = (quoteEditorOriginal || []).join('\n');
+    if (quoteLines.join('\n') !== origQuotes) {
       await api('/api/quotes', {method: 'POST', body: JSON.stringify({quotes: quoteLines})});
       await loadQuotePool();
     }

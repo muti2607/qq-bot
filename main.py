@@ -591,8 +591,8 @@ async def api_save_quotes(body: QuotesIn):
     items = [q.strip() for q in body.quotes if q.strip()]
     if not items:
         raise HTTPException(400, "名言列表不能为空（想恢复默认请点重置）")
-    if len(items) > 2000:
-        raise HTTPException(400, "最多 2000 条")
+    if len(items) > 10000:
+        raise HTTPException(400, "最多 10000 条")
     db.set_settings({"quotes": json.dumps(items, ensure_ascii=False)})
     db.add_log(f"更新自定义名言池（{len(items)} 条）", "info")
     return {"ok": True, "count": len(items)}
