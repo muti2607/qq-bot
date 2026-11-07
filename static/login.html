@@ -21,6 +21,22 @@
     --grad:linear-gradient(92deg,#38bdf8,#818cf8);
     --input-bg:rgba(8,13,26,.85);
   }
+  [data-theme="quantum"]{
+    --bg1:#12081f; --bg2:#1a0b2e; --bg3:#0d0618;
+    --glow1:#3b1160; --glow2:#251047; --glow3:#33104d;
+    --card:rgba(26,12,46,.85); --txt:#f3e8ff; --sub:#a78bc0;
+    --line:#4a2069; --pink:#d946ef; --pink2:#f0abfc;
+    --grad:linear-gradient(92deg,#d946ef,#8b5cf6);
+    --input-bg:rgba(16,8,30,.85);
+  }
+  [data-theme="matrix"]{
+    --bg1:#030a05; --bg2:#051108; --bg3:#020804;
+    --glow1:#0a2f16; --glow2:#0d2412; --glow3:#08331c;
+    --card:rgba(6,20,10,.85); --txt:#bbf7d0; --sub:#4ade8099;
+    --line:#14532d; --pink:#4ade80; --pink2:#86efac;
+    --grad:linear-gradient(92deg,#4ade80,#22c55e);
+    --input-bg:rgba(2,8,4,.85);
+  }
   [data-theme="midnight"]{
     --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
     --glow1:#233a63; --glow2:#34265e; --glow3:#16304a;
@@ -93,6 +109,8 @@
 <script>
 const THEMES = [
   {id: 'tech', name: '深空科技'},
+  {id: 'quantum', name: '量子霓虹'},
+  {id: 'matrix', name: '矩阵终端'},
   {id: 'sakura', name: '樱花粉'}, {id: 'midnight', name: '午夜蓝'},
   {id: 'forest', name: '森野绿'}, {id: 'sunset', name: '暖阳橙'},
   {id: 'ink', name: '墨竹灰'},

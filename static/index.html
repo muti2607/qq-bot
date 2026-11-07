@@ -48,6 +48,50 @@
     --num-font:"SF Mono","Cascadia Code",Consolas,"JetBrains Mono",ui-monospace,monospace;
   }
 
+  /* 量子 · 霓虹紫（扫描线 + 品红霓虹） */
+  [data-theme="quantum"]{
+    --bg1:#12081f; --bg2:#1a0b2e; --bg3:#0d0618;
+    --glow1:#3b1160; --glow2:#251047; --glow3:#33104d;
+    --card:rgba(26,12,46,.74); --card-soft:rgba(33,17,58,.55);
+    --line:rgba(217,70,239,.20); --line2:#4a2069;
+    --txt:#f3e8ff; --sub:#a78bc0;
+    --pink:#d946ef; --pink2:#f0abfc; --violet:#a855f7;
+    --grad:linear-gradient(92deg,#d946ef,#8b5cf6);
+    --grad-soft:linear-gradient(140deg,#e879f9,#7c3aed);
+    --ok:#4ade80; --warn:#facc15; --err:#fb7185;
+    --shadow:0 0 0 1px rgba(217,70,239,.08), 0 14px 44px rgba(0,0,0,.55);
+    --header-bg:rgba(18,8,31,.82);
+    --chip-bg:rgba(30,14,52,.92);
+    --input-bg:rgba(16,8,30,.85);
+    --dlg-bg:#170b28;
+    --dlg-head:linear-gradient(92deg,#1c0d31,#251040);
+    --grid-line:rgba(217,70,239,.06);
+    --num-font:ui-monospace,Consolas,monospace;
+    --scanline:rgba(217,70,239,.045);
+  }
+
+  /* 矩阵 · 终端绿（黑客风） */
+  [data-theme="matrix"]{
+    --bg1:#030a05; --bg2:#051108; --bg3:#020804;
+    --glow1:#0a2f16; --glow2:#0d2412; --glow3:#08331c;
+    --card:rgba(6,20,10,.78); --card-soft:rgba(9,28,14,.55);
+    --line:rgba(74,222,128,.18); --line2:#14532d;
+    --txt:#bbf7d0; --sub:#4ade8099;
+    --pink:#4ade80; --pink2:#86efac; --violet:#22c55e;
+    --grad:linear-gradient(92deg,#4ade80,#22c55e);
+    --grad-soft:linear-gradient(140deg,#22c55e,#15803d);
+    --ok:#4ade80; --warn:#fde047; --err:#f87171;
+    --shadow:0 0 0 1px rgba(74,222,128,.08), 0 14px 44px rgba(0,0,0,.6);
+    --header-bg:rgba(3,10,5,.85);
+    --chip-bg:rgba(6,20,10,.92);
+    --input-bg:rgba(2,8,4,.85);
+    --dlg-bg:#051108;
+    --dlg-head:linear-gradient(92deg,#06170c,#0a2412);
+    --grid-line:rgba(74,222,128,.06);
+    --num-font:ui-monospace,"Cascadia Code",Consolas,monospace;
+    --scanline:rgba(74,222,128,.04);
+  }
+
   /* 深色 · 午夜 */
   [data-theme="midnight"]{
     --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
@@ -114,6 +158,14 @@
 
   *{box-sizing:border-box}
   html{scroll-behavior:smooth}
+  /* 矩阵主题：全局文字微光 + 边框辉光 */
+  [data-theme="matrix"] .panel,
+  [data-theme="matrix"] .m-card{box-shadow:0 0 0 1px rgba(74,222,128,.12), 0 0 26px rgba(74,222,128,.07), var(--shadow)}
+  [data-theme="matrix"] .ring{box-shadow:0 0 30px rgba(74,222,128,.25), inset 0 0 20px rgba(74,222,128,.1)}
+  /* 量子主题：品红霓虹辉光 */
+  [data-theme="quantum"] .panel,
+  [data-theme="quantum"] .m-card{box-shadow:0 0 0 1px rgba(217,70,239,.12), 0 0 26px rgba(217,70,239,.08), var(--shadow)}
+  [data-theme="quantum"] .ring{box-shadow:0 0 30px rgba(217,70,239,.28), inset 0 0 20px rgba(217,70,239,.12)}
   body{
     margin:0;color:var(--txt);min-height:100vh;
     font:14px/1.6 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
@@ -124,6 +176,12 @@
       linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
     background-attachment:fixed;
     transition:background .35s ease, color .35s ease;
+  }
+  /* 扫描线特效（量子/矩阵主题） */
+  body::after{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background:repeating-linear-gradient(0deg, var(--scanline,transparent) 0 1px, transparent 1px 4px);
+    opacity:.6;mix-blend-mode:overlay;
   }
   /* 科技坐标纸网格叠层 */
   body::before{
@@ -950,6 +1008,8 @@ function navTo(id, btn) {
 // ---------- 主题切换 ----------
 const THEMES = [
   {id: 'tech',    name: '深空科技'},
+  {id: 'quantum', name: '量子霓虹'},
+  {id: 'matrix',  name: '矩阵终端'},
   {id: 'sakura',  name: '樱花粉'},
   {id: 'midnight', name: '午夜蓝'},
   {id: 'forest',  name: '森野绿'},
