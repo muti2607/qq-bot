@@ -595,12 +595,11 @@
         <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
       </div>
       <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
+        <button class="small" onclick="loadQuoteEditor()">重载名言</button>
+        <button class="primary" onclick="saveSettings()">💾 保存设置</button>
+      </div>
     </div>
-    
-        <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:10px;flex-wrap:wrap">
-          <button class="small" onclick="loadQuoteEditor()">重载名言</button>
-          <button class="primary" onclick="saveSettings()">💾 保存设置</button>
-        </div>
       </section>
     </div>
 
