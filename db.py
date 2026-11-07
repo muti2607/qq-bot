@@ -63,6 +63,16 @@ CREATE TABLE IF NOT EXISTS images (
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS apply_requests (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    mail        TEXT NOT NULL,
+    username    TEXT NOT NULL,
+    password    TEXT NOT NULL,        -- sha256 hex
+    status      TEXT NOT NULL DEFAULT 'pending',  -- pending | approved | rejected
+    note        TEXT NOT NULL DEFAULT '',
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
 CREATE TABLE IF NOT EXISTS upload_users (
     id          INTEGER PRIMARY KEY AUTOINCREMENT,
     username    TEXT NOT NULL UNIQUE,
@@ -432,6 +442,56 @@ def update_upload_user(uid: int, password: str | None = None,
 def delete_upload_user(uid: int) -> None:
     with db() as conn:
         conn.execute("DELETE FROM upload_users WHERE id=?", (uid,))
+
+
+# ---------------- apply_requests（注册申请） ----------------
+
+
+def create_apply(mail: str, username: str, password: str) -> int | None:
+    try:
+        with db() as conn:
+            cur = conn.execute(
+                "INSERT INTO apply_requests(mail, username, password, status) VALUES(?,?,?,'pending')",
+                (mail.strip().lower(), username.strip(), _hash_pw(password)),
+            )
+            return int(cur.lastrowid)
+    except sqlite3.IntegrityError:
+        return None  # 用户名已存在
+
+
+def list_applies(status: str | None = None) -> list[dict[str, Any]]:
+    sql = "SELECT * FROM apply_requests" + (" WHERE status=?" if status else "") + " ORDER BY id DESC"
+    with db() as conn:
+        rows = conn.execute(sql, (status,) if status else ()).fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d.pop("password", None)
+        out.append(d)
+    return out
+
+
+def get_apply(aid: int) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM apply_requests WHERE id=?", (aid,)).fetchone()
+    return dict(row) if row else None
+
+
+def set_apply_status(aid: int, status: str) -> None:
+    with db() as conn:
+        conn.execute("UPDATE apply_requests SET status=? WHERE id=?", (status, aid))
+
+
+def approve_apply(aid: int) -> int | None:
+    """批准申请：创建上传账号并标记 approved。返回账号 id，用户名冲突返回 None。"""
+    a = get_apply(aid)
+    if not a or a["status"] != "pending":
+        return None
+    uid = create_upload_user(a["username"], a["password"], f"邮箱注册 {a['mail']}")
+    if uid is None:
+        return None
+    set_apply_status(aid, "approved")
+    return uid
 
 
 # ---------------- presets（群组预设） ----------------

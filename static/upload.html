@@ -3,19 +3,19 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>上传图片 · QQ 机器人</title>
+<title>图片上传 · QQ 机器人</title>
 <style>
   :root{
     --bg1:#0a0f1e; --bg2:#0d1526; --bg3:#090d18;
     --glow1:#0e2a4a; --glow2:#1a1440; --glow3:#0a2338;
-    --card:rgba(15,23,42,.8); --txt:#dbeafe; --sub:#64748b;
-    --line:rgba(56,189,248,.18); --pink:#38bdf8; --pink2:#22d3ee;
+    --card:rgba(15,23,42,.85); --txt:#dbeafe; --sub:#64748b;
+    --line:rgba(56,189,248,.2); --pink:#38bdf8; --pink2:#22d3ee;
     --grad:linear-gradient(92deg,#38bdf8,#818cf8);
     --ok:#34d399; --warn:#fbbf24; --err:#f87171;
-    --input-bg:rgba(8,13,26,.85);
+    --input-bg:rgba(8,13,26,.9);
   }
   *{box-sizing:border-box}
-  body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;color:var(--txt);
+  body{margin:0;min-height:100vh;display:grid;place-items:start center;padding:24px 14px 40px;color:var(--txt);
        font:15px/1.7 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
        background:
          radial-gradient(900px 500px at 10% -10%, var(--glow1) 0%, transparent 55%),
@@ -24,73 +24,116 @@
          linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
        background-attachment:fixed}
   .card{background:var(--card);backdrop-filter:blur(12px);
-        border:1px solid var(--line);border-radius:24px;padding:30px 26px;width:min(440px,94vw);
-        box-shadow:0 18px 50px rgba(0,0,0,.5)}
+        border:1px solid var(--line);border-radius:24px;padding:30px 26px;width:min(470px,94vw);
+        box-shadow:0 18px 50px rgba(0,0,0,.5);margin-bottom:16px}
   h1{font-size:19px;margin:0 0 6px;font-weight:800;
      background:var(--grad);-webkit-background-clip:text;background-clip:text;
      -webkit-text-fill-color:transparent}
   .sub{color:var(--sub);font-size:13px;margin:0 0 20px}
-  .who{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;
+  input{width:100%;background:var(--input-bg);color:var(--txt);
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px;margin-bottom:12px}
+  input:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(56,189,248,.16)}
+  button{width:100%;padding:12px;border:none;border-radius:999px;color:#fff;font:inherit;
+    font-size:15px;font-weight:600;cursor:pointer;background:var(--grad);
+    box-shadow:0 8px 22px rgba(56,189,248,.3);transition:.18s;margin-bottom:10px}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--sub)}
+  .status{min-height:40px;margin-top:10px;font-size:13.5px}
+  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
+  .hidden{display:none}
+  .who{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;flex-wrap:wrap;
        padding:10px 14px;border-radius:12px;background:rgba(56,189,248,.08);border:1px solid var(--line)}
   .who b{color:var(--pink)}
-  .who button{margin-left:auto;width:auto;padding:5px 12px;font-size:12px;box-shadow:none}
-  .drop{border:2px dashed var(--line);border-radius:18px;padding:34px 16px;cursor:pointer;
-    transition:.2s;background:rgba(56,189,248,.04);margin-bottom:16px}
+  .who .sp{flex:1}
+  .who button{width:auto;padding:5px 12px;font-size:12px;margin:0;box-shadow:none}
+  .drop{border:2px dashed var(--line);border-radius:18px;padding:32px 16px;cursor:pointer;
+    transition:.2s;background:rgba(56,189,248,.04);margin-bottom:14px;text-align:center}
   .drop:hover,.drop.over{border-color:var(--pink);background:rgba(56,189,248,.09)}
   .drop .ico{font-size:34px;line-height:1}
   .drop .t1{font-weight:700;margin-top:8px}
   .drop .t2{font-size:12px;color:var(--sub);margin-top:3px}
   input[type=file]{display:none}
-  input[type=text],input[type=password]{width:100%;background:var(--input-bg);color:var(--txt);
-    border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px;margin-bottom:12px}
-  input:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(56,189,248,.16)}
-  button{width:100%;padding:13px;border:none;border-radius:999px;color:#fff;font:inherit;
-    font-size:15px;font-weight:600;cursor:pointer;background:var(--grad);
-    box-shadow:0 8px 22px rgba(56,189,248,.3);transition:.18s}
-  button:hover{filter:brightness(1.08)}
-  button:disabled{opacity:.55;cursor:not-allowed}
-  button.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--sub);margin-top:8px}
-  .status{min-height:42px;margin-top:14px;font-size:13.5px}
-  .status.ok{color:var(--ok)} .status.err{color:var(--err)}
-  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px;display:none}
-  .bar i{display:block;height:100%;width:0%;border-radius:99px;background:var(--grad);transition:width .3s}
   .preview{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:14px}
   .preview img{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
+  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px;display:none}
+  .bar i{display:block;height:100%;width:0%;border-radius:99px;background:var(--grad);transition:width .3s}
   .mine{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
-  .mine h3{font-size:13px;margin:0 0 10px;color:var(--sub);font-weight:600}
-  .mine .row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
-  .mine .row:last-child{border-bottom:none}
-  .mine .row img{width:40px;height:40px;object-fit:cover;border-radius:8px}
-  .mine .row .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .mine h3{font-size:13px;margin:0 0 10px;color:var(--sub);font-weight:600;display:flex;align-items:center;gap:8px}
+  .mrow{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+  .mrow:last-child{border-bottom:none}
+  .mrow img{width:40px;height:40px;object-fit:cover;border-radius:8px;cursor:zoom-in}
+  .mrow .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .tag{font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap}
   .tag.pending{background:rgba(251,191,36,.15);color:var(--warn)}
   .tag.approved{background:rgba(52,211,153,.15);color:var(--ok)}
   .tag.rejected{background:rgba(248,113,113,.15);color:var(--err)}
   .note{font-size:11px;color:var(--sub);margin-top:14px;opacity:.85;text-align:center}
-  .hidden{display:none}
+  .steps{display:flex;gap:8px;margin-bottom:16px;font-size:12px;color:var(--sub)}
+  .steps span{flex:1;text-align:center;padding:6px 4px;border-radius:8px;background:rgba(255,255,255,.04)}
+  .steps span.on{background:rgba(56,189,248,.14);color:var(--pink);font-weight:600}
+  .code-row{display:flex;gap:8px}
+  .code-row input{flex:1}
+  .code-row button{width:auto;padding:0 16px;margin:0 0 12px;font-size:13px;white-space:nowrap}
+  .rev{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line);font-size:12.5px}
+  .rev:last-child{border-bottom:none}
+  .rev img{width:56px;height:56px;object-fit:cover;border-radius:10px;cursor:zoom-in}
+  .rev .n{flex:1;min-width:0}
+  .rev .n .u{color:var(--pink);font-size:11px}
+  .rev .ops{display:flex;flex-direction:column;gap:6px}
+  .rev .ops button{width:auto;padding:5px 14px;margin:0;font-size:12px}
+  .rev .ops .approve{background:rgba(52,211,153,.2);border:1px solid var(--ok);box-shadow:none}
+  .rev .ops .reject{background:rgba(248,113,113,.15);border:1px solid var(--err);box-shadow:none}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:99;display:grid;place-items:center;cursor:zoom-out}
+  .lightbox img{max-width:94vw;max-height:92vh;border-radius:12px;box-shadow:0 20px 80px rgba(0,0,0,.8)}
 </style>
 </head>
 <body>
+<div>
 
-<!-- 登录卡片 -->
+<!-- 登录 / 注册 -->
 <div class="card" id="loginCard">
-  <h1>📤 图片上传</h1>
-  <p class="sub">请使用后台分配的账号登录</p>
-  <input type="text" id="u" placeholder="账号" autocomplete="username">
-  <input type="password" id="p" placeholder="密码" autocomplete="current-password">
-  <button id="loginBtn" onclick="doLogin()">登录</button>
+  <h1>📤 图片上传中心</h1>
+  <p class="sub">登录上传 · 或用 QQ 邮箱申请账号</p>
+  <div class="steps">
+    <span id="st-log" class="on">① 登录</span>
+    <span id="st-reg">② 注册账号</span>
+  </div>
+
+  <div id="loginForm">
+    <input type="text" id="u" placeholder="账号" autocomplete="username">
+    <input type="password" id="p" placeholder="密码" autocomplete="current-password">
+    <button id="loginBtn" onclick="doLogin()">登录</button>
+    <button class="ghost" onclick="showReg(true)">没有账号？用 QQ 邮箱注册 →</button>
+    <button class="ghost" onclick="showAdmin()">🛡️ 管理员审批入口</button>
+  </div>
+
+  <div id="regForm" class="hidden">
+    <input type="text" id="r-mail" placeholder="QQ 邮箱（如 12345@qq.com）" autocomplete="off">
+    <div class="code-row">
+      <input type="text" id="r-code" placeholder="邮箱验证码" maxlength="6">
+      <button id="codeBtn" onclick="sendCode()">发送验证码</button>
+    </div>
+    <input type="text" id="r-user" placeholder="账号名（2-20 位，字母/数字/中文）">
+    <input type="password" id="r-pass" placeholder="密码（至少 4 位）">
+    <button onclick="doApply()">提交申请</button>
+    <button class="ghost" onclick="showReg(false)">← 返回登录</button>
+    <div class="note" id="applyStatus">验证码发到你的 QQ 邮箱；申请提交后由管理员审批，批准后即可登录上传。</div>
+  </div>
+
   <div class="status" id="loginStatus"></div>
-  <div class="note">上传的图片需管理员审核通过后才会进入图片库</div>
 </div>
 
-<!-- 上传卡片 -->
+<!-- 上传 -->
 <div class="card hidden" id="uploadCard">
   <h1>📤 上传图片</h1>
-  <p class="sub">选好的图提交审核，通过后即可被机器人使用</p>
+  <p class="sub">提交后等待管理员审核，通过后即可被机器人使用</p>
 
   <div class="who">
     👤 <b id="whoami">—</b>
-    <button class="ghost" onclick="doLogout()">退出登录</button>
+    <span class="sp"></span>
+    <button class="ghost" onclick="doChangePw()">改密码</button>
+    <button class="ghost" onclick="doLogout()">退出</button>
   </div>
 
   <div class="drop" id="drop" onclick="document.getElementById('file').click()">
@@ -99,15 +142,13 @@
     <div class="t2">支持多选 · png/jpg/gif/webp · 单张 ≤ 10MB</div>
   </div>
   <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
-
   <div class="preview" id="preview"></div>
   <button class="go" id="go" onclick="doUpload()">提交审核</button>
-
   <div class="bar" id="bar"><i></i></div>
   <div class="status" id="status"></div>
 
   <div class="mine">
-    <h3>我的上传（<span id="mineCount">0</span>）</h3>
+    <h3>我的上传（<span id="mineCount">0</span>）<button class="link" onclick="loadMine()">刷新</button></h3>
     <div id="mineList"></div>
   </div>
 
@@ -118,61 +159,114 @@
   <div class="note">图片上传后需管理员审核，请耐心等待</div>
 </div>
 
+<!-- 管理员审批 -->
+<div class="card hidden" id="adminCard">
+  <h1>🛡️ 管理员审批</h1>
+  <p class="sub">待审核图片 · 待批注册申请</p>
+
+  <div class="who">
+    🛡️ <b>管理员模式</b>
+    <span class="sp"></span>
+    <button class="ghost" onclick="exitAdmin()">退出管理</button>
+  </div>
+
+  <input type="password" id="apw" placeholder="管理密码（后台设置里那个）" oninput="savePwDebounced()">
+  <button onclick="loadAdmin()" style="margin-bottom:16px">加载待办</button>
+
+  <div class="mine">
+    <h3>待审核图片（<span id="revCount">0</span>）<button class="link" onclick="loadAdmin()">刷新</button></h3>
+    <div id="revList"></div>
+  </div>
+
+  <div class="mine">
+    <h3>待批注册申请（<span id="apCount">0</span>）<button class="link" onclick="loadAdmin()">刷新</button></h3>
+    <div id="apList"></div>
+  </div>
+</div>
+
+<div class="lightbox hidden" id="lightbox" onclick="this.classList.add('hidden')">
+  <img id="lightbox-img" src="" alt="">
+</div>
+
 <script>
 const $ = s => document.querySelector(s);
-const TOK = () => localStorage.getItem('qqbot-upload-token') || '';
+const PW_KEY = 'qqbot-admin-pw';
 
-async function api(path, opts = {}) {
-  const headers = Object.assign({}, opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'});
-  if (TOK()) headers['X-Upload-Session'] = TOK();
-  const res = await fetch(path, Object.assign({credentials: 'same-origin', headers}, opts));
-  const text = await res.text();
-  let data = null;
-  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
-  if (!res.ok) {
-    if (res.status === 401) { showLogin(); }
-    throw new Error((data && data.detail) || res.statusText);
-  }
-  return data;
+function showLightbox(src) {
+  $('#lightbox-img').src = src;
+  $('#lightbox').classList.remove('hidden');
+}
+function setSt(sel, msg, isErr) {
+  const el = $(sel);
+  el.textContent = msg;
+  el.className = 'status' + (isErr ? ' err' : '');
+}
+async function post(path, body, headers) {
+  const hh = Object.assign({'Content-Type': 'application/json'}, headers || {});
+  const res = await fetch(path, {method: 'POST', credentials: 'same-origin', headers: hh, body: JSON.stringify(body)});
+  const d = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(d.detail || res.statusText);
+  return d;
 }
 
-function showLogin() {
-  $('#loginCard').classList.remove('hidden');
-  $('#uploadCard').classList.add('hidden');
-}
-function showUpload() {
-  $('#loginCard').classList.add('hidden');
-  $('#uploadCard').classList.remove('hidden');
-  loadMine();
+/* ---------- 登录 / 注册 ---------- */
+function showReg(on) {
+  $('#loginForm').classList.toggle('hidden', on);
+  $('#regForm').classList.toggle('hidden', !on);
+  $('#st-log').classList.toggle('on', !on);
+  $('#st-reg').classList.toggle('on', on);
 }
 
 async function doLogin() {
   const u = $('#u').value.trim(), p = $('#p').value;
-  if (!u || !p) { $('#loginStatus').textContent = '请输入账号和密码'; $('#loginStatus').className = 'status err'; return; }
+  if (!u || !p) return setSt('#loginStatus', '请输入账号和密码', true);
   $('#loginBtn').disabled = true;
   try {
-    const r = await fetch('/remote/login', {
-      method: 'POST', headers: {'Content-Type': 'application/json'},
-      body: JSON.stringify({username: u, password: p}), credentials: 'same-origin'
-    });
-    const d = await r.json();
-    if (!r.ok) throw new Error(d.detail || '登录失败');
+    const d = await post('/remote/login', {username: u, password: p});
     localStorage.setItem('qqbot-upload-token', d.token);
-    $('#whoami').textContent = d.username;
-    showUpload();
-  } catch (e) {
-    $('#loginStatus').textContent = e.message;
-    $('#loginStatus').className = 'status err';
-  }
+    enterUpload(d.username);
+  } catch (e) { setSt('#loginStatus', e.message, true); }
   $('#loginBtn').disabled = false;
 }
 
-async function doLogout() {
-  await fetch('/remote/logout', {method: 'POST', credentials: 'same-origin'}).catch(() => {});
-  localStorage.removeItem('qqbot-upload-token');
-  showLogin();
+function enterUpload(username) {
+  $('#whoami').textContent = username;
+  $('#loginCard').classList.add('hidden');
+  $('#adminCard').classList.add('hidden');
+  $('#uploadCard').classList.remove('hidden');
+  loadMine();
 }
 
+let codeTimer = null;
+async function sendCode() {
+  const mail = $('#r-mail').value.trim();
+  if (!mail) return setSt('#loginStatus', '先填 QQ 邮箱', true);
+  const btn = $('#codeBtn'); btn.disabled = true;
+  try {
+    await post('/remote/apply/send-code', {mail});
+    setSt('#loginStatus', '验证码已发送，10 分钟内有效', false);
+    let n = 60;
+    codeTimer = setInterval(() => {
+      btn.textContent = n-- + 's';
+      if (n < 0) { clearInterval(codeTimer); btn.disabled = false; btn.textContent = '发送验证码'; }
+    }, 1000);
+  } catch (e) { setSt('#loginStatus', e.message, true); btn.disabled = false; }
+}
+
+async function doApply() {
+  const mail = $('#r-mail').value.trim(), code = $('#r-code').value.trim(),
+        username = $('#r-user').value.trim(), password = $('#r-pass').value;
+  if (!mail || !code || !username || !password) return setSt('#loginStatus', '请填写完整', true);
+  try {
+    await post('/remote/apply', {mail, code, username, password});
+    setSt('#loginStatus', '', false);
+    $('#applyStatus').textContent = '✅ 申请已提交！管理员批准后，用账号「' + username + '」登录即可上传。';
+    showReg(false);
+  } catch (e) { setSt('#loginStatus', e.message, true); }
+}
+
+/* ---------- 上传 ---------- */
+const H = () => ({'X-Upload-Session': localStorage.getItem('qqbot-upload-token') || ''});
 let files = [];
 const drop = $('#drop'), fileEl = $('#file');
 fileEl.onchange = () => setFiles([...fileEl.files]);
@@ -183,81 +277,155 @@ drop.addEventListener('drop', e => setFiles([...e.dataTransfer.files]));
 function setFiles(fs) {
   files = fs.filter(f => f.type.startsWith('image/'));
   $('#preview').innerHTML = files.map(f => `<img src="${URL.createObjectURL(f)}">`).join('');
-  $('#status').textContent = files.length ? `已选 ${files.length} 张` : '';
-  $('#status').className = 'status';
+  setSt('#status', files.length ? '已选 ' + files.length + ' 张' : '', false);
 }
 
 async function doUpload() {
-  if (!files.length) { $('#status').textContent = '先选择图片'; $('#status').className = 'status err'; return; }
-  const go = $('#go'); go.disabled = true;
-  $('#bar').style.display = 'block';
+  if (!files.length) return setSt('#status', '先选择图片', true);
+  $('#go').disabled = true; $('#bar').style.display = 'block';
   let ok = 0, fail = 0;
   for (let i = 0; i < files.length; i++) {
     $('#bar').firstElementChild.style.width = Math.round(i / files.length * 100) + '%';
-    $('#status').textContent = `提交中 ${i + 1}/${files.length}…`;
+    setSt('#status', `提交中 ${i + 1}/${files.length}…`, false);
     const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(files[i]); });
     try {
-      await api('/remote/upload', {method: 'POST', body: JSON.stringify({filename: files[i].name, data: b64})});
+      await post('/remote/upload', {filename: files[i].name, data: b64}, H());
       ok++;
-    } catch (e) { fail++; }
+    } catch (e) {
+      if ((e.message || '').includes('登录')) { showLogin(); go.disabled = false; $('#bar').style.display = 'none'; return; }
+      fail++;
+    }
   }
   $('#bar').firstElementChild.style.width = '100%';
-  go.disabled = false;
+  $('#go').disabled = false;
   if (!fail) {
-    $('#status').textContent = `✅ ${ok} 张已提交，等待管理员审核`;
-    $('#status').className = 'status ok';
+    setSt('#status', `✅ ${ok} 张已提交，等待管理员审核`, false);
     files = []; fileEl.value = ''; $('#preview').innerHTML = '';
     setTimeout(() => { $('#bar').style.display = 'none'; $('#bar').firstElementChild.style.width = '0%'; }, 900);
-  } else {
-    $('#status').textContent = `成功 ${ok}，失败 ${fail}（登录过期？文件过大？）`;
-    $('#status').className = 'status err';
-  }
+  } else setSt('#status', `成功 ${ok}，失败 ${fail}（可能登录过期，请重新登录）`, true);
   loadMine();
 }
 
 async function doChangePw() {
-  const oldPw = (prompt('原密码：', '') || '');
+  const oldPw = prompt('原密码：') || '';
   if (!oldPw) return;
-  const newPw = (prompt('新密码（至少 4 位）：', '') || '');
-  if (!newPw) return;
-  if (newPw.length < 4) { alert('新密码至少 4 位'); return; }
+  const newPw = prompt('新密码（至少 4 位）：') || '';
+  if (!newPw || newPw.length < 4) { alert('新密码至少 4 位'); return; }
   if (newPw === oldPw) { alert('新密码不能与原密码相同'); return; }
-  const again = (prompt('再输入一次新密码：', '') || '');
-  if (again !== newPw) { alert('两次输入的新密码不一致'); return; }
+  if ((prompt('再输入一次新密码：') || '') !== newPw) { alert('两次输入不一致'); return; }
   try {
-    const r = await api('/remote/change-password', {method: 'POST', body: JSON.stringify({old_password: oldPw, new_password: newPw})});
+    await post('/remote/change-password', {old_password: oldPw, new_password: newPw}, H());
     localStorage.removeItem('qqbot-upload-token');
     alert('密码已修改，请用新密码重新登录');
-    showLogin();
+    location.reload();
   } catch (e) { alert(e.message); }
+}
+
+async function doLogout() {
+  await fetch('/remote/logout', {method: 'POST', credentials: 'same-origin'}).catch(() => {});
+  localStorage.removeItem('qqbot-upload-token');
+  location.reload();
 }
 
 async function loadMine() {
   try {
-    const d = await api('/remote/mine');
+    const d = await fetch('/remote/mine', {credentials: 'same-origin', headers: H()}).then(r => r.json());
+    if (!d.ok) throw 0;
     const list = d.images || [];
     $('#mineCount').textContent = list.length;
     const label = {pending: '待审核', approved: '已通过', rejected: '未通过'};
     $('#mineList').innerHTML = list.length ? list.map(i => `
-      <div class="row">
-        <img src="/remote/thumb/${i.id}" onerror="this.style.display='none'">
+      <div class="mrow">
+        <img src="/remote/thumb/${i.id}" onclick="showLightbox(this.src.replace('/thumb','/file'))" onerror="this.style.display='none'">
         <span class="n" title="${i.original}">${i.original}</span>
-        <span class="tag ${i.status || 'approved'}" title="${esc(i.review_note || '')}">${label[i.status] || i.status}</span>
+        <span class="tag ${i.status || 'approved'}" title="${i.review_note || ''}">${label[i.status] || i.status}</span>
       </div>`).join('') : '<div class="note">还没有上传记录</div>';
-  } catch (e) { /* 401 已自动切登录 */ }
+  } catch (e) {}
 }
 
-// 启动：有 token 就验证，否则登录
-(async () => {
-  if (TOK()) {
-    try {
-      const me = await api('/remote/me');
-      $('#whoami').textContent = me.username;
-      showUpload();
-      return;
-    } catch (e) { localStorage.removeItem('qqbot-upload-token'); }
+/* ---------- 管理员审批（8001 页面） ---------- */
+let adminPw = localStorage.getItem(PW_KEY) || '';
+let pwTimer = null;
+function savePwDebounced() {
+  clearTimeout(pwTimer);
+  pwTimer = setTimeout(() => {
+    adminPw = $('#apw').value.trim();
+    if (adminPw) localStorage.setItem(PW_KEY, adminPw);
+  }, 400);
+}
+function showAdmin() {
+  $('#loginCard').classList.add('hidden');
+  $('#uploadCard').classList.add('hidden');
+  $('#adminCard').classList.remove('hidden');
+}
+function exitAdmin() { location.reload(); }
+
+async function loadAdmin() {
+  adminPw = $('#apw').value.trim() || adminPw;
+  if (!adminPw) return setSt('#loginStatus', '先输入管理密码', true);
+  localStorage.setItem(PW_KEY, adminPw);
+  showAdmin();
+  try {
+    const imgs = await post('/remote/admin-pending', {admin_password: adminPw});
+    $('#revCount').textContent = (imgs.images || []).length;
+    $('#revList').innerHTML = (imgs.images || []).length ? imgs.images.map(i => `
+      <div class="rev">
+        <img src="/remote/thumb/${i.id}" onclick="showLightbox(this.src.replace('/thumb','/file'))" onerror="this.style.display='none'">
+        <span class="n">${i.original}<div class="u">@${i.uploader} · ${i.created_at}</div></span>
+        <span class="ops">
+          <button class="approve" onclick="adminReview(${i.id},'approve')">通过</button>
+          <button class="reject" onclick="adminReview(${i.id},'reject')">驳回</button>
+        </span>
+      </div>`).join('') : '<div class="note">没有待审核的图片</div>';
+
+    const r = await fetch('/api/apply-requests?status=pending', {credentials: 'same-origin'});
+    const list = await r.json();
+    $('#apCount').textContent = list.length;
+    $('#apList').innerHTML = list.length ? list.map(a => `
+      <div class="rev">
+        <span class="n">👤 ${a.username}<div class="u">${a.mail}</div></span>
+        <span class="ops">
+          <button class="approve" onclick="adminApply(${a.id},'approve')">批准</button>
+          <button class="reject" onclick="adminApply(${a.id},'reject')">驳回</button>
+        </span>
+      </div>`).join('') : '<div class="note">没有待批的注册申请</div>';
+  } catch (e) {
+    if ((e.message || '').includes('密码')) setSt('#loginStatus', e.message, true);
+    $('#revList').innerHTML = `<div class="note err">${e.message}</div>`;
   }
-  showLogin();
+}
+
+async function adminReview(id, action) {
+  try {
+    await post('/remote/admin-review', {admin_password: adminPw, ids: [id], action});
+    toast(action === 'approve' ? '✅ 已通过' : '已驳回');
+    loadAdmin();
+  } catch (e) { toast(e.message, true); }
+}
+async function adminApply(aid, action) {
+  try {
+    await post(action === 'approve' ? '/remote/admin-apply-approve' : '/remote/admin-apply-reject',
+               {admin_password: adminPw, aid});
+    toast(action === 'approve' ? '✅ 已批准，账号生效' : '已驳回申请');
+    loadAdmin();
+  } catch (e) { toast(e.message, true); }
+}
+
+/* ---------- 启动 ---------- */
+(async () => {
+  adminPw = localStorage.getItem(PW_KEY) || '';
+  if (localStorage.getItem('qqbot-upload-token')) {
+    try {
+      const me = await fetch('/remote/me', {credentials: 'same-origin', headers: H()}).then(r => r.json());
+      if (me.ok) { $('#whoami').textContent = me.username; showUpload(); return; }
+    } catch {}
+    localStorage.removeItem('qqbot-upload-token');
+  }
+  if (adminPw) {
+    showAdmin();
+    $('#apw').value = adminPw;
+    loadAdmin();
+  }
 })();
 </script>
 </body>

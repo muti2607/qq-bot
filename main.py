@@ -28,6 +28,7 @@ import db
 import onebot
 import scheduler
 import sender
+import mailer
 import triggers
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -160,6 +161,10 @@ class SettingsIn(BaseModel):
     onebot_token: str | None = None
     post_token: str | None = None
     remote_token: str | None = None
+    smtp_host: str | None = None
+    smtp_port: int | None = None
+    smtp_user: str | None = None
+    smtp_pass: str | None = None
     admin_password: str | None = None
     rss_timeout: int | None = None
 
@@ -170,6 +175,7 @@ async def api_get_settings():
     s["onebot_token"] = "******" if s.get("onebot_token") else ""
     s["post_token"] = "******" if s.get("post_token") else ""
     s["remote_token"] = "******" if s.get("remote_token") else ""
+    s["smtp_pass"] = "******" if s.get("smtp_pass") else ""
     s.pop("admin_password", None)
     s["has_password"] = _auth_required()
     return s
@@ -186,6 +192,14 @@ async def api_save_settings(body: SettingsIn):
         data["post_token"] = body.post_token.strip()
     if body.remote_token is not None and body.remote_token != "******":
         data["remote_token"] = body.remote_token.strip()
+    if body.smtp_host is not None:
+        data["smtp_host"] = body.smtp_host.strip()
+    if body.smtp_port is not None:
+        data["smtp_port"] = str(body.smtp_port)
+    if body.smtp_user is not None:
+        data["smtp_user"] = body.smtp_user.strip()
+    if body.smtp_pass is not None and body.smtp_pass != "******":
+        data["smtp_pass"] = body.smtp_pass.strip()
     if body.rss_timeout is not None:
         data["rss_timeout"] = str(body.rss_timeout)
     db.set_settings(data)
@@ -852,6 +866,31 @@ async def api_update_upload_user(uid: int, body: UploadUserIn):
     return {"ok": True}
 
 
+@app.get("/api/apply-requests")
+async def api_apply_requests(status: str | None = None):
+    return db.list_applies(status)
+
+
+@app.post("/api/apply-requests/{aid}/approve")
+async def api_approve_apply(aid: int):
+    uid = db.approve_apply(aid)
+    if uid is None:
+        raise HTTPException(400, "申请不存在、已处理或用户名冲突")
+    a = db.get_apply(aid)
+    db.add_log(f"注册申请已批准：{a['username']}（{a['mail']}）", "info")
+    return {"ok": True, "uid": uid}
+
+
+@app.post("/api/apply-requests/{aid}/reject")
+async def api_reject_apply(aid: int):
+    a = db.get_apply(aid)
+    if not a or a["status"] != "pending":
+        raise HTTPException(400, "申请不存在或已处理")
+    db.set_apply_status(aid, "rejected")
+    db.add_log(f"注册申请已驳回：{a['username']}", "warn")
+    return {"ok": True}
+
+
 @app.delete("/api/upload-users/{uid}")
 async def api_delete_upload_user(uid: int):
     db.delete_upload_user(uid)
@@ -1180,6 +1219,67 @@ class UploadLoginIn(BaseModel):
     username: str
     password: str
 
+class ApplyStartIn(BaseModel):
+    mail: str
+
+class ApplyDoneIn(BaseModel):
+    mail: str
+    code: str
+    username: str
+    password: str
+
+
+@remote_router.post("/remote/apply/send-code")
+async def remote_apply_send_code(request: Request, body: ApplyStartIn):
+    """发送注册验证码到 QQ 邮箱（限流保护）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    try:
+        ttl = mailer.send_code(body.mail)
+    except mailer.MailError as e:
+        raise HTTPException(400, str(e))
+    return {"ok": True, "ttl": ttl}
+
+
+@remote_router.post("/remote/apply")
+async def remote_apply(request: Request, body: ApplyDoneIn):
+    """提交注册申请：验证码校验通过后进入待审批。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    if not mailer._valid_qq_mail(body.mail):
+        raise HTTPException(400, "仅支持 QQ 邮箱")
+    if not mailer.verify_code(body.mail, body.code):
+        raise HTTPException(400, "验证码错误或已过期")
+    username = body.username.strip()
+    if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fff]{2,20}", username):
+        raise HTTPException(400, "账号名需 2-20 位字母/数字/下划线/中文")
+    if len(body.password) < 4:
+        raise HTTPException(400, "密码至少 4 位")
+    aid = db.create_apply(body.mail, username, body.password)
+    if aid is None:
+        raise HTTPException(400, "账号名已被使用")
+    db.add_log(f"新注册申请：{username}（{body.mail}）待审批", "info")
+    return {"ok": True, "aid": aid, "msg": "申请已提交，等待管理员审批"}
+
+
+@remote_router.get("/remote/apply/status")
+async def remote_apply_status(request: Request, mail: str):
+    """申请者查询自己申请的审批状态。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    mail = (mail or "").strip().lower()
+    for a in db.list_applies():
+        if a["mail"] == mail:
+            return {"ok": True, "status": a["status"], "username": a["username"]}
+    return {"ok": True, "status": "none"}
+
+
 @remote_router.post("/remote/login")
 async def remote_login(request: Request, body: UploadLoginIn):
     ip = _client_ip(request)
@@ -1235,6 +1335,81 @@ async def remote_change_password(request: Request, body: ChangePwIn):
     resp = JSONResponse({"ok": True})
     resp.delete_cookie("upload_session")
     return resp
+
+class AdminReviewIn(BaseModel):
+    admin_password: str
+    ids: list[int]
+    action: str          # approve | reject
+
+
+@remote_router.post("/remote/admin-review")
+async def remote_admin_review(request: Request, body: AdminReviewIn):
+    """管理员在 8001 上传页直接审批待审图片（用管理密码鉴权）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    cur = db.get_settings().get("admin_password", "")
+    if not cur or not secrets.compare_digest(body.admin_password, cur):
+        raise HTTPException(401, "管理员密码错误")
+    if body.action not in ("approve", "reject"):
+        raise HTTPException(400, "action 无效")
+    status = "approved" if body.action == "approve" else "rejected"
+    n = db.bulk_review([int(i) for i in body.ids if str(i).isdigit()], status)
+    db.add_log(f"管理员（8001 页面）审核图片 {n} 张 → {status}", "info")
+    return {"ok": True, "count": n}
+
+
+@remote_router.get("/remote/admin-pending")
+async def remote_admin_pending(request: Request, admin_password: str = ""):
+    """管理员查看待审图片列表（8001 页面审批用）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    cur = db.get_settings().get("admin_password", "")
+    if not cur or not secrets.compare_digest(admin_password, cur):
+        raise HTTPException(401, "管理员密码错误")
+    out = []
+    for i in db.list_images(status="pending"):
+        out.append({"id": i["id"], "original": i["original"], "uploader": i["uploader"], "created_at": i["created_at"]})
+    return {"ok": True, "images": out}
+
+
+@remote_router.post("/remote/admin-apply-approve")
+async def remote_admin_apply_approve(request: Request, body: dict):
+    """管理员在 8001 页面批准注册申请。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    cur = db.get_settings().get("admin_password", "")
+    if not cur or not secrets.compare_digest(str(body.get("admin_password", "")), cur):
+        raise HTTPException(401, "管理员密码错误")
+    uid = db.approve_apply(int(body.get("aid", 0)))
+    if uid is None:
+        raise HTTPException(400, "申请不存在、已处理或用户名冲突")
+    a = db.get_apply(int(body.get("aid", 0)))
+    db.add_log(f"管理员（8001 页面）批准注册申请：{a['username']}", "info")
+    return {"ok": True, "uid": uid}
+
+
+@remote_router.post("/remote/admin-apply-reject")
+async def remote_admin_apply_reject(request: Request, body: dict):
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    cur = db.get_settings().get("admin_password", "")
+    if not cur or not secrets.compare_digest(str(body.get("admin_password", "")), cur):
+        raise HTTPException(401, "管理员密码错误")
+    aid = int(body.get("aid", 0))
+    a = db.get_apply(aid)
+    if not a or a["status"] != "pending":
+        raise HTTPException(400, "申请不存在或已处理")
+    db.set_apply_status(aid, "rejected")
+    return {"ok": True}
+
 
 @remote_router.get("/remote/ping")
 async def remote_ping(request: Request):

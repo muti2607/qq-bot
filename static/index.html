@@ -528,6 +528,15 @@
   .quote .qbtns{position:absolute;bottom:8px;right:12px;display:flex;gap:6px;opacity:.35;transition:.2s}
   .quote:hover .qbtns{opacity:1}
   .statgrid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px;margin-top:12px}
+  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.9);z-index:99;
+    display:grid;place-items:center;cursor:zoom-out}
+  .lightbox img{max-width:94vw;max-height:92vh;border-radius:12px;
+    box-shadow:0 20px 80px rgba(0,0,0,.8)}
+  .lightbox .meta{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
+    color:#fff;font-size:13px;background:rgba(0,0,0,.6);padding:8px 18px;border-radius:999px}
+  .imgs .item .zoom{position:absolute;bottom:4px;right:4px;background:rgba(15,23,42,.85);
+    color:#93c5fd;border-radius:8px;padding:2px 8px;font-size:11px;opacity:0;transition:.15s}
+  .imgs .item:hover .zoom{opacity:1}
   .stat{background:var(--card-soft);border:1px solid var(--line);
     border-radius:14px;padding:14px 6px;text-align:center}
   .stat b{display:block;font-size:22px;background:var(--grad);
@@ -750,6 +759,16 @@
       <label class="field"><span>远程上传 Token（脚本 / 手机快捷指令推图用，留空=不鉴权）</span>
         <input id="s-remote-token" placeholder="远程上传接口的鉴权 Token">
       </label>
+      <hr style="border:none;border-top:1px solid var(--line);margin:14px 0">
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">邮箱 SMTP（注册申请发验证码用；QQ 邮箱：smtp.qq.com / 465 / 授权码）</span>
+        <div class="grid3">
+          <input id="s-smtp-host" placeholder="smtp.qq.com">
+          <input id="s-smtp-port" type="number" placeholder="465">
+          <input id="s-smtp-user" placeholder="发件邮箱，如 xxx@qq.com">
+        </div>
+        <input id="s-smtp-pass" type="password" placeholder="SMTP 授权码（不是邮箱登录密码）" style="margin-top:8px">
+      </div>
       <div class="hint" style="margin-bottom:12px">
         <b>远程上传接口</b>（图片会直接进图片库）：<br>
         <code>POST /remote/upload</code>　JSON：<code>{"filename":"a.png","data":"&lt;base64&gt;"}</code><br>
@@ -1042,6 +1061,10 @@
 
 
 
+<div id="lightbox" class="lightbox hidden" onclick="this.classList.add('hidden')">
+  <img id="lightbox-img" src="" alt="">
+  <div class="meta" id="lightbox-meta"></div>
+</div>
 <div id="toast" class="toast"></div>
 
 <script>
@@ -1623,6 +1646,15 @@ async function clearAllImages() {
   } catch (e) { toast(e.message, true); }
 }
 
+// ---------- 图片放大查看 ----------
+function showLightbox(id) {
+  const i = images.find(x => x.id === id);
+  $('#lightbox-img').src = `/api/images/${id}/file`;
+  $('#lightbox-meta').textContent = `#${id} ${i ? i.original : ''}` +
+    (i && i.uploader ? ` · 上传者 @${i.uploader}` : '');
+  $('#lightbox').classList.remove('hidden');
+}
+
 // 只同步选中态，不重建图片 DOM（关键：避免每次点击都重新下载所有缩略图）
 function syncImgSelection() {
   const box = $('#images');
@@ -1667,7 +1699,9 @@ function renderImages() {
     <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}"
          title="#${i.id} ${esc(i.original)}${i.uploader ? ' · 上传者 ' + esc(i.uploader) : ''} · ${stLabel[i.status] || '已通过'}">
       <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async"
+           onclick="showLightbox(${i.id});event.stopPropagation()"
            onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
+      <span class="zoom">🔍 放大</span>
       <span class="badge ${i.status || 'approved'}">${stLabel[i.status] || '已通过'}</span>
       ${i.uploader ? `<span class="up">@${esc(i.uploader)}</span>` : ''}
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
@@ -2215,6 +2249,10 @@ async function openSettings() {
     $('#s-token').value = s.onebot_token || '';
     $('#s-post-token').value = s.post_token || '';
     $('#s-remote-token').value = s.remote_token || '';
+    $('#s-smtp-host').value = s.smtp_host || 'smtp.qq.com';
+    $('#s-smtp-port').value = s.smtp_port || 465;
+    $('#s-smtp-user').value = s.smtp_user || '';
+    $('#s-smtp-pass').value = s.smtp_pass || '';
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();
@@ -2249,6 +2287,10 @@ async function saveSettings() {
       onebot_token: $('#s-token').value,
       post_token: $('#s-post-token').value,
       remote_token: $('#s-remote-token').value,
+      smtp_host: $('#s-smtp-host').value.trim(),
+      smtp_port: Number($('#s-smtp-port').value) || 465,
+      smtp_user: $('#s-smtp-user').value.trim(),
+      smtp_pass: $('#s-smtp-pass').value,
       rss_timeout: Number($('#s-rss').value) || 15,
     })});
     // 名言只在内容有变化时才提交（避免 2000+ 条大 payload 反复发送/误触校验）
