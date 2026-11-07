@@ -949,15 +949,24 @@ remote_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
 remote_app.include_router(remote_router)
 
 
-@remote_app.get("/")
-async def remote_root():
-    return {"service": "qq-bot remote upload", "endpoints": ["/remote/ping", "/remote/upload", "/remote/upload-file"]}
+@remote_app.get("/", response_class=HTMLResponse)
+@remote_app.get("/upload", response_class=HTMLResponse)
+async def remote_upload_page():
+    """纯上传页面：手机/电脑浏览器直接打开即可传图。"""
+    return (BASE_DIR / "static" / "upload.html").read_text(encoding="utf-8")
 
 
 @remote_app.middleware("http")
 async def remote_404_guard(request: Request, call_next):
-    """只放行 /remote/* 路径，其余一律 404，防探测。"""
-    if not request.url.path.startswith("/remote"):
+    """只放行 / 与 /remote/*、静态上传页资源，其余一律 404，防探测。"""
+    path = request.url.path
+    allowed = (
+        path == "/"
+        or path == "/upload"
+        or path.startswith("/remote")
+        or path == "/static/upload.html"   # 页面自身无需额外资源，但保留以防万一
+    )
+    if not allowed:
         return JSONResponse({"detail": "Not Found"}, status_code=404)
     return await call_next(request)
 
