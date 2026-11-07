@@ -44,7 +44,7 @@
   .dot.off{background:var(--err);box-shadow:0 0 0 4px rgba(239,68,68,.15)}
   .spacer{flex:1}
   main{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:grid;gap:16px}
-  .row{display:grid;grid-template-columns:1fr 390px;gap:16px}
+  .row{display:grid;grid-template-columns:1fr 390px;gap:16px;align-items:start}
   @media (max-width:920px){.row{grid-template-columns:1fr}}
   .panel{
     background:var(--card);backdrop-filter:blur(10px);
@@ -120,18 +120,25 @@
   .log div{padding:3px 0;border-bottom:1px dashed #f0dce8;white-space:pre-wrap;word-break:break-all}
   .log div:last-child{border-bottom:none}
   .log time{color:#c4b5d4;margin-right:8px}
-  .tasklist .t{display:flex;gap:10px;align-items:flex-start;padding:13px 0;
-    border-bottom:1px solid rgba(236,72,153,.10)}
-  .tasklist .t:last-child{border-bottom:none}
+  .tasklist{display:grid;grid-template-columns:repeat(auto-fit,minmax(310px,1fr));gap:12px;align-items:stretch}
+  .tasklist .t{display:flex;gap:12px;align-items:flex-start;padding:12px 14px;
+    background:rgba(255,255,255,.55);border:1px solid rgba(255,255,255,.9);
+    border-radius:16px;box-shadow:0 4px 14px rgba(236,72,153,.07);transition:.18s}
+  .tasklist .t:hover{box-shadow:0 8px 22px rgba(236,72,153,.13);transform:translateY(-1px)}
+  .tasklist .add{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;
+    min-height:96px;border:1.5px dashed var(--line2);border-radius:16px;color:var(--sub);
+    cursor:pointer;font-size:13px;background:rgba(255,255,255,.28);transition:.18s}
+  .tasklist .add:hover{border-color:var(--pink2);color:var(--pink);background:rgba(255,255,255,.6)}
+  .tasklist .add b{font-size:22px;font-weight:400;line-height:1}
   .tasklist .body{flex:1;min-width:0}
   .tasklist .title{font-weight:700;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
   .tasklist .meta{font-size:12px;color:var(--sub);margin-top:4px;display:flex;gap:13px;flex-wrap:wrap}
-  .tasklist .ops{display:flex;gap:6px;flex:none}
+  .tasklist .ops{display:flex;gap:6px;flex:none;flex-wrap:wrap;justify-content:flex-end;max-width:120px}
   .tasklist .exec{
-    width:64px;height:64px;flex:none;border:none;border-radius:20px;cursor:pointer;
-    background:linear-gradient(140deg,#f472b6,#a855f7);color:#fff;font-size:11px;line-height:1.2;
-    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;
-    box-shadow:0 8px 20px rgba(236,72,153,.35);transition:.18s;
+    width:54px;height:54px;flex:none;border:none;border-radius:16px;cursor:pointer;
+    background:linear-gradient(140deg,#f472b6,#a855f7);color:#fff;font-size:10px;line-height:1.15;
+    display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;
+    box-shadow:0 6px 16px rgba(236,72,153,.32);transition:.18s;
   }
   .tasklist .exec:hover{transform:translateY(-2px) scale(1.03);box-shadow:0 12px 26px rgba(236,72,153,.45)}
   .tasklist .exec:active{transform:scale(.97)}
@@ -593,7 +600,8 @@ function modeText(m) {
 
 function renderTasks() {
   const box = $('#tasklist');
-  if (!tasks.length) { box.innerHTML = '<div class="empty">还没有任务，点右上角“新建任务”。</div>'; return; }
+  const addCard = `<div class="add" onclick="openTaskForm(null)"><b>＋</b><span>新建任务</span></div>`;
+  if (!tasks.length) { box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有任务，点下面的卡片新建。</div>` + addCard; return; }
   box.innerHTML = tasks.map(t => {
     const tg = (t.targets || []).map(x => `<span class="chip"><span class="tag ${x.type === 'private' ? 'p' : ''}">${x.type === 'group' ? '群' : '私'}</span><b>${esc(x.name || x.id)}</b></span>`).join('') || '<span class="muted">未设置目标</span>';
     const next = t.next_run ? `下次 ${esc(t.next_run)}` : (t.enabled ? '未排程（检查时间）' : '已停用');
@@ -621,7 +629,7 @@ function renderTasks() {
         <button class="small danger" onclick="delTask(${t.id})">删除</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + addCard;
 }
 
 async function toggleTask(id, enabled) {
@@ -959,7 +967,11 @@ async function loadTriggers() {
 
 function renderTriggers() {
   const box = $('#triggerlist');
-  if (!triggers.length) { box.innerHTML = '<div class="empty">还没有触发词。注意：需要 NapCat 配置 HTTP POST 上报（见页脚说明）。</div>'; return; }
+  const addCard = `<div class="add" onclick="openTriggerForm(null)"><b>＋</b><span>新建触发</span></div>`;
+  if (!triggers.length) {
+    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有触发词。需要在 NapCat 配置 HTTP POST 上报（见设置页说明）。</div>` + addCard;
+    return;
+  }
   box.innerHTML = triggers.map(t => {
     const scopeTxt = {all: '所有会话', group: '所有群', private: '仅私聊'}[t.scope] || (t.scope.startsWith('group:') ? '指定群' : t.scope);
     const imgTxt = t.image_mode === 'random' ? '随机图' : t.image_mode === 'fixed' ? '固定图' : '';
@@ -981,7 +993,7 @@ function renderTriggers() {
         <button class="small danger" onclick="delTrigger(${t.id})">删除</button>
       </div>
     </div>`;
-  }).join('');
+  }).join('') + addCard;
 }
 
 async function toggleTrigger(id, enabled) {
