@@ -1708,9 +1708,8 @@ function renderImages() {
     <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}"
          title="#${i.id} ${esc(i.original)}${i.uploader ? ' · 上传者 ' + esc(i.uploader) : ''} · ${stLabel[i.status] || '已通过'}">
       <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async"
-           onclick="showLightbox(${i.id});event.stopPropagation()"
            onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
-      <span class="zoom">🔍 放大</span>
+      <span class="zoom" title="放大查看" onclick="showLightbox(${i.id});event.stopPropagation()">🔍 放大</span>
       <span class="badge ${i.status || 'approved'}">${stLabel[i.status] || '已通过'}</span>
       ${i.uploader ? `<span class="up">@${esc(i.uploader)}</span>` : ''}
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
