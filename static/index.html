@@ -117,7 +117,54 @@
   .dot.on{background:var(--ok);box-shadow:0 0 0 4px rgba(16,185,129,.18)}
   .dot.off{background:var(--err);box-shadow:0 0 0 4px rgba(239,68,68,.15)}
   .spacer{flex:1}
-  main{max-width:1200px;margin:0 auto;padding:20px 16px 40px;display:grid;gap:16px}
+  main{max-width:100%;margin:0;padding:0;display:grid;gap:16px;min-width:0}
+  .app-shell{max-width:1440px;margin:0 auto;padding:16px;
+    display:grid;grid-template-columns:214px minmax(0,1fr);gap:16px;align-items:start}
+
+  /* ========== 左侧任务栏（NapCat 风格） ========== */
+  .sidebar{
+    position:sticky;top:76px;align-self:start;
+    height:calc(100vh - 92px);min-height:520px;
+    display:flex;flex-direction:column;gap:6px;padding:18px 14px;
+    background:linear-gradient(175deg, var(--card), var(--card-soft));
+    border:1px solid var(--line);border-radius:22px;
+    box-shadow:var(--shadow);overflow:auto;
+  }
+  .sidebar .brand{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;
+    padding:4px 8px 16px;margin-bottom:6px;border-bottom:1px solid var(--line);white-space:nowrap}
+  .sidebar .brand::before{content:"";width:6px;height:20px;border-radius:4px;background:var(--grad)}
+  .sidebar .brand span{background:var(--grad);-webkit-background-clip:text;background-clip:text;
+    -webkit-text-fill-color:transparent}
+  .nav{
+    display:flex;align-items:center;gap:10px;width:100%;padding:9px 12px;border:none;
+    background:transparent;border-radius:999px;color:var(--txt);font:inherit;font-size:13.5px;
+    cursor:pointer;text-align:left;transition:.18s;white-space:nowrap;box-shadow:none;
+  }
+  .nav:hover{background:var(--card-soft);color:var(--pink);transform:none;box-shadow:none}
+  .nav .ico{width:19px;text-align:center;font-size:15px;flex:none}
+  .nav .t{flex:1}
+  .nav .dotmark{width:16px;height:7px;border-radius:999px;background:var(--line2);flex:none;transition:.18s}
+  .nav.active{background:var(--grad);color:#fff;font-weight:600;box-shadow:0 6px 16px rgba(236,72,153,.28)}
+  .nav.active:hover{color:#fff;filter:brightness(1.05)}
+  .nav.active .dotmark{background:rgba(255,255,255,.85)}
+  .nav.danger:hover{background:rgba(239,68,68,.1);color:#ef4444}
+  .side-sep{height:1px;background:var(--line);margin:8px 4px}
+  .side-quote{margin:6px 4px 8px;padding:12px;border-radius:14px;cursor:pointer;
+    background:var(--card-soft);border:1px dashed var(--line2);text-align:center}
+  .side-quote p{margin:0;font-size:11.5px;line-height:1.7;color:var(--sub);font-style:italic;
+    display:-webkit-box;-webkit-line-clamp:4;-webkit-box-orient:vertical;overflow:hidden}
+  .side-quote .w{display:block;margin-top:6px;font-size:11px;color:var(--pink);font-weight:600}
+  .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:4px}
+  .side-note{font-size:10.5px;color:var(--sub);text-align:center;padding:6px 0 0;opacity:.8}
+  @media (max-width:980px){
+    .app-shell{grid-template-columns:1fr}
+    .sidebar{position:static;height:auto;min-height:0;flex-direction:row;flex-wrap:wrap;align-items:center;gap:6px;padding:10px}
+    .sidebar .brand{width:100%;border-bottom:none;padding:2px 6px 6px;margin:0}
+    .sidebar nav{display:flex;flex-wrap:wrap;gap:6px}
+    .sidebar .nav{width:auto;padding:7px 12px}
+    .sidebar .side-quote,.sidebar .side-foot,.sidebar .side-sep,.sidebar .side-note{display:none}
+  }
+  .panel{scroll-margin-top:84px}
   .row{display:grid;grid-template-columns:1fr 380px;gap:16px;align-items:start}
   @media (max-width:980px){.row{grid-template-columns:1fr}}
   /* 左栏铺满视口高度，最后一块（日志）吃掉剩余空间，避免下方出现大片空白 */
@@ -283,26 +330,51 @@
   <div class="spacer"></div>
   <span id="clock" class="muted" style="font-size:12px"></span>
   <button class="small" onclick="cycleTheme()" id="theme-btn" title="切换主题">◐ 主题</button>
-  <button class="small" onclick="refreshStatus()">刷新状态</button>
-  <button class="small" onclick="openSettings()">设置</button>
-  <button class="small danger" onclick="logout()">退出</button>
 </header>
 
 <main>
+ <div class="app-shell">
+
+  <!-- ========== 左侧任务栏 ========== -->
+  <aside class="sidebar">
+    <div class="brand"><span>✦ QQ 机器人</span></div>
+    <button class="nav active" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico">📋</span><span class="t">任务列表</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico">💬</span><span class="t">触发回复</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
+    <div class="side-sep"></div>
+    <button class="nav" onclick="openSettings()"><span class="ico">⚙️</span><span class="t">系统设置</span><span class="dotmark"></span></button>
+    <button class="nav" onclick="cycleTheme()"><span class="ico">◐</span><span class="t">切换主题</span><span class="dotmark"></span></button>
+    <button class="nav" onclick="refreshStatus()"><span class="ico">🔄</span><span class="t">刷新状态</span><span class="dotmark"></span></button>
+
+    <div class="side-quote" onclick="showQuote()" title="点击换一句">
+      <p id="quote-text-side">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
+      <span class="w" id="quote-who-side">—— 网络</span>
+    </div>
+
+    <div class="side-foot">
+      <div class="side-sep"></div>
+      <button class="nav danger" onclick="logout()"><span class="ico">⏻</span><span class="t">退出登录</span><span class="dotmark"></span></button>
+      <div class="side-note">已连接 · <span id="side-status">检测中</span></div>
+    </div>
+  </aside>
+
+  <!-- ========== 右侧工作区 ========== -->
+  <div class="workspace">
   <div class="row">
     <div class="col-main">
-      <section class="panel">
+      <section class="panel" id="sec-tasks">
         <h2>任务列表 <span class="spacer"></span><button class="primary small" onclick="openTaskForm(null)">＋ 新建任务</button></h2>
         <div id="tasklist" class="tasklist"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="sec-triggers">
         <h2>触发回复 <span class="muted" style="font-weight:400">（群里 @机器人+关键词 时自动回复）</span>
           <span class="spacer"></span><button class="primary small" onclick="openTriggerForm(null)">＋ 新建触发</button></h2>
         <div id="triggerlist" class="tasklist"></div>
       </section>
 
-      <section class="panel">
+      <section class="panel" id="sec-images">
         <h2>图片库 <span class="muted" style="font-weight:400">（任务里可选用，支持随机抽取）</span></h2>
         <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
           <input type="file" id="upload" accept="image/*" style="max-width:320px">
@@ -312,7 +384,7 @@
         <div id="images" class="imgs"></div>
       </section>
 
-      <section class="panel panel-log">
+      <section class="panel panel-log" id="sec-logs">
         <h2>运行日志 <button class="small" style="margin-left:auto" onclick="clearLogs()">清空</button></h2>
         <div id="log" class="log"></div>
       </section>
@@ -336,6 +408,9 @@
       </section>
     </aside>
   </div>
+  </div>
+
+ </div>
 </main>
 
 <dialog id="taskDlg">
@@ -574,6 +649,30 @@
 const $ = s => document.querySelector(s);
 let tasks = [], images = [], chips = [], editingId = null, targetsCache = {group: [], private: []};
 
+// ---------- 左侧任务栏 ----------
+function navTo(id, btn) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({behavior: 'smooth', block: 'start'});
+  document.querySelectorAll('.sidebar .nav[data-nav]').forEach(b => b.classList.remove('active'));
+  if (btn) btn.classList.add('active');
+  else {
+    const b = document.querySelector(`.sidebar .nav[data-nav="${id}"]`);
+    if (b) b.classList.add('active');
+  }
+}
+// 滚动时自动高亮当前区块
+(function setupScrollSpy() {
+  const ids = ['sec-tasks', 'sec-triggers', 'sec-images', 'sec-logs'];
+  const obs = new IntersectionObserver(entries => {
+    const vis = entries.filter(e => e.isIntersecting)
+      .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
+    if (!vis) return;
+    document.querySelectorAll('.sidebar .nav[data-nav]').forEach(b =>
+      b.classList.toggle('active', b.dataset.nav === vis.target.id));
+  }, {rootMargin: '-80px 0px -60% 0px', threshold: [0, .2, .5]});
+  ids.forEach(id => { const el = document.getElementById(id); if (el) obs.observe(el); });
+})();
+
 // ---------- 主题切换 ----------
 const THEMES = [
   {id: 'sakura',  name: '樱花粉'},
@@ -630,11 +729,18 @@ function showQuote() {
   quoteLast = raw;
   const parts = raw.includes('|') ? raw.split(/\|(.*)/s) : [raw, ''];
   const p = $("#quote-text"), w = $("#quote-who");
+  const ps = $("#quote-text-side"), ws = $("#quote-who-side");
   p.style.opacity = 0; w.style.opacity = 0;
+  if (ps) ps.style.opacity = 0;
   setTimeout(() => {
     p.textContent = "“" + parts[0].trim() + "”";
     w.textContent = parts[1] ? parts[1].trim() : "";
     w.style.display = parts[1] ? '' : 'none';
+    if (ps) {
+      ps.textContent = "“" + parts[0].trim() + "”";
+      ws.textContent = "—— " + (parts[1] ? parts[1].trim() : '佚名');
+      ps.style.opacity = 1;
+    }
     p.style.opacity = 1; w.style.opacity = 1;
   }, 300);
 }
@@ -682,9 +788,11 @@ async function refreshStatus() {
     if (st.online) {
       dot.className = 'dot on';
       txt.textContent = `已连接：${st.nickname || ''} (${st.self_id || ''})`;
+      $('#side-status').textContent = (st.nickname || '在线');
     } else {
       dot.className = 'dot off';
       txt.textContent = '未连接 OneBot（NapCat 未启动或地址不对）';
+      $('#side-status').textContent = '未连接';
     }
     $('#clock').textContent = '服务器时间 ' + (st.server_time || '');
     $('#conninfo').innerHTML = st.online
@@ -696,6 +804,7 @@ async function refreshStatus() {
   } catch (e) {
     $('#st-text').textContent = '状态获取失败：' + e.message;
     $('#dot').className = 'dot off';
+    $('#side-status').textContent = '连接失败';
   }
 }
 
