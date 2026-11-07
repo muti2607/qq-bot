@@ -13,6 +13,14 @@
     --grad:linear-gradient(92deg,#ec4899,#a855f7);
     --input-bg:rgba(255,255,255,.85);
   }
+  [data-theme="tech"]{
+    --bg1:#0a0f1e; --bg2:#0d1526; --bg3:#090d18;
+    --glow1:#0e2a4a; --glow2:#1a1440; --glow3:#0a2338;
+    --card:rgba(15,23,42,.8); --txt:#dbeafe; --sub:#64748b;
+    --line:#1e3a5f; --pink:#38bdf8; --pink2:#22d3ee;
+    --grad:linear-gradient(92deg,#38bdf8,#818cf8);
+    --input-bg:rgba(8,13,26,.85);
+  }
   [data-theme="midnight"]{
     --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
     --glow1:#233a63; --glow2:#34265e; --glow3:#16304a;
@@ -84,6 +92,7 @@
 <div class="themebar"><button onclick="cycleTheme()" id="theme-btn">◐ 主题</button></div>
 <script>
 const THEMES = [
+  {id: 'tech', name: '深空科技'},
   {id: 'sakura', name: '樱花粉'}, {id: 'midnight', name: '午夜蓝'},
   {id: 'forest', name: '森野绿'}, {id: 'sunset', name: '暖阳橙'},
   {id: 'ink', name: '墨竹灰'},

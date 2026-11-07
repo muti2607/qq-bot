@@ -18,11 +18,34 @@
     --grad-soft:linear-gradient(140deg,#f472b6,#a855f7);
     --ok:#10b981; --warn:#f59e0b; --err:#ef4444;
     --radius:18px; --shadow:0 10px 32px rgba(236,72,153,.10);
+    --grid-line:rgba(236,72,153,.04); --num-font:ui-monospace,Consolas,monospace;
     --header-bg:rgba(255,255,255,.6);
     --chip-bg:#fff;
     --input-bg:rgba(255,255,255,.85);
     --dlg-bg:#fff;
     --dlg-head:linear-gradient(92deg,#fdf2f8,#f5f3ff);
+  }
+
+
+  /* 科技 · 深空（数据面板风） */
+  [data-theme="tech"]{
+    --bg1:#0a0f1e; --bg2:#0d1526; --bg3:#090d18;
+    --glow1:#0e2a4a; --glow2:#1a1440; --glow3:#0a2338;
+    --card:rgba(15,23,42,.72); --card-soft:rgba(20,31,52,.55);
+    --line:rgba(56,189,248,.16); --line2:#1e3a5f;
+    --txt:#dbeafe; --sub:#64748b;
+    --pink:#38bdf8; --pink2:#22d3ee; --violet:#818cf8;
+    --grad:linear-gradient(92deg,#38bdf8,#818cf8);
+    --grad-soft:linear-gradient(140deg,#0ea5e9,#6366f1);
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --shadow:0 0 0 1px rgba(56,189,248,.06), 0 12px 40px rgba(0,0,0,.5);
+    --header-bg:rgba(10,15,30,.8);
+    --chip-bg:rgba(15,23,42,.9);
+    --input-bg:rgba(8,13,26,.85);
+    --dlg-bg:#0d1526;
+    --dlg-head:linear-gradient(92deg,#0f1a30,#141c33);
+    --grid-line:rgba(56,189,248,.05);
+    --num-font:"SF Mono","Cascadia Code",Consolas,"JetBrains Mono",ui-monospace,monospace;
   }
 
   /* 深色 · 午夜 */
@@ -36,6 +59,7 @@
     --grad:linear-gradient(92deg,#818cf8,#c084fc);
     --grad-soft:linear-gradient(140deg,#6366f1,#a855f7);
     --shadow:0 10px 32px rgba(0,0,0,.35);
+    --grid-line:rgba(129,140,248,.05); --num-font:ui-monospace,Consolas,monospace;
     --header-bg:rgba(22,28,44,.78);
     --chip-bg:rgba(45,55,82,.9);
     --input-bg:rgba(24,31,48,.85);
@@ -54,6 +78,7 @@
     --grad:linear-gradient(92deg,#10b981,#0d9488);
     --grad-soft:linear-gradient(140deg,#34d399,#059669);
     --shadow:0 10px 32px rgba(16,185,129,.10);
+    --grid-line:rgba(16,185,129,.04); --num-font:ui-monospace,Consolas,monospace;
     --header-bg:rgba(255,255,255,.62);
   }
 
@@ -68,6 +93,7 @@
     --grad:linear-gradient(92deg,#f97316,#ef4444);
     --grad-soft:linear-gradient(140deg,#fb923c,#ef4444);
     --shadow:0 10px 32px rgba(249,115,22,.12);
+    --grid-line:rgba(249,115,22,.04); --num-font:ui-monospace,Consolas,monospace;
     --header-bg:rgba(255,255,255,.65);
   }
 
@@ -82,6 +108,7 @@
     --grad:linear-gradient(92deg,#374151,#1f2937);
     --grad-soft:linear-gradient(140deg,#4b5563,#111827);
     --shadow:0 10px 28px rgba(45,50,54,.10);
+    --grid-line:rgba(75,85,99,.05); --num-font:ui-monospace,Consolas,monospace;
     --header-bg:rgba(255,255,255,.72);
   }
 
@@ -97,6 +124,16 @@
       linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
     background-attachment:fixed;
     transition:background .35s ease, color .35s ease;
+  }
+  /* 科技坐标纸网格叠层 */
+  body::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:0;
+    background-image:
+      linear-gradient(var(--grid-line) 1px, transparent 1px),
+      linear-gradient(90deg, var(--grid-line) 1px, transparent 1px);
+    background-size:44px 44px;
+    mask-image:radial-gradient(ellipse 90% 70% at 50% 30%, #000 30%, transparent 100%);
+    -webkit-mask-image:radial-gradient(ellipse 90% 70% at 50% 30%, #000 30%, transparent 100%);
   }
   a{color:var(--pink)}
   ::selection{background:#fbcfe8}
@@ -232,6 +269,13 @@
     background:var(--card);backdrop-filter:blur(10px);
     border:1px solid var(--line);
     border-radius:var(--radius);padding:18px;box-shadow:var(--shadow);
+    position:relative;
+  }
+  /* 数字用等宽字体：读数变化不跳动 */
+  .num,.m-card .big,.m-card .inner b,.stat b,.m-strip .cell b,.m-info .big{
+    font-family:var(--num-font);
+    font-variant-numeric:tabular-nums;
+    letter-spacing:.3px;
   }
   .panel h2{
     font-size:14px;margin:0 0 12px;color:var(--txt);font-weight:700;
@@ -376,8 +420,15 @@
   .m-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
     padding:18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:18px;min-height:170px}
   .ring{width:118px;height:118px;flex:none;border-radius:50%;display:grid;place-items:center;position:relative;
-    background:conic-gradient(var(--pink) 0deg, var(--violet) 0deg, var(--line2) 0deg)}
-  .ring::before{content:"";position:absolute;inset:13px;border-radius:50%;background:var(--card)}
+    background:conic-gradient(var(--pink) 0deg, var(--violet) 0deg, var(--line2) 0deg);
+    box-shadow:0 0 24px rgba(56,189,248,.18), inset 0 0 18px rgba(56,189,248,.08);
+    transition:background 1s linear}
+  .ring::before{content:"";position:absolute;inset:13px;border-radius:50%;background:var(--card);
+    box-shadow:inset 0 0 14px rgba(0,0,0,.12)}
+  /* 圆环上的当前值刻度亮点 */
+  .ring::after{content:"";position:absolute;width:8px;height:8px;border-radius:50%;
+    background:#fff;box-shadow:0 0 8px var(--pink);top:6px;left:calc(50% - 4px);
+    transform-origin:50% 53px;transform:rotate(var(--deg,0deg))}
   .ring .inner{position:relative;text-align:center;z-index:1}
   .ring .inner b{display:block;font-size:23px;line-height:1.1;font-weight:800;
     background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
@@ -393,6 +444,9 @@
   .m-strip .cell b{display:block;font-size:16px;font-weight:800;color:var(--txt);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
   .m-strip .cell span{font-size:11px;color:var(--sub)}
+  .spark{display:flex;align-items:flex-end;gap:2px;height:18px;margin-top:7px;justify-content:center}
+  .spark i{width:5px;border-radius:2px 2px 0 0;background:var(--pink);opacity:.35;min-height:2px}
+  .spark i:last-child{opacity:1;box-shadow:0 0 6px var(--pink)}
   .m-bar{height:7px;border-radius:99px;background:var(--line2);overflow:hidden;margin-top:6px}
   .m-bar i{display:block;height:100%;border-radius:99px;background:var(--grad);transition:width .6s}
   .metrics-foot{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:12px;color:var(--sub)}
@@ -458,6 +512,7 @@
                 负载 1/5/15 分钟 <b id="m-load">—</b><br>
                 QQ 主进程 <b id="m-qqcpu">—</b>
               </div>
+              <div class="spark" id="sp-cpu" style="margin-top:10px"></div>
             </div>
           </div>
           <div class="m-card">
@@ -471,12 +526,13 @@
                 机器人容器 <b id="m-container">—</b><br>
                 磁盘总量 <b id="m-disk-total">—</b> · 剩余 <b id="m-disk-summary">—</b>
               </div>
+              <div class="spark" id="sp-mem" style="margin-top:10px"></div>
             </div>
           </div>
         </div>
 
         <div class="m-strip">
-          <div class="cell"><b id="m-disk-val">—</b><span>磁盘占用 · 剩 <b id="m-disk-free" style="font-size:12px">—</b></span><div class="m-bar"><i id="m-disk-bar"></i></div></div>
+          <div class="cell"><b id="m-disk-val">—</b><span>磁盘占用 · 剩 <b id="m-disk-free" style="font-size:12px">—</b></span><div class="m-bar"><i id="m-disk-bar"></i></div><div class="spark" id="sp-disk"></div></div>
           <div class="cell"><b id="m-disk-free-big">—</b><span>剩余空间</span></div>
           <div class="cell"><b id="m-uptime">—</b><span>运行时间</span></div>
           <div class="cell"><b id="m-load1">—</b><span>1分钟负载</span></div>
@@ -891,6 +947,7 @@ function navTo(id, btn) {
 
 // ---------- 主题切换 ----------
 const THEMES = [
+  {id: 'tech',    name: '深空科技'},
   {id: 'sakura',  name: '樱花粉'},
   {id: 'midnight', name: '午夜蓝'},
   {id: 'forest',  name: '森野绿'},
@@ -1035,14 +1092,30 @@ async function updateStats() {
 }
 
 // ---------- 服务器性能仪表盘 ----------
+const metricHistory = {cpu: [], mem: [], disk: []};
+function pushHistory(key, val) {
+  const arr = metricHistory[key];
+  arr.push(val);
+  if (arr.length > 24) arr.shift();
+}
+function sparkHTML(key) {
+  const arr = metricHistory[key];
+  if (arr.length < 2) return "";
+  const mx = Math.max(...arr, 1);
+  return arr.map(v => `<i style="height:${Math.max(8, Math.round(v / mx * 100))}%"></i>`).join("");
+}
 function ring(el, pct) {
   const deg = Math.max(0, Math.min(100, pct)) * 3.6;
   el.style.background =
     `conic-gradient(var(--pink) 0deg, var(--violet) ${deg}deg, var(--line2) ${deg}deg)`;
+  el.style.setProperty("--deg", deg + "deg");
 }
 async function loadMetrics() {
   try {
     const d = await api('/api/metrics');
+    pushHistory("cpu", d.cpu_percent || 0);
+    pushHistory("mem", d.mem_percent || 0);
+    pushHistory("disk", d.disk_percent || 0);
     $('#m-cpu-val').textContent = d.cpu_percent + '%';
     $('#m-cpu-big').textContent = d.cpu_percent + '%';
     ring($('#ring-cpu'), d.cpu_percent);
@@ -1065,6 +1138,9 @@ async function loadMetrics() {
     $('#m-disk-total').textContent = d.disk_total_h || '—';
     $('#m-disk-summary').textContent = d.disk_free_h || '—';
     $('#m-disk-bar').style.width = d.disk_percent + '%';
+    $('#sp-cpu').innerHTML = sparkHTML("cpu");
+    $('#sp-mem').innerHTML = sparkHTML("mem");
+    $('#sp-disk').innerHTML = sparkHTML("disk");
     $('#m-uptime').textContent = d.uptime;
     $('#m-load1').textContent = (d.load || [0])[0];
     $('#m-server-time').textContent = (d.server_time || '').slice(11);
