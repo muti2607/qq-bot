@@ -168,6 +168,11 @@ DEFAULT_SETTINGS = {
     "onebot_http": "http://127.0.0.1:3001",
     "onebot_token": "",
     "post_token": "",
+    "remote_token": "",
+    "smtp_host": "smtp.qq.com",
+    "smtp_port": "465",
+    "smtp_user": "",
+    "smtp_pass": "",
     "admin_password": "",
     "rss_timeout": "15",
 }
