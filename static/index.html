@@ -1061,8 +1061,10 @@
 
 
 
-<div id="lightbox" class="lightbox hidden" onclick="this.classList.add('hidden')">
-  <img id="lightbox-img" src="" alt="">
+<div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
+  <button style="position:absolute;top:18px;right:22px;width:auto;padding:6px 16px;font-size:14px"
+          onclick="closeLightbox()">✕ 关闭</button>
+  <img id="lightbox-img" src="" alt="" onclick="event.stopPropagation()">
   <div class="meta" id="lightbox-meta"></div>
 </div>
 <div id="toast" class="toast"></div>
@@ -1647,6 +1649,13 @@ async function clearAllImages() {
 }
 
 // ---------- 图片放大查看 ----------
+function closeLightbox() {
+  $('#lightbox').classList.add('hidden');
+  $('#lightbox-img').src = '';
+}
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') closeLightbox();
+});
 function showLightbox(id) {
   const i = images.find(x => x.id === id);
   $('#lightbox-img').src = `/api/images/${id}/file`;
