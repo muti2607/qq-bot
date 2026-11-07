@@ -31,6 +31,10 @@ def _smtp_conf() -> dict:
     pwd = s.get("smtp_pass") or ""
     if not user or not pwd:
         raise MailError("管理员尚未配置邮箱 SMTP，无法发送验证码")
+    if "@" not in user or "." not in user.split("@")[-1]:
+        raise MailError(
+            f"发件邮箱格式错误：{user}（应为 xxx@qq.com 完整格式，检查是否漏了 @）。"
+            "请在后台设置里修正后保存")
     return {"host": host, "port": port, "user": user, "pwd": pwd}
 
 
