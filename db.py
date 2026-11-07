@@ -57,6 +57,18 @@ CREATE TABLE IF NOT EXISTS images (
     filename    TEXT NOT NULL,        -- 存储文件名
     original    TEXT NOT NULL DEFAULT '',
     size        INTEGER NOT NULL DEFAULT 0,
+    status      TEXT NOT NULL DEFAULT 'approved',  -- pending | approved | rejected
+    uploader    TEXT NOT NULL DEFAULT '',          -- 上传者账号（远程上传时记录）
+    review_note TEXT NOT NULL DEFAULT '',          -- 审核备注/拒绝原因
+    created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+
+CREATE TABLE IF NOT EXISTS upload_users (
+    id          INTEGER PRIMARY KEY AUTOINCREMENT,
+    username    TEXT NOT NULL UNIQUE,
+    password    TEXT NOT NULL,        -- sha256 hex
+    note        TEXT NOT NULL DEFAULT '',
+    enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -130,6 +142,14 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE triggers ADD COLUMN quote_mode TEXT NOT NULL DEFAULT 'off'")
     if "at_reply" not in trig_cols:
         conn.execute("ALTER TABLE triggers ADD COLUMN at_reply INTEGER NOT NULL DEFAULT 1")
+    img_cols = cols("images")
+    for name, ddl in (
+        ("status", "TEXT NOT NULL DEFAULT 'approved'"),
+        ("uploader", "TEXT NOT NULL DEFAULT ''"),
+        ("review_note", "TEXT NOT NULL DEFAULT ''"),
+    ):
+        if name not in img_cols:
+            conn.execute(f"ALTER TABLE images ADD COLUMN {name} {ddl}")
 
 
 # ---------------- settings ----------------
@@ -282,19 +302,54 @@ def delete_task(task_id: int) -> None:
 # ---------------- images ----------------
 
 
-def list_images() -> list[dict[str, Any]]:
+def list_images(only_approved: bool = False, status: str | None = None,
+                uploader: str | None = None) -> list[dict[str, Any]]:
+    clauses, args = [], []
+    if only_approved:
+        clauses.append("status='approved'")
+    elif status:
+        clauses.append("status=?")
+        args.append(status)
+    if uploader:
+        clauses.append("uploader=?")
+        args.append(uploader)
+    sql = "SELECT * FROM images" + (" WHERE " + " AND ".join(clauses) if clauses else "") + " ORDER BY id DESC"
     with db() as conn:
-        rows = conn.execute("SELECT * FROM images ORDER BY id DESC").fetchall()
+        rows = conn.execute(sql, args).fetchall()
     return [dict(r) for r in rows]
 
 
-def add_image(filename: str, original: str, size: int) -> int:
+def add_image(filename: str, original: str, size: int,
+              status: str = "approved", uploader: str = "") -> int:
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO images(filename, original, size) VALUES(?,?,?)",
-            (filename, original, size),
+            "INSERT INTO images(filename, original, size, status, uploader) VALUES(?,?,?,?,?)",
+            (filename, original, size, status, uploader),
         )
         return int(cur.lastrowid)
+
+
+def review_image(image_id: int, status: str, note: str = "") -> bool:
+    """审核图片：status=pending/approved/rejected。"""
+    if status not in ("pending", "approved", "rejected"):
+        return False
+    with db() as conn:
+        cur = conn.execute(
+            "UPDATE images SET status=?, review_note=? WHERE id=?",
+            (status, note, image_id),
+        )
+        return cur.rowcount > 0
+
+
+def bulk_review(ids: list[int], status: str, note: str = "") -> int:
+    if status not in ("pending", "approved", "rejected") or not ids:
+        return 0
+    with db() as conn:
+        cur = conn.execute(
+            f"UPDATE images SET status=?, review_note=? WHERE id IN ({','.join('?' * len(ids))})",
+            (status, note, *ids),
+        )
+        return cur.rowcount
 
 
 def get_image(image_id: int) -> dict[str, Any] | None:
@@ -307,6 +362,76 @@ def delete_image(image_id: int) -> None:
     with db() as conn:
         conn.execute("UPDATE tasks SET image_id=NULL WHERE image_id=?", (image_id,))
         conn.execute("DELETE FROM images WHERE id=?", (image_id,))
+
+
+# ---------------- upload_users（远程上传账号） ----------------
+
+
+def _hash_pw(pw: str) -> str:
+    import hashlib
+    return hashlib.sha256(("qqbot-upload:" + pw).encode()).hexdigest()
+
+
+def list_upload_users() -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute("SELECT * FROM upload_users ORDER BY id").fetchall()
+    out = []
+    for r in rows:
+        d = dict(r)
+        d.pop("password", None)
+        d["enabled"] = bool(d["enabled"])
+        out.append(d)
+    return out
+
+
+def get_upload_user(username: str) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM upload_users WHERE username=?", (username,)).fetchone()
+    return dict(row) if row else None
+
+
+def verify_upload_user(username: str, password: str) -> bool:
+    u = get_upload_user(username)
+    if not u or not u["enabled"]:
+        return False
+    import secrets
+    return secrets.compare_digest(u["password"], _hash_pw(password))
+
+
+def create_upload_user(username: str, password: str, note: str = "") -> int | None:
+    try:
+        with db() as conn:
+            cur = conn.execute(
+                "INSERT INTO upload_users(username, password, note, enabled) VALUES(?,?,?,1)",
+                (username.strip(), _hash_pw(password), note.strip()),
+            )
+            return int(cur.lastrowid)
+    except sqlite3.IntegrityError:
+        return None
+
+
+def update_upload_user(uid: int, password: str | None = None,
+                       note: str | None = None, enabled: bool | None = None) -> None:
+    fields, args = [], []
+    if password:
+        fields.append("password=?")
+        args.append(_hash_pw(password))
+    if note is not None:
+        fields.append("note=?")
+        args.append(note.strip())
+    if enabled is not None:
+        fields.append("enabled=?")
+        args.append(int(bool(enabled)))
+    if not fields:
+        return
+    args.append(uid)
+    with db() as conn:
+        conn.execute(f"UPDATE upload_users SET {', '.join(fields)} WHERE id=?", args)
+
+
+def delete_upload_user(uid: int) -> None:
+    with db() as conn:
+        conn.execute("DELETE FROM upload_users WHERE id=?", (uid,))
 
 
 # ---------------- presets（群组预设） ----------------

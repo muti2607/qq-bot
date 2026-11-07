@@ -200,6 +200,10 @@ def fetch_rss(url: str, timeout: int = 15) -> dict:
     }
 
 
+class ImageNotApproved(RuntimeError):
+    """图片尚未审核通过：不允许用于发送，也不允许静默降级。"""
+
+
 def pick_image(task_or_trigger: dict) -> Path | None:
     """按 image_mode 选图：fixed 用单张；random 从候选池（空=全库）随机抽一张。"""
     mode = task_or_trigger.get("image_mode") or "fixed"
@@ -210,17 +214,18 @@ def pick_image(task_or_trigger: dict) -> Path | None:
         candidates = []
         for iid in pool:
             img = db.get_image(int(iid))
-            if img and (db.UPLOAD_DIR / img["filename"]).exists():
+            if img and img.get("status", "approved") == "approved" and (db.UPLOAD_DIR / img["filename"]).exists():
                 candidates.append(db.UPLOAD_DIR / img["filename"])
         if not candidates:
             all_imgs = [
                 db.UPLOAD_DIR / i["filename"]
-                for i in db.list_images()
+                for i in db.list_images(only_approved=True)
                 if (db.UPLOAD_DIR / i["filename"]).exists()
             ]
             candidates = all_imgs
         if not candidates:
-            raise RuntimeError("随机图片：图片库为空，请先上传图片")
+            # 池里全是待审/驳回图，或全库无可用图：明确失败（有文本也不该静默发纯文本）
+            raise ImageNotApproved("随机图片：没有已通过审核的可用图片")
         return random.choice(candidates)
     image_id = task_or_trigger.get("image_id")
     if not image_id:
@@ -228,6 +233,8 @@ def pick_image(task_or_trigger: dict) -> Path | None:
     img = db.get_image(int(image_id))
     if not img:
         raise RuntimeError(f"图片 id={image_id} 不存在")
+    if img.get("status", "approved") != "approved":
+        raise ImageNotApproved(f"图片 id={image_id} 尚未审核通过")
     path = db.UPLOAD_DIR / img["filename"]
     if not path.exists():
         raise RuntimeError(f"图片文件丢失：{img['filename']}")
@@ -264,10 +271,12 @@ def build_segments(task: dict, now: _dt.datetime) -> list[dict]:
 
     try:
         img_path = pick_image(task)
+    except ImageNotApproved:
+        raise  # 审核未通过：明确失败，不能静默降级发文本
     except RuntimeError:
         if not (task.get("content") or "").strip() and (task.get("source_mode") or "static") == "static":
             raise
-        img_path = None  # 有文本时图片选不出来就只发文本，不让整条任务失败
+        img_path = None  # 有文本时图片选不出来（文件丢失等）就只发文本，不让整条任务失败
     # 图片放消息最前：QQ 对"先长文后图"会折叠成卡片，先图后文则展示原图
     if img_path:
         segments.append(onebot.image_segment(img_path))

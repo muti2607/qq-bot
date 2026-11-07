@@ -785,8 +785,77 @@ async def api_reset_quotes():
 
 
 @app.get("/api/images")
-async def api_images():
-    return db.list_images()
+async def api_images(status: str | None = None):
+    """后台图片库：默认返回全部（含待审核），可 ?status=pending 只看待审。"""
+    return db.list_images(status=status)
+
+
+# ---------------- 图片审核 ----------------
+
+
+class ReviewIn(BaseModel):
+    ids: list[int]
+    status: str          # approved | rejected | pending
+    note: str = ""
+
+
+@app.get("/api/images/pending")
+async def api_pending_images():
+    return db.list_images(status="pending")
+
+
+@app.post("/api/images/review")
+async def api_review_images(body: ReviewIn):
+    if body.status not in ("approved", "rejected", "pending"):
+        raise HTTPException(400, "status 无效")
+    if not body.ids:
+        raise HTTPException(400, "未选择图片")
+    n = db.bulk_review(body.ids, body.status, body.note[:200])
+    db.add_log(f"图片审核：{n} 张 → {body.status}" + (f"（{body.note[:30]}）" if body.note else ""), "info")
+    return {"ok": True, "count": n}
+
+
+# ---------------- 远程上传账号（后台管理） ----------------
+
+
+class UploadUserIn(BaseModel):
+    username: str
+    password: str = ""
+    note: str = ""
+    enabled: bool = True
+
+
+@app.get("/api/upload-users")
+async def api_upload_users():
+    return db.list_upload_users()
+
+
+@app.post("/api/upload-users")
+async def api_create_upload_user(body: UploadUserIn):
+    if not body.username.strip() or not body.password:
+        raise HTTPException(400, "账号和密码不能为空")
+    if len(body.password) < 4:
+        raise HTTPException(400, "密码至少 4 位")
+    uid = db.create_upload_user(body.username, body.password, body.note)
+    if uid is None:
+        raise HTTPException(400, "账号已存在")
+    db.add_log(f"创建上传账号 {body.username}", "info")
+    return {"ok": True, "id": uid}
+
+
+@app.put("/api/upload-users/{uid}")
+async def api_update_upload_user(uid: int, body: UploadUserIn):
+    if body.password and len(body.password) < 4:
+        raise HTTPException(400, "密码至少 4 位")
+    db.update_upload_user(uid, password=body.password or None,
+                          note=body.note, enabled=body.enabled)
+    return {"ok": True}
+
+
+@app.delete("/api/upload-users/{uid}")
+async def api_delete_upload_user(uid: int):
+    db.delete_upload_user(uid)
+    return {"ok": True}
 
 
 @app.post("/api/images")
@@ -945,6 +1014,36 @@ def _guess_mime(name: str) -> str:
 
 remote_router = APIRouter()
 
+# 远程上传登录态：签名 token（含账号+过期时间）
+_UPLOAD_SESSION_HOURS = 24 * 7
+
+def _make_upload_token(username: str) -> str:
+    payload = f"{username}:{int(time.time()) + _UPLOAD_SESSION_HOURS * 3600}"
+    return _fernet().encrypt(payload.encode()).decode()
+
+def _parse_upload_token(tok: str) -> str | None:
+    try:
+        raw = _fernet().decrypt(tok.encode(), ttl=_UPLOAD_SESSION_HOURS * 3600).decode()
+        username, exp = raw.rsplit(":", 1)
+        if int(exp) < time.time():
+            return None
+        u = db.get_upload_user(username)
+        if not u or not u["enabled"]:
+            return None
+        return username
+    except Exception:
+        return None
+
+def _upload_user_from(request: Request) -> str:
+    """从 Header / Cookie 取出上传账号，失败抛 401。"""
+    tok = (request.headers.get("X-Upload-Session", "").strip()
+           or request.cookies.get("upload_session", ""))
+    u = _parse_upload_token(tok) if tok else None
+    if not u:
+        raise HTTPException(401, "请先登录上传账号")
+    return u
+
+
 # 滑动窗口限流：每 IP 在窗口期内最多 N 次请求
 _RATE_LOCK = threading.Lock()
 _RATE_WINDOWS: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=64))
@@ -1022,8 +1121,9 @@ class RemoteUploadIn(BaseModel):
 
 @remote_router.post("/remote/upload")
 async def remote_upload_json(request: Request, body: RemoteUploadIn):
-    """远程 JSON/base64 上传：POST /remote/upload，Token 见设置。"""
+    """远程 JSON/base64 上传（需登录账号，图片进入待审核）。"""
     ip = await _guard_remote_upload(request)
+    uploader = _upload_user_from(request)
     raw_b64 = body.data.strip()
     if raw_b64.startswith("data:"):
         raw_b64 = raw_b64.split(",", 1)[-1]
@@ -1044,15 +1144,16 @@ async def remote_upload_json(request: Request, body: RemoteUploadIn):
     fname = f"{name.rsplit(ext, 1)[0][:20]}-{uuid.uuid4().hex}{ext}"
     dest = db.UPLOAD_DIR / fname
     dest.write_bytes(raw)
-    iid = db.add_image(fname, name, len(raw))
-    db.add_log(f"远程上传图片 {name}（{len(raw) // 1024} KB）来自 {ip}", "info")
-    return {"ok": True, "id": iid, "size": len(raw)}
+    iid = db.add_image(fname, name, len(raw), status="pending", uploader=uploader)
+    db.add_log(f"待审核图片 {name}（{len(raw) // 1024} KB）由 {uploader} 上传（{ip}）", "info")
+    return {"ok": True, "id": iid, "size": len(raw), "status": "pending"}
 
 
 @remote_router.post("/remote/upload-file")
 async def remote_upload_file(request: Request, file: UploadFile = File(...)):
-    """远程 multipart 文件上传：POST /remote/upload-file。"""
+    """远程 multipart 文件上传（需登录账号，图片进入待审核）。"""
     ip = await _guard_remote_upload(request)
+    uploader = _upload_user_from(request)
     name = Path(file.filename or "remote.png").name[:40] or "remote.png"
     ext = Path(name).suffix.lower()
     if ext not in (".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp"):
@@ -1070,10 +1171,70 @@ async def remote_upload_file(request: Request, file: UploadFile = File(...)):
     except HTTPException:
         dest.unlink(missing_ok=True)
         raise
-    iid = db.add_image(fname, name, size)
-    db.add_log(f"远程上传图片 {name}（{size // 1024} KB）来自 {ip}", "info")
-    return {"ok": True, "id": iid, "size": size}
+    iid = db.add_image(fname, name, size, status="pending", uploader=uploader)
+    db.add_log(f"待审核图片 {name}（{size // 1024} KB）由 {uploader} 上传（{ip}）", "info")
+    return {"ok": True, "id": iid, "size": size, "status": "pending"}
 
+
+class UploadLoginIn(BaseModel):
+    username: str
+    password: str
+
+@remote_router.post("/remote/login")
+async def remote_login(request: Request, body: UploadLoginIn):
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    if not db.verify_upload_user(body.username.strip(), body.password):
+        raise HTTPException(401, "账号或密码错误")
+    tok = _make_upload_token(body.username.strip())
+    resp = JSONResponse({"ok": True, "username": body.username.strip(), "token": tok})
+    resp.set_cookie("upload_session", tok, httponly=True, samesite="lax",
+                    max_age=_UPLOAD_SESSION_HOURS * 3600)
+    return resp
+
+@remote_router.post("/remote/logout")
+async def remote_logout():
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("upload_session")
+    return resp
+
+@remote_router.get("/remote/me")
+async def remote_me(request: Request):
+    u = _upload_user_from(request)
+    return {"ok": True, "username": u}
+
+@remote_router.get("/remote/mine")
+async def remote_mine(request: Request):
+    """我上传的图片及审核状态。"""
+    u = _upload_user_from(request)
+    return {"ok": True, "images": db.list_images(uploader=u)}
+
+
+class ChangePwIn(BaseModel):
+    old_password: str
+    new_password: str
+
+
+@remote_router.post("/remote/change-password")
+async def remote_change_password(request: Request, body: ChangePwIn):
+    """上传者自行修改密码：需校验旧密码。"""
+    u = _upload_user_from(request)
+    if not db.verify_upload_user(u, body.old_password):
+        raise HTTPException(401, "原密码错误")
+    new_pw = body.new_password.strip()
+    if len(new_pw) < 4:
+        raise HTTPException(400, "新密码至少 4 位")
+    if new_pw == body.old_password:
+        raise HTTPException(400, "新密码不能与原密码相同")
+    uid = db.get_upload_user(u)["id"]
+    db.update_upload_user(uid, password=new_pw)
+    db.add_log(f"上传账号 {u} 修改了自己的密码", "info")
+    # 改密后强制重新登录
+    resp = JSONResponse({"ok": True})
+    resp.delete_cookie("upload_session")
+    return resp
 
 @remote_router.get("/remote/ping")
 async def remote_ping(request: Request):
@@ -1087,7 +1248,7 @@ async def remote_ping(request: Request):
            or request.headers.get("X-Upload-Token", "").strip())
     if expected and not secrets.compare_digest(got, expected):
         raise HTTPException(401, "上传 Token 无效")
-    return {"ok": True, "images": len(db.list_images())}
+    return {"ok": True, "images": len(db.list_images(only_approved=True)), "pending": len(db.list_images(status="pending"))}
 
 
 # ---------------- 日志 ----------------
@@ -1167,14 +1328,33 @@ app.mount("/static", StaticFiles(directory=BASE_DIR / "static"), name="static")
 
 # 从主应用摘出远程上传相关的路由，组成一个精简 app
 remote_app = FastAPI(docs_url=None, redoc_url=None, openapi_url=None)
-remote_app.include_router(remote_router)
 
 
-@remote_app.get("/", response_class=HTMLResponse)
-@remote_app.get("/upload", response_class=HTMLResponse)
+@remote_app.get("/")
+@remote_app.get("/upload")
 async def remote_upload_page():
     """纯上传页面：手机/电脑浏览器直接打开即可传图。"""
-    return (BASE_DIR / "static" / "upload.html").read_text(encoding="utf-8")
+    return HTMLResponse((BASE_DIR / "static" / "upload.html").read_text(encoding="utf-8"))
+
+
+@remote_router.get("/remote/thumb/{image_id}")
+async def remote_thumb(image_id: int, request: Request):
+    """上传页「我的上传」缩略图：只允许本人看自己上传的图。"""
+    u = _upload_user_from(request)
+    img = db.get_image(image_id)
+    if not img or img.get("uploader") != u:
+        raise HTTPException(404, "图片不存在")
+    src = db.UPLOAD_DIR / img["filename"]
+    if not src.exists():
+        raise HTTPException(404, "文件丢失")
+    thumb = _ensure_thumb(img)
+    data = thumb.read_bytes() if thumb and thumb.exists() else src.read_bytes()
+    media = "image/webp" if thumb and thumb.exists() else _guess_mime(img["filename"])
+    return Response(data, media_type=media, headers={"Cache-Control": "private, max-age=300"})
+
+
+# 挂载所有 /remote/* 路由（必须在全部路由定义之后）
+remote_app.include_router(remote_router)
 
 
 @remote_app.middleware("http")

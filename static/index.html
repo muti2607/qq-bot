@@ -451,6 +451,12 @@
   .imgs .item:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(236,72,153,.16)}
   .imgs .item.sel{outline:3px solid var(--pink2);outline-offset:-1px}
   .imgs img{width:100%;height:100%;object-fit:cover;display:block}
+  .imgs .badge{position:absolute;left:4px;top:4px;font-size:10px;padding:2px 7px;border-radius:999px;
+    background:rgba(16,185,129,.85);color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+  .imgs .badge.pending{background:rgba(245,158,11,.9)}
+  .imgs .badge.rejected{background:rgba(239,68,68,.9)}
+  .imgs .up{position:absolute;left:4px;bottom:4px;font-size:10px;padding:2px 7px;border-radius:999px;
+    background:rgba(15,23,42,.8);color:#93c5fd;max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
   .imgs .del{position:absolute;top:4px;right:4px;background:var(--chip-bg);
     color:#e05d6c;border-radius:999px;padding:1px 8px;font-size:12px;opacity:0;transition:.15s}
   .imgs .item:hover .del{opacity:1}
@@ -591,6 +597,7 @@
     <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico">📁</span><span class="t">群组预设</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-upload-users" onclick="navTo('sec-upload-users',this)"><span class="ico">🔑</span><span class="t">上传账号</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
     <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
 
@@ -694,22 +701,32 @@
       </section>
 
       <section class="panel view" id="sec-images">
-        <h2>图片库 <span class="muted" style="font-weight:400">（任务里可选用，支持随机抽取）</span>
+        <h2>图片库 <span class="muted" style="font-weight:400">（仅「已通过」的图片可被任务使用）</span>
           <span class="spacer"></span>
           <button class="small" onclick="selectAllImages()" id="selAllBtn">全选</button>
+          <button class="small" onclick="reviewImages('approved')" id="approveBtn" disabled>✅ 通过审核</button>
+          <button class="small" onclick="reviewImages('rejected')" id="rejectBtn" disabled>❌ 驳回</button>
           <button class="small danger" onclick="deleteSelectedImages()" id="batchDelBtn" disabled>删除选中 (0)</button>
           <button class="small danger" onclick="clearAllImages()">清空</button>
         </h2>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
-          <input type="file" id="upload" accept="image/*" multiple style="max-width:320px">
+        <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <button class="small" onclick="filterImages('all')" id="flt-all">全部</button>
+          <button class="small" onclick="filterImages('pending')" id="flt-pending">待审核 <span id="pendingCount" class="pill on">0</span></button>
+          <button class="small" onclick="filterImages('approved')" id="flt-approved">已通过</button>
+          <button class="small" onclick="filterImages('rejected')" id="flt-rejected">未通过</button>
+          <span class="spacer"></span>
+          <input type="file" id="upload" accept="image/*" multiple style="max-width:260px">
           <button id="uploadBtn" onclick="uploadImage()">上传图片</button>
           <span id="uploadMsg" class="muted"></span>
-          <span class="spacer"></span>
-          <input id="img-search" placeholder="按文件名筛选" style="max-width:180px" oninput="renderImages()">
-          <span id="img-count" class="muted" style="font-size:12px"></span>
         </div>
-        <div class="hint" style="margin-bottom:8px">点击图片可多选（选中会高亮），再点「删除选中」批量清理；Ctrl+点击也行。支持一次选多个文件上传。</div>
+        <div class="hint" style="margin-bottom:8px">后台上传的图片自动通过；远程账号上传的图片需在此审核。点击图片多选后可批量通过/驳回/删除。</div>
         <div id="images" class="imgs"></div>
+      </section>
+
+      <section class="panel view" id="sec-upload-users">
+        <h2>上传账号 <span class="muted" style="font-weight:400">（远程上传页 8001 需要账号登录，账号由你在此创建）</span>
+          <span class="spacer"></span><button class="primary small" onclick="openUploadUserForm()">＋ 新建账号</button></h2>
+        <div id="uploaduserlist" class="tasklist"></div>
       </section>
 
       <section class="panel view panel-log" id="sec-logs">
@@ -1047,6 +1064,7 @@ function navTo(id, btn) {
   if (id === 'sec-logs') loadLogs();
   if (id === 'sec-groups') loadGroupMgr();
   if (id === 'sec-images') loadImages();
+  if (id === 'sec-upload-users') loadUploadUsers();
   if (id === 'sec-settings') { loadSettingsIntoForm(); }
   try { localStorage.setItem('qqbot-view', id); } catch {}
 }
@@ -1205,6 +1223,72 @@ async function updateStats() {
     $('#st-trig').textContent = triggers.length;
     $('#st-imgs').textContent = images.length;
   } catch {}
+}
+
+// ---------- 上传账号管理 ----------
+let uploadUsers = [];
+async function loadUploadUsers() {
+  try { uploadUsers = await api('/api/upload-users'); } catch { uploadUsers = []; }
+  const box = $('#uploaduserlist');
+  if (!box) return;
+  const addCard = `<div class="add" onclick="openUploadUserForm()"><b>＋</b><span>新建账号</span></div>`;
+  if (!uploadUsers.length) {
+    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有上传账号。创建后把账号密码发给对方，让他们在 http://服务器:8001 登录上传。</div>` + addCard;
+    return;
+  }
+  box.innerHTML = uploadUsers.map(u => `
+    <div class="t">
+      <div class="body">
+        <div class="title">👤 ${esc(u.username)}
+          <span class="pill ${u.enabled ? 'on' : 'off'}">${u.enabled ? '启用' : '停用'}</span>
+        </div>
+        <div class="meta"><span>${esc(u.note || '无备注')}</span><span>创建于 ${esc(u.created_at || '')}</span></div>
+      </div>
+      <div class="ops">
+        <button class="small" onclick="openUploadUserForm(${u.id})">改密码</button>
+        <button class="small" onclick="toggleUploadUser(${u.id}, ${!u.enabled})">${u.enabled ? '停用' : '启用'}</button>
+        <button class="small danger" onclick="delUploadUser(${u.id})">删除</button>
+      </div>
+    </div>`).join('') + addCard;
+}
+
+function openUploadUserForm(id) {
+  const u = id ? uploadUsers.find(x => x.id === id) : null;
+  const name = (prompt(u ? `账号「${u.username}」的新密码（留空表示不改）：` : '新账号名：', '') || '').trim();
+  if (u) {
+    if (!name) return;
+    if (name.length < 4) return toast('密码至少 4 位', true);
+    if (!confirm(`确认把账号「${u.username}」的密码改成新密码？`)) return;
+    api(`/api/upload-users/${u.id}`, {method: 'PUT', body: JSON.stringify({username: u.username, password: name, note: u.note, enabled: u.enabled})})
+      .then(() => { toast('密码已更新'); loadUploadUsers(); })
+      .catch(e => toast(e.message, true));
+    return;
+  }
+  if (!name) return;
+  const pw = (prompt(`为账号「${name}」设置密码（至少 4 位）：`, '') || '').trim();
+  if (!pw) return;
+  if (pw.length < 4) return toast('密码至少 4 位', true);
+  const note = (prompt('备注（可选，如 用途/姓名）：', '') || '').trim();
+  api('/api/upload-users', {method: 'POST', body: JSON.stringify({username: name, password: pw, note})})
+    .then(() => { toast(`账号「${name}」已创建`); loadUploadUsers(); })
+    .catch(e => toast(e.message, true));
+}
+
+async function toggleUploadUser(id, enabled) {
+  const u = uploadUsers.find(x => x.id === id);
+  if (!u) return;
+  try {
+    await api(`/api/upload-users/${id}`, {method: 'PUT', body: JSON.stringify({username: u.username, password: '', note: u.note, enabled})});
+    toast(enabled ? '已启用' : '已停用');
+    loadUploadUsers();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function delUploadUser(id) {
+  const u = uploadUsers.find(x => x.id === id);
+  if (!u || !confirm(`删除账号「${u.username}」？该账号将无法登录上传。`)) return;
+  try { await api(`/api/upload-users/${id}`, {method: 'DELETE'}); toast('已删除'); loadUploadUsers(); }
+  catch (e) { toast(e.message, true); }
 }
 
 // ---------- 服务器性能仪表盘 ----------
@@ -1450,7 +1534,7 @@ async function loadImages() {
   try {
     images = await api('/api/images');
     $('#f-image').innerHTML = '<option value="">不使用图片</option>' +
-      images.map(i => `<option value="${i.id}">#${i.id} ${esc(i.original)}</option>`).join('');
+      images.map(i => `<option value="${i.id}">#${i.id} ${esc(i.original)}${i.uploader ? ' · @' + esc(i.uploader) : ''}${i.status === 'approved' ? '' : '（未通过审核）'}</option>`).join('');
     renderImages();
     updateStats();
   } catch (e) { toast(e.message, true); }
@@ -1460,14 +1544,23 @@ async function loadImages() {
 let imgSel = new Set();
 
 function visibleImages() {
+  let list = images;
+  if (imgFilter && imgFilter !== 'all') {
+    list = list.filter(i => (i.status || 'approved') === imgFilter);
+  }
   const q = ($('#img-search')?.value || '').trim().toLowerCase();
-  return q ? images.filter(i => (i.original || '').toLowerCase().includes(q) || String(i.id) === q) : images;
+  return q ? list.filter(i => (i.original || '').toLowerCase().includes(q) || String(i.id) === q) : list;
 }
 
 function updateBatchUI() {
   const n = imgSel.size;
   const btn = $('#batchDelBtn');
   if (btn) { btn.textContent = `删除选中 (${n})`; btn.disabled = n === 0; }
+  const ap = $('#approveBtn'), rj = $('#rejectBtn');
+  if (ap) ap.disabled = n === 0;
+  if (rj) rj.disabled = n === 0;
+  const pc = $('#pendingCount');
+  if (pc) pc.textContent = images.filter(i => (i.status || 'approved') === 'pending').length;
   const all = visibleImages();
   const selAll = $('#selAllBtn');
   if (selAll) selAll.textContent = (all.length && all.every(i => imgSel.has(i.id))) ? '取消全选' : '全选';
@@ -1540,14 +1633,43 @@ function syncImgSelection() {
   updateBatchUI();
 }
 
+// ---------- 图片审核 ----------
+let imgFilter = 'all';
+function filterImages(f) {
+  imgFilter = f;
+  ['all','pending','approved','rejected'].forEach(k => {
+    const b = document.getElementById('flt-' + k);
+    if (b) b.classList.toggle('primary', k === f);
+  });
+  renderImages();
+}
+async function reviewImages(status) {
+  const ids = [...imgSel];
+  if (!ids.length) return toast('先选��要审核的图片', true);
+  let note = '';
+  if (status === 'rejected') {
+    note = (prompt('驳回原因（可选，会显示给上传者）：', '') || '').slice(0, 200);
+  }
+  if (!confirm(`将选中的 ${ids.length} 张图片标记为「${status === 'approved' ? '已通过' : '未通过'}」？`)) return;
+  try {
+    const r = await api('/api/images/review', {method: 'POST', body: JSON.stringify({ids, status, note})});
+    imgSel.clear();
+    toast(`已处理 ${r.count} 张`);
+    await loadImages();
+  } catch (e) { toast(e.message, true); }
+}
+
 function renderImages() {
   const list = visibleImages();
   const box = $('#images');
+  const stLabel = {pending: '待审核', approved: '已通过', rejected: '未通过'};
   box.innerHTML = list.length ? list.map(i => `
-    <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}" title="#${i.id} ${esc(i.original)}"
-         onclick="toggleImgSel(${i.id}, event)">
+    <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}"
+         title="#${i.id} ${esc(i.original)}${i.uploader ? ' · 上传者 ' + esc(i.uploader) : ''} · ${stLabel[i.status] || '已通过'}">
       <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async"
            onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
+      <span class="badge ${i.status || 'approved'}">${stLabel[i.status] || '已通过'}</span>
+      ${i.uploader ? `<span class="up">@${esc(i.uploader)}</span>` : ''}
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
     </div>`).join('')
     : `<div class="empty">${images.length ? '没有匹配的图片' : '图片库为空，先上传几张'}</div>`;
@@ -2183,6 +2305,7 @@ fillSelects();
 loadImages();
 loadTriggers();
 loadPresets();
+loadUploadUsers();
 loadGroupMgr();
 refreshStatus();
 loadLogs();

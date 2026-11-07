@@ -6,21 +6,13 @@
 <title>上传图片 · QQ 机器人</title>
 <style>
   :root{
-    --bg1:#ffe3f1; --bg2:#e9e4ff; --bg3:#dbeafe;
-    --glow1:#ffd6ea; --glow2:#dcd6ff; --glow3:#cfe6ff;
-    --card:rgba(255,255,255,.85); --txt:#3f3350; --sub:#9b8fae;
-    --line:#f3d3e3; --pink:#ec4899; --pink2:#f472b6; --violet:#8b5cf6;
-    --grad:linear-gradient(92deg,#ec4899,#a855f7);
-    --ok:#10b981; --err:#ef4444;
-    --input-bg:rgba(255,255,255,.9);
-  }
-  [data-theme="midnight"]{
-    --bg1:#131a2b; --bg2:#181430; --bg3:#0f1a24;
-    --glow1:#233a63; --glow2:#34265e; --glow3:#16304a;
-    --card:rgba(30,38,58,.85); --txt:#e6e9f5; --sub:#8b93ad;
-    --line:#39415c; --pink:#818cf8; --pink2:#a78bfa;
-    --grad:linear-gradient(92deg,#818cf8,#c084fc);
-    --input-bg:rgba(24,31,48,.85);
+    --bg1:#0a0f1e; --bg2:#0d1526; --bg3:#090d18;
+    --glow1:#0e2a4a; --glow2:#1a1440; --glow3:#0a2338;
+    --card:rgba(15,23,42,.8); --txt:#dbeafe; --sub:#64748b;
+    --line:rgba(56,189,248,.18); --pink:#38bdf8; --pink2:#22d3ee;
+    --grad:linear-gradient(92deg,#38bdf8,#818cf8);
+    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
+    --input-bg:rgba(8,13,26,.85);
   }
   *{box-sizing:border-box}
   body{margin:0;min-height:100vh;display:grid;place-items:center;padding:20px;color:var(--txt);
@@ -30,139 +22,243 @@
          radial-gradient(800px 400px at 90% 0%, var(--glow2) 0%, transparent 50%),
          radial-gradient(700px 500px at 50% 110%, var(--glow3) 0%, transparent 55%),
          linear-gradient(160deg, var(--bg1), var(--bg2) 55%, var(--bg3));
-       background-attachment:fixed;transition:background .35s ease}
+       background-attachment:fixed}
   .card{background:var(--card);backdrop-filter:blur(12px);
-        border:1px solid rgba(255,255,255,.5);border-radius:24px;padding:34px 28px;width:min(430px,94vw);
-        box-shadow:0 18px 50px rgba(236,72,153,.18);text-align:center}
+        border:1px solid var(--line);border-radius:24px;padding:30px 26px;width:min(440px,94vw);
+        box-shadow:0 18px 50px rgba(0,0,0,.5)}
   h1{font-size:19px;margin:0 0 6px;font-weight:800;
      background:var(--grad);-webkit-background-clip:text;background-clip:text;
      -webkit-text-fill-color:transparent}
-  .sub{color:var(--sub);font-size:13px;margin:0 0 22px}
-  .drop{
-    border:2px dashed var(--line);border-radius:18px;padding:34px 16px;cursor:pointer;
-    transition:.2s;background:rgba(255,255,255,.35);margin-bottom:16px;
-  }
-  .drop:hover,.drop.over{border-color:var(--pink2);background:rgba(255,255,255,.6)}
+  .sub{color:var(--sub);font-size:13px;margin:0 0 20px}
+  .who{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;
+       padding:10px 14px;border-radius:12px;background:rgba(56,189,248,.08);border:1px solid var(--line)}
+  .who b{color:var(--pink)}
+  .who button{margin-left:auto;width:auto;padding:5px 12px;font-size:12px;box-shadow:none}
+  .drop{border:2px dashed var(--line);border-radius:18px;padding:34px 16px;cursor:pointer;
+    transition:.2s;background:rgba(56,189,248,.04);margin-bottom:16px}
+  .drop:hover,.drop.over{border-color:var(--pink);background:rgba(56,189,248,.09)}
   .drop .ico{font-size:34px;line-height:1}
   .drop .t1{font-weight:700;margin-top:8px}
   .drop .t2{font-size:12px;color:var(--sub);margin-top:3px}
   input[type=file]{display:none}
-  .row{display:flex;gap:10px;margin-bottom:14px}
-  input[type=password]{flex:1;background:var(--input-bg);color:var(--txt);
-    border:1px solid var(--line);border-radius:12px;padding:11px 14px;font:inherit}
-  input:focus{outline:none;border-color:var(--pink2);box-shadow:0 0 0 3px rgba(244,114,182,.18)}
-  button.go{width:100%;padding:13px;border:none;border-radius:999px;color:#fff;font:inherit;
+  input[type=text],input[type=password]{width:100%;background:var(--input-bg);color:var(--txt);
+    border:1px solid var(--line);border-radius:12px;padding:12px 14px;font:inherit;font-size:16px;margin-bottom:12px}
+  input:focus{outline:none;border-color:var(--pink);box-shadow:0 0 0 3px rgba(56,189,248,.16)}
+  button{width:100%;padding:13px;border:none;border-radius:999px;color:#fff;font:inherit;
     font-size:15px;font-weight:600;cursor:pointer;background:var(--grad);
-    box-shadow:0 8px 22px rgba(236,72,153,.35);transition:.18s}
-  button.go:hover{filter:brightness(1.06)}
-  button.go:disabled{opacity:.55;cursor:not-allowed}
-  .status{min-height:44px;margin-top:14px;font-size:13.5px}
+    box-shadow:0 8px 22px rgba(56,189,248,.3);transition:.18s}
+  button:hover{filter:brightness(1.08)}
+  button:disabled{opacity:.55;cursor:not-allowed}
+  button.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--sub);margin-top:8px}
+  .status{min-height:42px;margin-top:14px;font-size:13.5px}
   .status.ok{color:var(--ok)} .status.err{color:var(--err)}
-  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.5);overflow:hidden;margin-top:10px;display:none}
+  .bar{height:8px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;margin-top:10px;display:none}
   .bar i{display:block;height:100%;width:0%;border-radius:99px;background:var(--grad);transition:width .3s}
   .preview{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:14px}
   .preview img{width:64px;height:64px;object-fit:cover;border-radius:12px;border:1px solid var(--line)}
-  .themebar{position:fixed;bottom:14px;right:14px}
-  .themebar button{padding:6px 14px;font-size:12px;border-radius:999px;cursor:pointer;
-    background:var(--card);color:var(--txt);border:1px solid var(--line)}
-  .note{font-size:11px;color:var(--sub);margin-top:14px;opacity:.8}
+  .mine{margin-top:18px;border-top:1px solid var(--line);padding-top:14px}
+  .mine h3{font-size:13px;margin:0 0 10px;color:var(--sub);font-weight:600}
+  .mine .row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--line);font-size:12px}
+  .mine .row:last-child{border-bottom:none}
+  .mine .row img{width:40px;height:40px;object-fit:cover;border-radius:8px}
+  .mine .row .n{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .tag{font-size:11px;padding:2px 9px;border-radius:999px;white-space:nowrap}
+  .tag.pending{background:rgba(251,191,36,.15);color:var(--warn)}
+  .tag.approved{background:rgba(52,211,153,.15);color:var(--ok)}
+  .tag.rejected{background:rgba(248,113,113,.15);color:var(--err)}
+  .note{font-size:11px;color:var(--sub);margin-top:14px;opacity:.85;text-align:center}
+  .hidden{display:none}
 </style>
 </head>
 <body>
-<div class="card">
-  <h1>📤 上传图片到机器人</h1>
-  <p class="sub">选好的图会直接进入机器人图片库，任务里就能用</p>
+
+<!-- 登录卡片 -->
+<div class="card" id="loginCard">
+  <h1>📤 图片上传</h1>
+  <p class="sub">请使用后台分配的账号登录</p>
+  <input type="text" id="u" placeholder="账号" autocomplete="username">
+  <input type="password" id="p" placeholder="密码" autocomplete="current-password">
+  <button id="loginBtn" onclick="doLogin()">登录</button>
+  <div class="status" id="loginStatus"></div>
+  <div class="note">上传的图片需管理员审核通过后才会进入图片库</div>
+</div>
+
+<!-- 上传卡片 -->
+<div class="card hidden" id="uploadCard">
+  <h1>📤 上传图片</h1>
+  <p class="sub">选好的图提交审核，通过后即可被机器人使用</p>
+
+  <div class="who">
+    👤 <b id="whoami">—</b>
+    <button class="ghost" onclick="doLogout()">退出登录</button>
+  </div>
 
   <div class="drop" id="drop" onclick="document.getElementById('file').click()">
     <div class="ico">🖼️</div>
     <div class="t1">点击选择图片</div>
-    <div class="t2">支持多选 · png / jpg / gif / webp · 单张 ≤ 10MB</div>
+    <div class="t2">支持多选 · png/jpg/gif/webp · 单张 ≤ 10MB</div>
   </div>
   <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
 
   <div class="preview" id="preview"></div>
-
-  <div class="row">
-    <input type="password" id="token" placeholder="上传 Token（设置里那串）" autocomplete="off">
-  </div>
-
-  <button class="go" id="go" onclick="doUpload()">开始上传</button>
+  <button class="go" id="go" onclick="doUpload()">提交审核</button>
 
   <div class="bar" id="bar"><i></i></div>
   <div class="status" id="status"></div>
 
-  <div class="note">上传会限速：每分钟最多 20 次，请勿刷屏</div>
+  <div class="mine">
+    <h3>我的上传（<span id="mineCount">0</span>）</h3>
+    <div id="mineList"></div>
+  </div>
+
+  <div class="mine">
+    <h3>账号安全</h3>
+    <button class="ghost" onclick="doChangePw()" style="width:100%">🔑 修改登录密码</button>
+  </div>
+  <div class="note">图片上传后需管理员审核，请耐心等待</div>
 </div>
-<div class="themebar"><button onclick="cycleTheme()" id="theme-btn">◐ 主题</button></div>
 
 <script>
-const THEMES = ['sakura','midnight','forest','sunset','ink'];
-function applyTheme(id){
-  if (id==='sakura') document.documentElement.removeAttribute('data-theme');
-  else document.documentElement.setAttribute('data-theme', id);
-  localStorage.setItem('qqbot-theme', id);
-  const b=document.getElementById('theme-btn');
-  const names={sakura:'樱花粉',midnight:'午夜蓝',forest:'森野绿',sunset:'暖阳橙',ink:'墨竹灰'};
-  if(b) b.textContent='◐ '+(names[id]||'主题');
-}
-function cycleTheme(){
-  const cur=localStorage.getItem('qqbot-theme')||'sakura';
-  applyTheme(THEMES[(THEMES.indexOf(cur)+1)%THEMES.length]);
-}
-applyTheme(localStorage.getItem('qqbot-theme')||'sakura');
-if(localStorage.getItem('qqbot-utoken')) document.getElementById('token').value=localStorage.getItem('qqbot-utoken');
+const $ = s => document.querySelector(s);
+const TOK = () => localStorage.getItem('qqbot-upload-token') || '';
 
-let files=[];
-const drop=document.getElementById('drop'), fileEl=document.getElementById('file'),
-      preview=document.getElementById('preview'), statusEl=document.getElementById('status'),
-      bar=document.getElementById('bar'), go=document.getElementById('go');
-
-fileEl.onchange=()=>setFiles([...fileEl.files]);
-['dragover','dragenter'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.add('over')}));
-['dragleave','drop'].forEach(ev=>drop.addEventListener(ev,e=>{e.preventDefault();drop.classList.remove('over')}));
-drop.addEventListener('drop',e=>setFiles([...e.dataTransfer.files]));
-
-function setFiles(fs){
-  files = fs.filter(f=>f.type.startsWith('image/'));
-  if(!files.length){ statusEl.textContent='请选择图片文件'; statusEl.className='status err'; preview.innerHTML=''; return; }
-  statusEl.textContent=''; statusEl.className='status';
-  preview.innerHTML = files.map(f=>{
-    const url=URL.createObjectURL(f);
-    return `<img src="${url}">`;
-  }).join('');
-}
-
-async function doUpload(){
-  if(!files.length){ statusEl.textContent='先选图片'; statusEl.className='status err'; return; }
-  const token=document.getElementById('token').value.trim();
-  localStorage.setItem('qqbot-utoken', token);
-  go.disabled=true; bar.style.display='block';
-  let ok=0, fail=0;
-  for(let i=0;i<files.length;i++){
-    bar.firstElementChild.style.width=Math.round((i)/files.length*100)+'%';
-    statusEl.textContent=`上传中 ${i+1}/${files.length}…`; statusEl.className='status';
-    const b64=await new Promise(res=>{const r=new FileReader();r.onload=()=>res(r.result);r.readAsDataURL(files[i])});
-    try{
-      const res=await fetch('/remote/upload',{
-        method:'POST',
-        headers:Object.assign({'Content-Type':'application/json'}, token?{'Authorization':'Bearer '+token}:{}) ,
-        body:JSON.stringify({filename:files[i].name, data:b64})
-      });
-      if(res.ok){ok++;}else{fail++; }
-    }catch(e){fail++;}
+async function api(path, opts = {}) {
+  const headers = Object.assign({}, opts.body instanceof FormData ? {} : {'Content-Type': 'application/json'});
+  if (TOK()) headers['X-Upload-Session'] = TOK();
+  const res = await fetch(path, Object.assign({credentials: 'same-origin', headers}, opts));
+  const text = await res.text();
+  let data = null;
+  try { data = text ? JSON.parse(text) : null; } catch { data = text; }
+  if (!res.ok) {
+    if (res.status === 401) { showLogin(); }
+    throw new Error((data && data.detail) || res.statusText);
   }
-  bar.firstElementChild.style.width='100%';
-  go.disabled=false;
-  if(fail===0){
-    statusEl.textContent=`✅ 全部成功：${ok} 张已进图片库`;
-    statusEl.className='status ok';
-    preview.innerHTML=''; files=[]; fileEl.value='';
-    setTimeout(()=>{bar.style.display='none';bar.firstElementChild.style.width='0%';},800);
-  }else{
-    statusEl.textContent=`成功 ${ok} 张，失败 ${fail} 张（检查 Token 或文件大小）`;
-    statusEl.className='status err';
-  }
+  return data;
 }
+
+function showLogin() {
+  $('#loginCard').classList.remove('hidden');
+  $('#uploadCard').classList.add('hidden');
+}
+function showUpload() {
+  $('#loginCard').classList.add('hidden');
+  $('#uploadCard').classList.remove('hidden');
+  loadMine();
+}
+
+async function doLogin() {
+  const u = $('#u').value.trim(), p = $('#p').value;
+  if (!u || !p) { $('#loginStatus').textContent = '请输入账号和密码'; $('#loginStatus').className = 'status err'; return; }
+  $('#loginBtn').disabled = true;
+  try {
+    const r = await fetch('/remote/login', {
+      method: 'POST', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({username: u, password: p}), credentials: 'same-origin'
+    });
+    const d = await r.json();
+    if (!r.ok) throw new Error(d.detail || '登录失败');
+    localStorage.setItem('qqbot-upload-token', d.token);
+    $('#whoami').textContent = d.username;
+    showUpload();
+  } catch (e) {
+    $('#loginStatus').textContent = e.message;
+    $('#loginStatus').className = 'status err';
+  }
+  $('#loginBtn').disabled = false;
+}
+
+async function doLogout() {
+  await fetch('/remote/logout', {method: 'POST', credentials: 'same-origin'}).catch(() => {});
+  localStorage.removeItem('qqbot-upload-token');
+  showLogin();
+}
+
+let files = [];
+const drop = $('#drop'), fileEl = $('#file');
+fileEl.onchange = () => setFiles([...fileEl.files]);
+['dragover','dragenter'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave','drop'].forEach(ev => drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => setFiles([...e.dataTransfer.files]));
+
+function setFiles(fs) {
+  files = fs.filter(f => f.type.startsWith('image/'));
+  $('#preview').innerHTML = files.map(f => `<img src="${URL.createObjectURL(f)}">`).join('');
+  $('#status').textContent = files.length ? `已选 ${files.length} 张` : '';
+  $('#status').className = 'status';
+}
+
+async function doUpload() {
+  if (!files.length) { $('#status').textContent = '先选择图片'; $('#status').className = 'status err'; return; }
+  const go = $('#go'); go.disabled = true;
+  $('#bar').style.display = 'block';
+  let ok = 0, fail = 0;
+  for (let i = 0; i < files.length; i++) {
+    $('#bar').firstElementChild.style.width = Math.round(i / files.length * 100) + '%';
+    $('#status').textContent = `提交中 ${i + 1}/${files.length}…`;
+    const b64 = await new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(files[i]); });
+    try {
+      await api('/remote/upload', {method: 'POST', body: JSON.stringify({filename: files[i].name, data: b64})});
+      ok++;
+    } catch (e) { fail++; }
+  }
+  $('#bar').firstElementChild.style.width = '100%';
+  go.disabled = false;
+  if (!fail) {
+    $('#status').textContent = `✅ ${ok} 张已提交，等待管理员审核`;
+    $('#status').className = 'status ok';
+    files = []; fileEl.value = ''; $('#preview').innerHTML = '';
+    setTimeout(() => { $('#bar').style.display = 'none'; $('#bar').firstElementChild.style.width = '0%'; }, 900);
+  } else {
+    $('#status').textContent = `成功 ${ok}，失败 ${fail}（登录过期？文件过大？）`;
+    $('#status').className = 'status err';
+  }
+  loadMine();
+}
+
+async function doChangePw() {
+  const oldPw = (prompt('原密码：', '') || '');
+  if (!oldPw) return;
+  const newPw = (prompt('新密码（至少 4 位）：', '') || '');
+  if (!newPw) return;
+  if (newPw.length < 4) { alert('新密码至少 4 位'); return; }
+  if (newPw === oldPw) { alert('新密码不能与原密码相同'); return; }
+  const again = (prompt('再输入一次新密码：', '') || '');
+  if (again !== newPw) { alert('两次输入的新密码不一致'); return; }
+  try {
+    const r = await api('/remote/change-password', {method: 'POST', body: JSON.stringify({old_password: oldPw, new_password: newPw})});
+    localStorage.removeItem('qqbot-upload-token');
+    alert('密码已修改，请用新密码重新登录');
+    showLogin();
+  } catch (e) { alert(e.message); }
+}
+
+async function loadMine() {
+  try {
+    const d = await api('/remote/mine');
+    const list = d.images || [];
+    $('#mineCount').textContent = list.length;
+    const label = {pending: '待审核', approved: '已通过', rejected: '未通过'};
+    $('#mineList').innerHTML = list.length ? list.map(i => `
+      <div class="row">
+        <img src="/remote/thumb/${i.id}" onerror="this.style.display='none'">
+        <span class="n" title="${i.original}">${i.original}</span>
+        <span class="tag ${i.status || 'approved'}" title="${esc(i.review_note || '')}">${label[i.status] || i.status}</span>
+      </div>`).join('') : '<div class="note">还没有上传记录</div>';
+  } catch (e) { /* 401 已自动切登录 */ }
+}
+
+// 启动：有 token 就验证，否则登录
+(async () => {
+  if (TOK()) {
+    try {
+      const me = await api('/remote/me');
+      $('#whoami').textContent = me.username;
+      showUpload();
+      return;
+    } catch (e) { localStorage.removeItem('qqbot-upload-token'); }
+  }
+  showLogin();
+})();
 </script>
 </body>
 </html>
