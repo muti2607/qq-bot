@@ -670,6 +670,38 @@ async def api_delete_image(image_id: int):
     return {"ok": True}
 
 
+class BatchDeleteIn(BaseModel):
+    ids: list[int] = Field(default_factory=list)
+    all: bool = False          # true = 清空图片库
+
+
+@app.post("/api/images/batch-delete")
+async def api_batch_delete_images(body: BatchDeleteIn):
+    """批量删除图片。all=true 时清空整个图片库。"""
+    if body.all:
+        targets = [i["id"] for i in db.list_images()]
+    else:
+        if not body.ids:
+            raise HTTPException(400, "请选择要删除的图片")
+        if len(body.ids) > 2000:
+            raise HTTPException(400, "一次最多删除 2000 张")
+        targets = body.ids
+
+    deleted = 0
+    missing = 0
+    for iid in targets:
+        img = db.get_image(int(iid))
+        if not img:
+            missing += 1
+            continue
+        db.delete_image(int(iid))
+        (db.UPLOAD_DIR / img["filename"]).unlink(missing_ok=True)
+        deleted += 1
+
+    db.add_log(f"批量删除图片 {deleted} 张" + (f"（{missing} 张已不存在）" if missing else ""), "warn")
+    return {"ok": True, "deleted": deleted, "missing": missing}
+
+
 def _guess_mime(name: str) -> str:
     return {
         ".png": "image/png",

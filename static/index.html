@@ -382,12 +382,21 @@
       </section>
 
       <section class="panel" id="sec-images">
-        <h2>图片库 <span class="muted" style="font-weight:400">（任务里可选用，支持随机抽取）</span></h2>
-        <div style="display:flex;gap:10px;align-items:center;margin-bottom:10px">
-          <input type="file" id="upload" accept="image/*" style="max-width:320px">
+        <h2>图片库 <span class="muted" style="font-weight:400">（任务里可选用，支持随机抽取）</span>
+          <span class="spacer"></span>
+          <button class="small" onclick="selectAllImages()" id="selAllBtn">全选</button>
+          <button class="small danger" onclick="deleteSelectedImages()" id="batchDelBtn" disabled>删除选中 (0)</button>
+          <button class="small danger" onclick="clearAllImages()">清空</button>
+        </h2>
+        <div style="display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap">
+          <input type="file" id="upload" accept="image/*" multiple style="max-width:320px">
           <button id="uploadBtn" onclick="uploadImage()">上传图片</button>
           <span id="uploadMsg" class="muted"></span>
+          <span class="spacer"></span>
+          <input id="img-search" placeholder="按文件名筛选" style="max-width:180px" oninput="renderImages()">
+          <span id="img-count" class="muted" style="font-size:12px"></span>
         </div>
+        <div class="hint" style="margin-bottom:8px">点击图片可多选（选中会高亮），再点「删除选中」批量清理；Ctrl+点击也行。支持一次选多个文件上传。</div>
         <div id="images" class="imgs"></div>
       </section>
 
@@ -1055,32 +1064,120 @@ async function loadImages() {
   } catch (e) { toast(e.message, true); }
 }
 
+// 图片多选状态
+let imgSel = new Set();
+
+function visibleImages() {
+  const q = ($('#img-search')?.value || '').trim().toLowerCase();
+  return q ? images.filter(i => (i.original || '').toLowerCase().includes(q) || String(i.id) === q) : images;
+}
+
+function updateBatchUI() {
+  const n = imgSel.size;
+  const btn = $('#batchDelBtn');
+  if (btn) { btn.textContent = `删除选中 (${n})`; btn.disabled = n === 0; }
+  const all = visibleImages();
+  const selAll = $('#selAllBtn');
+  if (selAll) selAll.textContent = (all.length && all.every(i => imgSel.has(i.id))) ? '取消全选' : '全选';
+  const cnt = $('#img-count');
+  if (cnt) cnt.textContent = q2(all.length, images.length);
+}
+function q2(shown, total) { return shown === total ? `共 ${total} 张` : `显示 ${shown} / 共 ${total} 张`; }
+
+function toggleImgSel(id, ev) {
+  if (ev && (ev.ctrlKey || ev.metaKey)) {
+    imgSel.has(id) ? imgSel.delete(id) : imgSel.add(id);
+  } else if (ev && ev.shiftKey) {
+    const list = visibleImages().map(i => i.id);
+    const sel = [...imgSel];
+    const anchor = sel.length ? list.indexOf(sel[sel.length - 1]) : 0;
+    const cur = list.indexOf(id);
+    if (anchor >= 0 && cur >= 0) {
+      const [a, b] = anchor < cur ? [anchor, cur] : [cur, anchor];
+      for (let k = a; k <= b; k++) imgSel.add(list[k]);
+    }
+  } else {
+    imgSel.has(id) ? imgSel.delete(id) : imgSel.add(id);
+  }
+  renderImages();
+}
+
+function selectAllImages() {
+  const all = visibleImages();
+  const every = all.length && all.every(i => imgSel.has(i.id));
+  if (every) all.forEach(i => imgSel.delete(i.id));
+  else all.forEach(i => imgSel.add(i.id));
+  renderImages();
+}
+
+async function deleteSelectedImages() {
+  const ids = [...imgSel];
+  if (!ids.length) return;
+  if (!confirm(`确定删除选中的 ${ids.length} 张图片？\n引用它们的任务会自动取消配图。`)) return;
+  const btn = $('#batchDelBtn');
+  btn.disabled = true; btn.textContent = '删除中…';
+  try {
+    const r = await api('/api/images/batch-delete', {method: 'POST', body: JSON.stringify({ids})});
+    imgSel.clear();
+    await loadImages();
+    toast(`已删除 ${r.deleted} 张`);
+  } catch (e) {
+    toast(e.message, true);
+    updateBatchUI();
+  }
+}
+
+async function clearAllImages() {
+  if (!images.length) return toast('图片库已经是空的', true);
+  if (!confirm(`确定清空整个图片库？共 ${images.length} 张，不可恢复。\n引用图片的任务会自动取消配图。`)) return;
+  try {
+    const r = await api('/api/images/batch-delete', {method: 'POST', body: JSON.stringify({all: true})});
+    imgSel.clear();
+    await loadImages();
+    toast(`已清空 ${r.deleted} 张图片`);
+  } catch (e) { toast(e.message, true); }
+}
+
 function renderImages() {
-  $('#images').innerHTML = images.length ? images.map(i => `
-    <div class="item" title="#${i.id} ${esc(i.original)}">
+  const list = visibleImages();
+  const box = $('#images');
+  box.innerHTML = list.length ? list.map(i => `
+    <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" title="#${i.id} ${esc(i.original)}"
+         onclick="toggleImgSel(${i.id}, event)">
       <img src="/api/images/${i.id}/file?t=${Date.now()}" loading="lazy"
            onerror="if(!this.dataset.fb){this.dataset.fb=1;fetch('/api/images/${i.id}/data').then(r=>r.json()).then(d=>this.src=d.data)}">
-      <span class="del" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
-    </div>`).join('') : '<div class="empty">图片库为空</div>';
+      <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
+    </div>`).join('')
+    : `<div class="empty">${images.length ? '没有匹配的图片' : '图片库为空，先上传几张'}</div>`;
+  updateBatchUI();
 }
 
 async function uploadImage() {
-  const f = $('#upload').files[0];
-  if (!f) return toast('先选择一张图片', true);
-  const fd = new FormData(); fd.append('file', f);
-  $('#uploadBtn').disabled = true; $('#uploadMsg').textContent = '上传中…';
-  try {
-    await api('/api/images', {method: 'POST', body: fd});
-    $('#uploadMsg').textContent = '上传成功';
-    $('#upload').value = '';
-    await loadImages();
-  } catch (e) { toast(e.message, true); $('#uploadMsg').textContent = ''; }
-  finally { $('#uploadBtn').disabled = false; }
+  const files = [...($('#upload').files || [])];
+  if (!files.length) return toast('先选择图片', true);
+  const btn = $('#uploadBtn');
+  btn.disabled = true;
+  let ok = 0, fail = 0;
+  for (let n = 0; n < files.length; n++) {
+    $('#uploadMsg').textContent = `上传中 ${n + 1}/${files.length}…`;
+    const fd = new FormData(); fd.append('file', files[n]);
+    try { await api('/api/images', {method: 'POST', body: fd}); ok++; }
+    catch (e) { fail++; console.warn(files[n].name, e.message); }
+  }
+  $('#uploadMsg').textContent = fail ? `成功 ${ok}，失败 ${fail}` : `成功上传 ${ok} 张`;
+  $('#upload').value = '';
+  btn.disabled = false;
+  await loadImages();
+  if (fail) toast(`${fail} 张上传失败（检查格式或大小）`, true);
 }
 
 async function delImage(id) {
   if (!confirm('删除这张图片？引用它的任务会取消配图。')) return;
-  try { await api(`/api/images/${id}`, {method: 'DELETE'}); await loadImages(); } catch (e) { toast(e.message, true); }
+  try {
+    await api(`/api/images/${id}`, {method: 'DELETE'});
+    imgSel.delete(id);
+    await loadImages();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function loadTargets(force) {
