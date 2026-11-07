@@ -65,17 +65,32 @@ def send_code(mail: str) -> int:
     msg["From"] = formataddr(("QQ 机器人", conf["user"]))
     msg["To"] = formataddr(("申请者", mail))
 
-    try:
-        if conf["port"] == 465:
-            smtp = smtplib.SMTP_SSL(conf["host"], conf["port"], timeout=15)
-        else:
-            smtp = smtplib.SMTP(conf["host"], conf["port"], timeout=15)
-            smtp.starttls()
-        smtp.login(conf["user"], conf["pwd"])
-        smtp.sendmail(conf["user"], [mail], msg.as_string())
-        smtp.quit()
-    except Exception as e:
-        raise MailError(f"邮件发送失败：{e}") from e
+    last_err = None
+    # 依次尝试：指定端口 -> 465 SSL -> 587 STARTTLS
+    attempts = [(conf["port"], "ssl" if conf["port"] == 465 else "starttls"), (465, "ssl"), (587, "starttls")]
+    tried = []
+    for port, mode in attempts:
+        try:
+            if mode == "ssl":
+                smtp = smtplib.SMTP_SSL(conf["host"], port, timeout=15)
+            else:
+                smtp = smtplib.SMTP(conf["host"], port, timeout=15)
+                smtp.ehlo()
+                smtp.starttls()
+                smtp.ehlo()
+            smtp.login(conf["user"], conf["pwd"])
+            smtp.sendmail(conf["user"], [mail], msg.as_string())
+            smtp.quit()
+            last_err = None
+            break
+        except smtplib.SMTPAuthenticationError as e:
+            # 授权码/账号错误：换端口也没用，直接报
+            raise MailError("SMTP 登录被拒：授权码错误或未开启 SMTP 服务（" + str(e) + "）") from e
+        except Exception as e:
+            last_err = f"{mode}:{port} {e}"
+            tried.append(last_err)
+    if last_err:
+        raise MailError("邮件发送失败（已尝试 " + "、".join(tried) + "）") from None
 
     _codes[mail] = (code, now + _CODE_TTL, 0)
     _last_send[mail] = now
