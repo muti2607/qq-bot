@@ -822,7 +822,50 @@ async def api_image_file(image_id: int):
     if not path.exists():
         raise HTTPException(404, "文件丢失")
     resp = Response(path.read_bytes(), media_type=_guess_mime(img["filename"]))
-    resp.headers["Cache-Control"] = "max-age=86400"  # 文件名是随机 uuid，可放心长缓存
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"  # 文件名含 uuid，永久缓存
+    return resp
+
+
+THUMB_DIR = db.DATA_DIR / "thumbs"
+
+
+def _ensure_thumb(img: dict) -> Path | None:
+    """生成/复用 200px 缩略图（WebP，体积约为原图的 1/10）。失败返回 None。"""
+    try:
+        from PIL import Image, ImageOps
+
+        THUMB_DIR.mkdir(parents=True, exist_ok=True)
+        src = db.UPLOAD_DIR / img["filename"]
+        dst = THUMB_DIR / (Path(img["filename"]).stem + ".webp")
+        if dst.exists():
+            return dst
+        with Image.open(src) as im:
+            im = ImageOps.exif_transpose(im)
+            im.thumbnail((200, 200), Image.LANCZOS)
+            if im.mode not in ("RGB", "L"):
+                im = im.convert("RGB")
+            im.save(dst, "WEBP", quality=72, method=4)
+        return dst
+    except Exception as e:
+        log.warning("缩略图生成失败 %s: %s", img.get("filename"), e)
+        return None
+
+
+@app.get("/api/images/{image_id}/thumb")
+async def api_image_thumb(image_id: int):
+    """缩略图：后台网格用这个，避免加载原图。"""
+    img = db.get_image(image_id)
+    if not img:
+        raise HTTPException(404, "图片不存在")
+    src = db.UPLOAD_DIR / img["filename"]
+    if not src.exists():
+        raise HTTPException(404, "文件丢失")
+    thumb = _ensure_thumb(img)
+    if thumb and thumb.exists():
+        resp = Response(thumb.read_bytes(), media_type="image/webp")
+    else:
+        resp = Response(src.read_bytes(), media_type=_guess_mime(img["filename"]))
+    resp.headers["Cache-Control"] = "public, max-age=31536000, immutable"
     return resp
 
 
@@ -850,6 +893,7 @@ async def api_delete_image(image_id: int):
         raise HTTPException(404, "图片不存在")
     db.delete_image(image_id)
     (db.UPLOAD_DIR / img["filename"]).unlink(missing_ok=True)
+    (THUMB_DIR / (Path(img["filename"]).stem + ".webp")).unlink(missing_ok=True)
     return {"ok": True}
 
 
@@ -879,6 +923,7 @@ async def api_batch_delete_images(body: BatchDeleteIn):
             continue
         db.delete_image(int(iid))
         (db.UPLOAD_DIR / img["filename"]).unlink(missing_ok=True)
+        (THUMB_DIR / (Path(img["filename"]).stem + ".webp")).unlink(missing_ok=True)
         deleted += 1
 
     db.add_log(f"批量删除图片 {deleted} 张" + (f"（{missing} 张已不存在）" if missing else ""), "warn")

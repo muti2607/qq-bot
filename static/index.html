@@ -1243,7 +1243,7 @@ function renderPool(box, sel) {
   const el = $(box);
   const html = images.length ? images.map(i => `
     <div class="item ${sel.has(i.id) ? 'sel' : ''}" title="#${i.id} ${esc(i.original)}" data-iid="${i.id}">
-      <img src="/api/images/${i.id}/file" loading="lazy">
+      <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async">
     </div>`).join('') : '<div class="empty">图片库为空，请先在下方上传</div>';
   el.innerHTML = html;
   el.querySelectorAll('.item').forEach(node => {
@@ -1300,7 +1300,7 @@ function toggleImgSel(id, ev) {
   } else {
     imgSel.has(id) ? imgSel.delete(id) : imgSel.add(id);
   }
-  renderImages();
+  syncImgSelection();   // 只切 class，不重建 DOM（避免所有图重新下载）
 }
 
 function selectAllImages() {
@@ -1308,7 +1308,7 @@ function selectAllImages() {
   const every = all.length && all.every(i => imgSel.has(i.id));
   if (every) all.forEach(i => imgSel.delete(i.id));
   else all.forEach(i => imgSel.add(i.id));
-  renderImages();
+  syncImgSelection();
 }
 
 async function deleteSelectedImages() {
@@ -1339,14 +1339,24 @@ async function clearAllImages() {
   } catch (e) { toast(e.message, true); }
 }
 
+// 只同步选中态，不重建图片 DOM（关键：避免每次点击都重新下载所有缩略图）
+function syncImgSelection() {
+  const box = $('#images');
+  if (!box) return;
+  box.querySelectorAll('.item').forEach(node => {
+    node.classList.toggle('sel', imgSel.has(Number(node.dataset.iid)));
+  });
+  updateBatchUI();
+}
+
 function renderImages() {
   const list = visibleImages();
   const box = $('#images');
   box.innerHTML = list.length ? list.map(i => `
-    <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" title="#${i.id} ${esc(i.original)}"
+    <div class="item ${imgSel.has(i.id) ? 'sel' : ''}" data-iid="${i.id}" title="#${i.id} ${esc(i.original)}"
          onclick="toggleImgSel(${i.id}, event)">
-      <img src="/api/images/${i.id}/file?t=${Date.now()}" loading="lazy"
-           onerror="if(!this.dataset.fb){this.dataset.fb=1;fetch('/api/images/${i.id}/data').then(r=>r.json()).then(d=>this.src=d.data)}">
+      <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async"
+           onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
     </div>`).join('')
     : `<div class="empty">${images.length ? '没有匹配的图片' : '图片库为空，先上传几张'}</div>`;
