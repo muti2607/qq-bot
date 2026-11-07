@@ -41,7 +41,7 @@
   button.ghost{background:transparent;border:1px solid var(--line);box-shadow:none;color:var(--sub)}
   .status{min-height:40px;margin-top:10px;font-size:13.5px}
   .status.ok{color:var(--ok)} .status.err{color:var(--err)}
-  .hidden{display:none}
+  .hidden{display:none !important}
   .who{display:flex;align-items:center;gap:8px;font-size:13px;margin-bottom:14px;flex-wrap:wrap;
        padding:10px 14px;border-radius:12px;background:rgba(56,189,248,.08);border:1px solid var(--line)}
   .who b{color:var(--pink)}
@@ -412,6 +412,8 @@ async function adminApply(aid, action) {
 }
 
 /* ---------- 启动 ---------- */
+// 兜底：确保 lightbox 初始隐藏（防旧 CSS/缓存导致遮罩残留）
+document.getElementById('lightbox').classList.add('hidden');
 (async () => {
   adminPw = localStorage.getItem(PW_KEY) || '';
   if (localStorage.getItem('qqbot-upload-token')) {
