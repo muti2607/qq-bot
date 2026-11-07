@@ -340,6 +340,7 @@
     <div class="brand"><span>✦ QQ 机器人</span></div>
     <button class="nav active" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico">📋</span><span class="t">任务列表</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico">💬</span><span class="t">触发回复</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico">📁</span><span class="t">群组预设</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
     <div class="side-sep"></div>
@@ -372,6 +373,12 @@
         <h2>触发回复 <span class="muted" style="font-weight:400">（群里 @机器人+关键词 时自动回复）</span>
           <span class="spacer"></span><button class="primary small" onclick="openTriggerForm(null)">＋ 新建触发</button></h2>
         <div id="triggerlist" class="tasklist"></div>
+      </section>
+
+      <section class="panel" id="sec-presets">
+        <h2>群组预设 <span class="muted" style="font-weight:400">（把常用的一批群/私聊存成组，建任务时一键载入）</span>
+          <span class="spacer"></span><button class="primary small" onclick="openPresetForm(null)">＋ 新建预设</button></h2>
+        <div id="presetlist" class="tasklist"></div>
       </section>
 
       <section class="panel" id="sec-images">
@@ -603,6 +610,45 @@
   </form>
 </dialog>
 
+<dialog id="presetDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3 id="preset-dlg-title">新建群组预设</h3></div>
+    <div class="dlg-body">
+      <input type="hidden" id="p-id">
+      <label class="field"><span>预设名称</span>
+        <input id="p-name" placeholder="例如 比赛通知组" maxlength="40">
+      </label>
+
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">添加群聊 / 好友</span>
+        <div style="display:flex;gap:8px;margin-bottom:6px">
+          <select id="p-type" style="max-width:110px" onchange="loadPresetTargets()">
+            <option value="group">群聊</option>
+            <option value="private">好友/私聊</option>
+          </select>
+          <select id="p-target"></select>
+          <button type="button" class="small" onclick="addPresetTarget()">添加</button>
+          <button type="button" class="small" onclick="loadPresetTargets(true)">刷新列表</button>
+        </div>
+        <div style="display:flex;gap:8px;margin-top:6px">
+          <input id="p-manual-qq" placeholder="QQ 号（仅私聊）" style="max-width:200px">
+          <button type="button" class="small" onclick="addPresetManual()">按 QQ 号添加</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">已选目标（点 ✕ 移除）</span>
+        <div id="p-chips" class="chips"></div>
+        <div class="hint">保存后，新建任务或触发词时可直接「载入预设」一键加上这些目标。</div>
+      </div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" onclick="document.getElementById('presetDlg').close()">取消</button>
+      <button type="button" class="primary" onclick="savePreset()">保存</button>
+    </div>
+  </form>
+</dialog>
+
 <dialog id="setDlg">
   <form method="dialog" onsubmit="return false">
     <div class="dlg-head"><h3>设置</h3></div>
@@ -665,7 +711,7 @@ function navTo(id, btn) {
 }
 // 滚动时自动高亮当前区块
 (function setupScrollSpy() {
-  const ids = ['sec-tasks', 'sec-triggers', 'sec-images', 'sec-logs'];
+  const ids = ['sec-tasks', 'sec-triggers', 'sec-presets', 'sec-images', 'sec-logs'];
   const obs = new IntersectionObserver(entries => {
     const vis = entries.filter(e => e.isIntersecting)
       .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -1090,10 +1136,128 @@ function renderChips() {
 let presets = [];
 async function loadPresets() {
   try { presets = await api('/api/presets'); } catch { presets = []; }
-  $('#f-preset').innerHTML = presets.length
+  const optHtml = presets.length
     ? presets.map(p => `<option value="${p.id}">${esc(p.name)}（${p.targets.length}）</option>`).join('')
     : '<option value="">（暂无预设）</option>';
+  const fp = $('#f-preset'); if (fp) fp.innerHTML = optHtml;
+  const tp = $('#t-preset'); if (tp) tp.innerHTML = optHtml;
+  renderPresetList();
 }
+
+function renderPresetList() {
+  const box = $('#presetlist');
+  if (!box) return;
+  const addCard = `<div class="add" onclick="openPresetForm(null)"><b>＋</b><span>新建预设</span></div>`;
+  if (!presets.length) {
+    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有预设。把常用的一批群存成一组，建任务时一键带上。</div>` + addCard;
+    return;
+  }
+  box.innerHTML = presets.map(p => {
+    const tg = (p.targets || []).map(x =>
+      `<span class="chip"><span class="tag ${x.type === 'private' ? 'p' : ''}">${x.type === 'group' ? '群' : '私'}</span><b>${esc(x.name || x.id)}</b></span>`
+    ).join('') || '<span class="muted">空预设</span>';
+    return `<div class="t">
+      <div class="body">
+        <div class="title">${esc(p.name)} <span class="pill off">${(p.targets || []).length} 个目标</span></div>
+        <div class="meta" style="margin-top:6px;gap:6px">${tg}</div>
+      </div>
+      <div class="ops">
+        <button class="small" onclick="openPresetForm(${p.id})">编辑</button>
+        <button class="small danger" onclick="delPresetById(${p.id})">删除</button>
+      </div>
+    </div>`;
+  }).join('') + addCard;
+}
+
+async function delPresetById(id) {
+  const p = presets.find(x => x.id === id);
+  if (!p) return;
+  if (!confirm(`删除预设《${p.name}》？（已使用该预设的任务不受影响）`)) return;
+  try { await api(`/api/presets/${id}`, {method: 'DELETE'}); await loadPresets(); toast('已删除'); }
+  catch (e) { toast(e.message, true); }
+}
+
+// 预设编辑弹窗
+let presetChips = [], presetEditingId = null;
+async function openPresetForm(id) {
+  if (!presets.length) { try { presets = await api('/api/presets'); } catch {} }
+  presetEditingId = id;
+  const p = id ? presets.find(x => x.id === id) : null;
+  $('#preset-dlg-title').textContent = id ? `编辑预设《${p ? p.name : id}》` : '新建群组预设';
+  $('#p-id').value = id || '';
+  $('#p-name').value = p ? p.name : '';
+  presetChips = p ? (p.targets || []).map(t => ({type: t.type, id: Number(t.id), name: t.name || String(t.id)})) : [];
+  renderPresetChips();
+  await loadPresetTargets();
+  $('#presetDlg').showModal();
+}
+
+function renderPresetChips() {
+  $('#p-chips').innerHTML = presetChips.length ? presetChips.map((c, i) => `
+    <span class="chip"><span class="tag ${c.type === 'private' ? 'p' : ''}">${c.type === 'group' ? '群' : '私'}</span>
+      <b>${esc(c.name)}</b><span class="muted">${c.id}</span>
+      <span class="x" onclick="presetChips.splice(${i},1);renderPresetChips()">✕</span></span>`).join('')
+    : '<span class="muted" style="font-size:12px">还没有添加目标</span>';
+}
+
+async function loadPresetTargets(force) {
+  const type = $('#p-type').value;
+  if (force || !targetsCache[type] || !targetsCache[type].length) {
+    $('#p-target').innerHTML = '<option value="">加载中…</option>';
+    try {
+      targetsCache[type] = await api(type === 'group' ? '/api/groups' : '/api/friends');
+    } catch (e) {
+      targetsCache[type] = [];
+      $('#p-target').innerHTML = `<option value="">获取失败：${esc(e.message)}</option>`;
+      return;
+    }
+  }
+  const list = targetsCache[type];
+  $('#p-target').innerHTML = list.length
+    ? list.map(t => `<option value="${t.id}">${esc(t.name)}${t.type === 'group' ? '（' + (t.member_count ?? '?') + '人）' : ''}</option>`).join('')
+    : '<option value="">（空，检查 NapBot 连接）</option>';
+}
+
+function addPresetTarget() {
+  const type = $('#p-type').value;
+  const sel = $('#p-target');
+  const id = Number(sel.value);
+  if (!id) return toast('没有可添加的目标', true);
+  if (presetChips.some(c => c.type === type && c.id === id)) return toast('已经添加过了', true);
+  const name = sel.options[sel.selectedIndex].textContent.replace(/（.*?人）$/, '');
+  presetChips.push({type, id, name});
+  renderPresetChips();
+}
+
+async function addPresetManual() {
+  const v = $('#p-manual-qq').value.trim();
+  if (!/^\d{5,12}$/.test(v)) return toast('请输入正确的 QQ 号', true);
+  const id = Number(v);
+  if (presetChips.some(c => c.type === 'private' && c.id === id)) return toast('已经添加过了', true);
+  let name = v;
+  try { const r = await api('/api/lookup', {method: 'POST', body: JSON.stringify({id})}); name = r.name || v; }
+  catch (e) { toast('查询昵称失败，仍然添加：' + e.message, true); }
+  presetChips.push({type: 'private', id, name});
+  $('#p-manual-qq').value = '';
+  renderPresetChips();
+}
+
+async function savePreset() {
+  const name = $('#p-name').value.trim();
+  if (!name) return toast('预设名称不能为空', true);
+  if (!presetChips.length) return toast('至少添加一个群或好友', true);
+  try {
+    if (presetEditingId) {
+      await api(`/api/presets/${presetEditingId}`, {method: 'PUT', body: JSON.stringify({name, targets: presetChips})});
+    } else {
+      await api('/api/presets', {method: 'POST', body: JSON.stringify({name, targets: presetChips})});
+    }
+    $('#presetDlg').close();
+    toast('已保存');
+    await loadPresets();
+  } catch (e) { toast(e.message, true); }
+}
+
 function applyPreset() {
   const p = presets.find(x => x.id === Number($('#f-preset').value));
   if (!p) return toast('先选择一个预设', true);
@@ -1105,6 +1269,7 @@ function applyPreset() {
   renderChips();
   toast(`已载入《${p.name}》：新增 ${added} 个目标`);
 }
+
 async function saveAsPreset() {
   if (!chips.length) return toast('当前没有目标可保存', true);
   const name = (prompt('预设名称，例如「比赛通知组」', '') || '').trim();
@@ -1112,17 +1277,14 @@ async function saveAsPreset() {
   try {
     await api('/api/presets', {method: 'POST', body: JSON.stringify({name, targets: chips})});
     await loadPresets();
-    $('#f-preset').value = String(presets[presets.length - 1].id);
     toast(`已存为预设《${name}》`);
   } catch (e) { toast(e.message, true); }
 }
+
 async function delPreset() {
   const id = Number($('#f-preset').value);
-  const p = presets.find(x => x.id === id);
-  if (!p) return toast('先选择一个预设', true);
-  if (!confirm(`删除预设《${p.name}》？`)) return;
-  try { await api(`/api/presets/${id}`, {method: 'DELETE'}); await loadPresets(); toast('已删除'); }
-  catch (e) { toast(e.message, true); }
+  if (!id) return toast('先选择一个预设', true);
+  await delPresetById(id);
 }
 
 function formData() {
@@ -1287,7 +1449,9 @@ function onScopeChange() {
 }
 
 function renderPresetSelect() {
-  $('#t-preset').innerHTML = presets.length
+  const el = $('#t-preset');
+  if (!el) return;
+  el.innerHTML = presets.length
     ? presets.map(p => `<option value="${p.id}">${esc(p.name)}（${p.targets.length}）</option>`).join('')
     : '<option value="">（暂无预设）</option>';
 }
