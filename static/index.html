@@ -365,6 +365,37 @@
   .stat b{display:block;font-size:17px;background:var(--grad);
     -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
   .stat span{font-size:11px;color:var(--sub)}
+
+  /* ========== 性能仪表盘（NapCat 基础信息风格） ========== */
+  .metrics-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+  .m-card{background:var(--card);border:1px solid var(--line);border-radius:var(--radius);
+    padding:18px;box-shadow:var(--shadow);display:flex;align-items:center;gap:18px;min-height:170px}
+  .ring{width:118px;height:118px;flex:none;border-radius:50%;display:grid;place-items:center;position:relative;
+    background:conic-gradient(var(--pink) 0deg, var(--violet) 0deg, var(--line2) 0deg)}
+  .ring::before{content:"";position:absolute;inset:13px;border-radius:50%;background:var(--card)}
+  .ring .inner{position:relative;text-align:center;z-index:1}
+  .ring .inner b{display:block;font-size:23px;line-height:1.1;font-weight:800;
+    background:var(--grad);-webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent}
+  .ring .inner span{font-size:11px;color:var(--sub)}
+  .m-info{flex:1;min-width:0}
+  .m-info h3{margin:0 0 4px;font-size:14px;font-weight:700}
+  .m-info .big{font-size:20px;font-weight:800;color:var(--txt);line-height:1.3}
+  .m-info .lbl{font-size:12px;color:var(--sub);margin-top:8px;line-height:1.9}
+  .m-info .lbl b{color:var(--pink);font-weight:600}
+  .m-strip{display:grid;grid-template-columns:repeat(6,1fr);gap:10px;margin-top:14px}
+  .m-strip .cell{background:var(--card);border:1px solid var(--line);border-radius:14px;
+    padding:14px 10px;text-align:center;box-shadow:var(--shadow)}
+  .m-strip .cell b{display:block;font-size:16px;font-weight:800;color:var(--txt);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .m-strip .cell span{font-size:11px;color:var(--sub)}
+  .m-bar{height:7px;border-radius:99px;background:var(--line2);overflow:hidden;margin-top:6px}
+  .m-bar i{display:block;height:100%;border-radius:99px;background:var(--grad);transition:width .6s}
+  .metrics-foot{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:12px;color:var(--sub)}
+  @media (max-width:980px){
+    .metrics-grid{grid-template-columns:1fr}
+    .m-strip{grid-template-columns:repeat(3,1fr)}
+    .m-card{min-height:150px}
+  }
 </style>
 </head>
 <body>
@@ -388,6 +419,7 @@
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-metrics" onclick="navTo('sec-metrics',this)"><span class="ico">📊</span><span class="t">性能</span><span class="dotmark"></span></button>
     <button class="nav" onclick="openSettings()"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
 
     <div class="side-quote" onclick="showQuote()" title="点击换一句">
@@ -465,6 +497,48 @@
       <section class="panel panel-log" id="sec-logs">
         <h2>运行日志 <button class="small" style="margin-left:auto" onclick="clearLogs()">清空</button></h2>
         <div id="log" class="log"></div>
+      </section>
+
+      <section class="panel" id="sec-metrics">
+        <h2>服务器性能 <span class="muted" style="font-weight:400">（每 3 秒刷新）</span>
+          <span class="spacer"></span><button class="small" onclick="loadMetrics()">🔄 刷新</button></h2>
+
+        <div class="metrics-grid">
+          <div class="m-card">
+            <div class="ring" id="ring-cpu"><div class="inner"><b id="m-cpu-val">0%</b><span>CPU 占用</span></div></div>
+            <div class="m-info">
+              <h3>CPU</h3>
+              <div class="big" id="m-cpu-big">—</div>
+              <div class="lbl">
+                核心数 <b id="m-cores">—</b> · 主频 <b id="m-freq">—</b><br>
+                负载 1/5/15 分钟 <b id="m-load">—</b><br>
+                QQ 主进程 <b id="m-qqcpu">—</b>
+              </div>
+            </div>
+          </div>
+          <div class="m-card">
+            <div class="ring" id="ring-mem"><div class="inner"><b id="m-mem-val">0%</b><span>内存占用</span></div></div>
+            <div class="m-info">
+              <h3>内存</h3>
+              <div class="big" id="m-mem-big">—</div>
+              <div class="lbl">
+                总量 <b id="m-mem-total">—</b> · 已用 <b id="m-mem-used">—</b><br>
+                Swap <b id="m-swap">—</b><br>
+                机器人容器 <b id="m-container">—</b>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="m-strip">
+          <div class="cell"><b id="m-disk-val">—</b><span>磁盘占用</span><div class="m-bar"><i id="m-disk-bar"></i></div></div>
+          <div class="cell"><b id="m-uptime">—</b><span>运行时间</span></div>
+          <div class="cell"><b id="m-load1">—</b><span>1分钟负载</span></div>
+          <div class="cell"><b id="m-server-time">—</b><span>服务器时间</span></div>
+          <div class="cell"><b id="m-tasks">—</b><span>任务总数</span></div>
+          <div class="cell"><b id="m-images">—</b><span>图片数量</span></div>
+        </div>
+        <div class="metrics-foot">🟢 <span id="m-update">等待数据…</span></div>
       </section>
     </div>
 
@@ -794,7 +868,7 @@ function navTo(id, btn) {
 }
 // 滚动时自动高亮当前区块
 (function setupScrollSpy() {
-  const ids = ['sec-tasks', 'sec-triggers', 'sec-presets', 'sec-groups', 'sec-images', 'sec-logs'];
+  const ids = ['sec-tasks', 'sec-triggers', 'sec-presets', 'sec-groups', 'sec-images', 'sec-logs', 'sec-metrics'];
   const obs = new IntersectionObserver(entries => {
     const vis = entries.filter(e => e.isIntersecting)
       .sort((a, b) => b.intersectionRatio - a.intersectionRatio)[0];
@@ -948,6 +1022,44 @@ async function updateStats() {
     $('#st-trig').textContent = triggers.length;
     $('#st-imgs').textContent = images.length;
   } catch {}
+}
+
+// ---------- 服务器性能仪表盘 ----------
+function ring(el, pct) {
+  const deg = Math.max(0, Math.min(100, pct)) * 3.6;
+  el.style.background =
+    `conic-gradient(var(--pink) 0deg, var(--violet) ${deg}deg, var(--line2) ${deg}deg)`;
+}
+async function loadMetrics() {
+  try {
+    const d = await api('/api/metrics');
+    $('#m-cpu-val').textContent = d.cpu_percent + '%';
+    $('#m-cpu-big').textContent = d.cpu_percent + '%';
+    ring($('#ring-cpu'), d.cpu_percent);
+    $('#m-cores').textContent = d.cpu_cores + ' 核';
+    $('#m-freq').textContent = d.cpu_mhz ? (d.cpu_mhz >= 1000 ? (d.cpu_mhz/1000).toFixed(1)+' GHz' : d.cpu_mhz+' MHz') : '—';
+    $('#m-load').textContent = (d.load || []).join(' / ');
+    $('#m-qqcpu').textContent = '—';
+
+    $('#m-mem-val').textContent = d.mem_percent + '%';
+    $('#m-mem-big').textContent = d.mem_used_h + ' / ' + d.mem_total_h;
+    ring($('#ring-mem'), d.mem_percent);
+    $('#m-mem-total').textContent = d.mem_total_h;
+    $('#m-mem-used').textContent = d.mem_used_h;
+    $('#m-swap').textContent = d.swap_total ? `${d.swap_used_h} / ${d.swap_total_h} (${d.swap_percent}%)` : '未启用';
+    $('#m-container').textContent = d.container_mem_used ? `${d.container_mem_used_h} (${d.container_mem_percent}%)` : '—';
+
+    $('#m-disk-val').textContent = d.disk_percent + '%';
+    $('#m-disk-bar').style.width = d.disk_percent + '%';
+    $('#m-uptime').textContent = d.uptime;
+    $('#m-load1').textContent = (d.load || [0])[0];
+    $('#m-server-time').textContent = (d.server_time || '').slice(11);
+    $('#m-tasks').textContent = tasks.length;
+    $('#m-images').textContent = images.length;
+    $('#m-update').textContent = '最后更新 ' + d.server_time;
+  } catch (e) {
+    $('#m-update').textContent = '获取失败：' + e.message;
+  }
 }
 
 function esc(s) { return String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c])); }
@@ -1856,10 +1968,13 @@ fillSelects();
 loadImages();
 loadTriggers();
 loadPresets();
+loadGroupMgr();
 refreshStatus();
 loadLogs();
 connectSSE();
+loadMetrics();
 setInterval(refreshStatus, 30000);
+setInterval(loadMetrics, 3000);   // 仪表盘 3 秒刷新
 </script>
 </body>
 </html>

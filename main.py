@@ -217,6 +217,164 @@ async def api_status():
     return st
 
 
+# ---------------- 服务器性能仪表盘 ----------------
+
+_last_cpu = {"total": 0, "idle": 0}
+
+
+def _read_cpu_percent() -> float:
+    """两次 /proc/stat 采样算 CPU 使用率。"""
+    try:
+        with open("/proc/stat") as f:
+            parts = [float(x) for x in f.readline().split()[1:]]
+        idle = parts[3] + (parts[4] if len(parts) > 4 else 0)
+        total = sum(parts)
+    except Exception:
+        return 0.0
+    prev = _last_cpu
+    dt_total = total - prev["total"]
+    dt_idle = idle - prev["idle"]
+    prev["total"], prev["idle"] = total, idle
+    if dt_total <= 0:
+        return 0.0
+    return round(max(0.0, min(100.0, (1 - dt_idle / dt_total) * 100)), 1)
+
+
+def _fmt_bytes(n: float) -> str:
+    for unit in ("B", "KB", "MB", "GB", "TB"):
+        if n < 1024:
+            return f"{n:.1f} {unit}"
+        n /= 1024
+    return f"{n:.1f} PB"
+
+
+@app.get("/api/metrics")
+async def api_metrics():
+    """服务器资源占用：CPU / 内存 / 磁盘 / 负载 / 运行时间 / 容器内存。"""
+    import shutil
+
+    out: dict[str, Any] = {}
+
+    # CPU 使用率（第一次采样初始化，返回 0，之后准确）
+    _read_cpu_percent()
+    out["cpu_percent"] = _read_cpu_percent()
+
+    try:
+        out["cpu_cores"] = os.cpu_count() or 1
+    except Exception:
+        out["cpu_cores"] = 1
+
+    # CPU 主频（/proc/cpuinfo 第一行 MHz）
+    try:
+        with open("/proc/cpuinfo") as f:
+            for line in f:
+                if line.lower().startswith("model name") or "mhz" in line.lower():
+                    mhz = None
+                    for tok in line.split():
+                        if tok.lower().endswith("ghz"):
+                            mhz = float(tok[:-3]) * 1000
+                            break
+                    if mhz is None and "mhz" in line.lower():
+                        mhz = float(line.split(":")[1].strip().split()[0])
+                    out["cpu_mhz"] = round(mhz, 0) if mhz else None
+                    break
+    except Exception:
+        out["cpu_mhz"] = None
+
+    # 内存 /proc/meminfo
+    try:
+        mem = {}
+        with open("/proc/meminfo") as f:
+            for line in f:
+                k, v = line.split(":")
+                mem[k.strip()] = int(v.split()[0]) * 1024
+        total = mem.get("MemTotal", 0)
+        avail = mem.get("MemAvailable", mem.get("MemFree", 0))
+        used = total - avail
+        out["mem_total"] = total
+        out["mem_used"] = used
+        out["mem_percent"] = round(used / total * 100, 1) if total else 0
+        out["mem_total_h"] = _fmt_bytes(total)
+        out["mem_used_h"] = _fmt_bytes(used)
+    except Exception:
+        out.update(mem_total=0, mem_used=0, mem_percent=0, mem_total_h="?", mem_used_h="?")
+
+    # swap
+    try:
+        with open("/proc/meminfo") as f:
+            sw = {}
+            for line in f:
+                k, v = line.split(":")
+                sw[k.strip()] = int(v.split()[0]) * 1024
+        st, sf = sw.get("SwapTotal", 0), sw.get("SwapFree", 0)
+        out["swap_total"] = st
+        out["swap_used"] = st - sf
+        out["swap_percent"] = round((st - sf) / st * 100, 1) if st else 0
+        out["swap_total_h"] = _fmt_bytes(st)
+        out["swap_used_h"] = _fmt_bytes(st - sf)
+    except Exception:
+        out.update(swap_total=0, swap_used=0, swap_percent=0, swap_total_h="?", swap_used_h="?")
+
+    # 磁盘
+    try:
+        d = shutil.disk_usage("/")
+        out["disk_total"] = d.total
+        out["disk_used"] = d.used
+        out["disk_percent"] = round(d.used / d.total * 100, 1)
+        out["disk_total_h"] = _fmt_bytes(d.total)
+        out["disk_used_h"] = _fmt_bytes(d.used)
+    except Exception:
+        out.update(disk_total=0, disk_used=0, disk_percent=0, disk_total_h="?", disk_used_h="?")
+
+    # 负载
+    try:
+        out["load"] = [round(x, 2) for x in os.getloadavg()]
+    except Exception:
+        out["load"] = [0, 0, 0]
+
+    # 运行时间
+    try:
+        with open("/proc/uptime") as f:
+            secs = float(f.readline().split()[0])
+        d, rem = divmod(int(secs), 86400)
+        h, rem = divmod(rem, 3600)
+        m = rem // 60
+        out["uptime"] = f"{d}天{h}小时{m}分" if d else f"{h}小时{m}分"
+    except Exception:
+        out["uptime"] = "?"
+
+    # 容器自身内存（cgroup v2 优先，v1 兜底）
+    def _cgroup(path: str) -> str | None:
+        try:
+            return open(path).read().strip()
+        except Exception:
+            return None
+
+    cur = _cgroup("/sys/fs/cgroup/memory.current")
+    mx = _cgroup("/sys/fs/cgroup/memory.max")
+    if cur and mx and mx != "max":
+        out["container_mem_used"] = int(cur)
+        out["container_mem_limit"] = int(mx)
+        out["container_mem_percent"] = round(int(cur) / int(mx) * 100, 1)
+        out["container_mem_used_h"] = _fmt_bytes(int(cur))
+    else:
+        c1 = _cgroup("/sys/fs/cgroup/memory/memory.usage_in_bytes")
+        l1 = _cgroup("/sys/fs/cgroup/memory/memory.limit_in_bytes")
+        if c1 and l1 and int(l1) < 1 << 60:
+            out["container_mem_used"] = int(c1)
+            out["container_mem_limit"] = int(l1)
+            out["container_mem_percent"] = round(int(c1) / int(l1) * 100, 1)
+            out["container_mem_used_h"] = _fmt_bytes(int(c1))
+        else:
+            out["container_mem_used"] = 0
+            out["container_mem_percent"] = 0
+            out["container_mem_used_h"] = "?"
+
+    # QQ 主进程内存（宿主机 ps，容器内通常看不到宿主机进程，尽力而为）
+    out["server_time"] = _dt.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+    return out
+
+
 # ---------------- 目标列表 ----------------
 
 
