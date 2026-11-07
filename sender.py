@@ -261,17 +261,18 @@ def build_segments(task: dict, now: _dt.datetime) -> list[dict]:
         text = "\n".join(parts)
 
     segments: list[dict] = []
-    if text.strip():
-        segments.append(onebot.text_segment(text.strip()))
 
     try:
         img_path = pick_image(task)
     except RuntimeError:
-        if not segments:
+        if not (task.get("content") or "").strip() and (task.get("source_mode") or "static") == "static":
             raise
         img_path = None  # 有文本时图片选不出来就只发文本，不让整条任务失败
+    # 图片放消息最前：QQ 对"先长文后图"会折叠成卡片，先图后文则展示原图
     if img_path:
         segments.append(onebot.image_segment(img_path))
+    if text.strip():
+        segments.append(onebot.text_segment(text.strip()))
 
     if not segments:
         raise RuntimeError("内容为空（既没有文本也没有图片）")

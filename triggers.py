@@ -133,6 +133,13 @@ def handle_event(event: dict) -> None:
         rendered = f"{rendered}\n{quote}" if rendered.strip() else quote
 
     segments_out = []
+    # 图片放最前（防折叠），随后 @ 触发者，最后正文
+    try:
+        img = sender.pick_image(trigger)
+    except RuntimeError:
+        img = None
+    if img:
+        segments_out.append(onebot.image_segment(img))
     # 是否 @ 触发者：at_reply = 0 不带、1 带（默认）；私聊无需 @
     at_reply = trigger.get("at_reply")
     at_reply = True if at_reply is None else bool(int(at_reply))
@@ -143,12 +150,6 @@ def handle_event(event: dict) -> None:
             segments_out.append(onebot.text_segment(" "))
     if rendered.strip():
         segments_out.append(onebot.text_segment(rendered.strip()))
-    try:
-        img = sender.pick_image(trigger)
-    except RuntimeError:
-        img = None
-    if img:
-        segments_out.append(onebot.image_segment(img))
 
     if not segments_out:
         db.add_log(f"触发词《{trigger['keyword']}》命中但没有回复内容", "warn", None)
@@ -159,9 +160,11 @@ def handle_event(event: dict) -> None:
         db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}", "info", None)
     except Exception as e:
         # 带 @ 的回复失败（如提问者已退群、uid 解析失败）时降级为不带 @ 再发一次
-        if len(segments_out) > 1 and segments_out[0].get("type") == "at":
+        if any(sg.get("type") == "at" for sg in segments_out):
             try:
-                onebot.send_message("group" if is_group else "private", target_id, segments_out[2:])
+                retry = [sg for sg in segments_out if sg.get("type") != "at"]
+                retry = [sg for i, sg in enumerate(retry) if not (sg.get("type") == "text" and sg["data"]["text"] == " " and i == 0)]
+                onebot.send_message("group" if is_group else "private", target_id, retry)
                 db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}（@提问者失败已降级）", "info", None)
                 return
             except Exception:
