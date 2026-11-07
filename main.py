@@ -1245,7 +1245,7 @@ async def remote_apply_send_code(request: Request, body: ApplyStartIn):
 
 @remote_router.post("/remote/apply")
 async def remote_apply(request: Request, body: ApplyDoneIn):
-    """提交注册申请：验证码校验通过后进入待审批。"""
+    """提交注册：邮箱验证码通过即自动创建账号（一个邮箱一个账号）。"""
     ip = _client_ip(request)
     ok, reason = _rate_check(ip)
     if not ok:
@@ -1259,11 +1259,21 @@ async def remote_apply(request: Request, body: ApplyDoneIn):
         raise HTTPException(400, "账号名需 2-20 位字母/数字/下划线/中文")
     if len(body.password) < 4:
         raise HTTPException(400, "密码至少 4 位")
+    # 一个邮箱只能注册一个账号
+    for a in db.list_applies():
+        if a["mail"] == body.mail.strip().lower() and a["status"] in ("pending", "approved"):
+            raise HTTPException(400, "该邮箱已注册过账号")
+    # 验证码通过即自动生效：先落申请记录（留档），再直接建账号
     aid = db.create_apply(body.mail, username, body.password)
     if aid is None:
-        raise HTTPException(400, "账号名已被使用")
-    db.add_log(f"新注册申请：{username}（{body.mail}）待审批", "info")
-    return {"ok": True, "aid": aid, "msg": "申请已提交，等待管理员审批"}
+        raise HTTPException(400, "账号名已被使用，换一个账号名")
+    uid = db.approve_apply(aid)
+    if uid is None:
+        db.set_apply_status(aid, "rejected")
+        raise HTTPException(400, "账号名已被使用，换一个账号名")
+    db.add_log(f"邮箱注册自动通过：{username}（{body.mail}）", "info")
+    return {"ok": True, "aid": aid, "auto": True,
+            "msg": "注册成功！邮箱验证通过，账号已生效，可直接登录"}
 
 
 @remote_router.get("/remote/apply/status")

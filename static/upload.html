@@ -118,7 +118,7 @@
     <input type="password" id="r-pass" placeholder="密码（至少 4 位）">
     <button onclick="doApply()">提交申请</button>
     <button class="ghost" onclick="showReg(false)">← 返回登录</button>
-    <div class="note" id="applyStatus">验证码发到你的 QQ 邮箱；申请提交后由管理员审批，批准后即可登录上传。</div>
+    <div class="note" id="applyStatus">验证码发到你的 QQ 邮箱；一个邮箱注册一个账号，验证通过即自动生效。</div>
   </div>
 
   <div class="status" id="loginStatus"></div>
@@ -260,8 +260,10 @@ async function doApply() {
   try {
     await post('/remote/apply', {mail, code, username, password});
     setSt('#loginStatus', '', false);
-    $('#applyStatus').textContent = '✅ 申请已提交！管理员批准后，用账号「' + username + '」登录即可上传。';
+    $('#applyStatus').textContent = '✅ 注册成功！账号「' + username + '」已生效，返回登录即可上传。';
+    // 自动填入账号名，引导直接登录
     showReg(false);
+    $('#u').value = username;
   } catch (e) { setSt('#loginStatus', e.message, true); }
 }
 
