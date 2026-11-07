@@ -219,11 +219,13 @@ async def api_status():
 
 # ---------------- 服务器性能仪表盘 ----------------
 
-_last_cpu = {"total": 0, "idle": 0}
+_last_cpu = {"total": 0, "idle": 0, "ts": 0.0}
 
 
 def _read_cpu_percent() -> float:
-    """两次 /proc/stat 采样算 CPU 使用率。"""
+    """与上一次请求采样做差分算 CPU 使用率（前端 1 秒刷新即采样间隔）。"""
+    import time as _time
+
     try:
         with open("/proc/stat") as f:
             parts = [float(x) for x in f.readline().split()[1:]]
@@ -231,13 +233,22 @@ def _read_cpu_percent() -> float:
         total = sum(parts)
     except Exception:
         return 0.0
+    now = _time.time()
     prev = _last_cpu
+    # 首次请求（基准为 0）：只记录，不做差分
+    if prev["total"] == 0:
+        prev.update(total=total, idle=idle, ts=now, last=0.0)
+        return 0.0
     dt_total = total - prev["total"]
     dt_idle = idle - prev["idle"]
-    prev["total"], prev["idle"] = total, idle
-    if dt_total <= 0:
-        return 0.0
-    return round(max(0.0, min(100.0, (1 - dt_idle / dt_total) * 100)), 1)
+    dt_time = now - prev["ts"]
+    prev.update(total=total, idle=idle, ts=now)
+    # 采样间隔过短（<100ms）时返回上次值，避免抖动
+    if dt_total <= 0 or dt_time < 0.1:
+        return round(prev.get("last", 0.0), 1)
+    val = round(max(0.0, min(100.0, (1 - dt_idle / dt_total) * 100)), 1)
+    prev["last"] = val
+    return val
 
 
 def _fmt_bytes(n: float) -> str:
@@ -255,8 +266,7 @@ async def api_metrics():
 
     out: dict[str, Any] = {}
 
-    # CPU 使用率（第一次采样初始化，返回 0，之后准确）
-    _read_cpu_percent()
+    # CPU 使用率：与上一次请求采样做差分（首次请求为 0，1 秒后即准确）
     out["cpu_percent"] = _read_cpu_percent()
 
     try:
@@ -264,22 +274,26 @@ async def api_metrics():
     except Exception:
         out["cpu_cores"] = 1
 
-    # CPU 主频（/proc/cpuinfo 第一行 MHz）
+    # CPU 主频：优先 "cpu MHz" 行，其次从 "model name" 里的 @ 2.40GHz 提取
+    out["cpu_mhz"] = None
     try:
+        model_line = ""
         with open("/proc/cpuinfo") as f:
             for line in f:
-                if line.lower().startswith("model name") or "mhz" in line.lower():
-                    mhz = None
-                    for tok in line.split():
-                        if tok.lower().endswith("ghz"):
-                            mhz = float(tok[:-3]) * 1000
-                            break
-                    if mhz is None and "mhz" in line.lower():
-                        mhz = float(line.split(":")[1].strip().split()[0])
-                    out["cpu_mhz"] = round(mhz, 0) if mhz else None
+                low = line.lower()
+                if low.startswith("cpu mhz") or "mhz" in low.split(":")[0]:
+                    val = line.split(":")[1].strip().split()[0]
+                    out["cpu_mhz"] = round(float(val), 0)
                     break
+                if not model_line and low.startswith("model name"):
+                    model_line = line
+        if out["cpu_mhz"] is None and model_line:
+            import re as _re
+            m = _re.search(r"@\s*([\d.]+)\s*GHz", model_line, _re.I)
+            if m:
+                out["cpu_mhz"] = round(float(m.group(1)) * 1000, 0)
     except Exception:
-        out["cpu_mhz"] = None
+        pass
 
     # 内存 /proc/meminfo
     try:
