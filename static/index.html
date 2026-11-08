@@ -1344,8 +1344,23 @@
         <label class="field"><span>接口地址 API Base</span><input id="s-ai-base" placeholder="https://api.deepseek.com/v1"></label>
         <label class="field"><span>API Key</span><input id="s-ai-key" type="password" placeholder="sk-......"></label>
         <label class="field"><span>模型名 Model</span><input id="s-ai-model" placeholder="deepseek-chat"></label>
+        <label class="field"><span>多接口自动切换（每行一个，格式：名称|接口地址|模型|Key；某个失败会自动跳到下一个）</span>
+          <textarea id="s-ai-providers" style="min-height:110px;font-size:12px;font-family:ui-monospace,Consolas,monospace" placeholder="智谱|https://open.bigmodel.cn/api/paas/v4|glm-4-flash|你的key&#10;硅基流动|https://api.siliconflow.cn/v1|Qwen/Qwen2.5-7B-Instruct|sk-你的key&#10;DeepSeek|https://api.deepseek.com/v1|deepseek-chat|sk-你的key"></textarea>
+        </label>
+        <div class="grid2" style="margin-top:6px">
+          <label class="field"><span>免 Key 兜底接口（Pollinations，无需 API Key）</span>
+            <select id="s-ai-keyless">
+              <option value="1">开启</option>
+              <option value="0">关闭</option>
+            </select>
+          </label>
+          <div class="field" style="justify-content:flex-end">
+            <span class="hint" style="font-size:11px;color:var(--sub)">保存后可点右边按钮逐个测试接口连通性</span>
+            <button type="button" class="small" onclick="testAI()">🔌 测试所有接口</button>
+          </div>
+        </div>
         <label class="field"><span>系统提示词 System Prompt</span><textarea id="s-ai-prompt" style="min-height:70px;font-size:12px" placeholder="你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。"></textarea></label>
-        <div class="hint" style="margin-top:6px;font-size:11px;color:var(--sub)">未命中任何关键词触发词时，才会调用 AI 回复；若想让 AI 优先处理，请不要设置相同的关键词触发词。</div>
+        <div class="hint" style="margin-top:6px;font-size:11px;color:var(--sub)">未命中任何关键词触发词时，才会调用 AI 回复；若想让 AI 优先处理，请不要设置相同的关键词触发词。多个接口时，上次成功的接口会被优先使用，失败自动切换下一个。</div>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
         <button class="small" onclick="loadQuoteEditor()">重载名言</button>
@@ -3032,6 +3047,8 @@ async function openSettings() {
     $('#s-ai-base').value = s.ai_api_base || '';
     $('#s-ai-key').value = s.ai_api_key || '';
     $('#s-ai-model').value = s.ai_model || '';
+    $('#s-ai-providers').value = s.ai_providers || '';
+    $('#s-ai-keyless').value = s.ai_keyless_fallback || '1';
     $('#s-ai-prompt').value = s.ai_system_prompt || '你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。';
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();
@@ -3075,6 +3092,8 @@ async function saveSettings() {
       ai_api_base: $('#s-ai-base').value.trim(),
       ai_api_key: $('#s-ai-key').value,
       ai_model: $('#s-ai-model').value.trim(),
+      ai_providers: $('#s-ai-providers').value,
+      ai_keyless_fallback: $('#s-ai-keyless').value,
       ai_system_prompt: $('#s-ai-prompt').value.trim(),
       ai_reply_mode: $('#s-ai-mode').value,
     })});
@@ -3091,6 +3110,20 @@ async function saveSettings() {
     }
     toast('设置已保存');
     refreshStatus();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function testAI() {
+  const btnHint = '正在逐个测试接口，可能需要几秒到几十秒…';
+  toast(btnHint);
+  try {
+    const r = await api('/api/ai-test', {method: 'POST'});
+    const lines = (r.results || []).map(x =>
+      `${x.ok ? '✅' : '❌'} ${x.name}  [${x.model}]  ${x.seconds}s${x.ok ? '  ← ' + (x.reply || '') : ''}`
+    );
+    const head = r.ok ? `可用接口：${r.winner}` : '全部接口都不可用';
+    alert(head + '\n\n' + lines.join('\n'));
+    if (r.ok) toast('AI 接口可用：' + r.winner); else toast('AI 接口全部失败', true);
   } catch (e) { toast(e.message, true); }
 }
 

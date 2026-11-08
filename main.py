@@ -174,6 +174,8 @@ class SettingsIn(BaseModel):
     ai_model: str | None = None
     ai_system_prompt: str | None = None
     ai_reply_mode: str | None = None
+    ai_providers: str | None = None
+    ai_keyless_fallback: str | None = None
 
 
 @app.get("/api/settings")
@@ -223,8 +225,28 @@ async def api_save_settings(body: SettingsIn):
         data["ai_system_prompt"] = body.ai_system_prompt.strip()
     if body.ai_reply_mode is not None:
         data["ai_reply_mode"] = body.ai_reply_mode.strip()
+    if body.ai_providers is not None:
+        data["ai_providers"] = body.ai_providers.strip()
+    if body.ai_keyless_fallback is not None:
+        data["ai_keyless_fallback"] = body.ai_keyless_fallback.strip()
     db.set_settings(data)
     return {"ok": True}
+
+
+@app.post("/api/ai-test")
+async def api_ai_test():
+    """逐个测试已配置的 AI 接口，返回每个接口是否可用。"""
+    import ai
+
+    conf = db.get_settings()
+    if conf.get("ai_keyless_fallback") is None:
+        db.set_settings({"ai_keyless_fallback": "1"})
+    res = await asyncio.to_thread(ai.test)
+    if res.get("winner"):
+        db.add_log(f"AI 测试：接口「{res['winner']}」可用", "info")
+    else:
+        db.add_log("AI 测试：所有接口均不可用", "warn")
+    return res
 
 
 class PasswordIn(BaseModel):

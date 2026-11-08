@@ -5,388 +5,457 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>图片上传 · QQ 机器人</title>
 <style>
+  /* GitHub Primer 风格：紧凑、灰调、小圆角、细边框、高信息密度 */
   :root{
     color-scheme: light dark;
-    --bg:#f5f6f8;
-    --card:#ffffff;
-    --txt:#1a1d21;
-    --txt2:#5a6270;
-    --txt3:#8b93a1;
-    --line:#e3e6ea;
-    --line2:#eff1f4;
-    --brand:#2563eb;
-    --brand-soft:#eff4ff;
-    --ok:#059669;
-    --ok-soft:#ecfdf5;
-    --warn:#b45309;
-    --warn-soft:#fffbeb;
-    --err:#dc2626;
-    --err-soft:#fef2f2;
-    --in:#ffffff;
-    --in-line:#d7dce3;
-    --shadow:0 1px 2px rgba(16,24,40,.04);
-    --shadow-lg:0 2px 8px rgba(16,24,40,.06);
-    --radius:10px;
+    --bg:#f6f8fa;
+    --surface:#ffffff;
+    --surface2:#f6f8fa;
+    --border:#d1d9e0;
+    --border2:#e7ecf0;
+    --fg:#1f2328;
+    --fg2:#59636e;
+    --fg3:#818b98;
+    --accent:#0969da;
+    --accent-hover:#0860c4;
+    --accent-soft:#ddf4ff;
+    --success:#1a7f37;
+    --success-soft:#dafbe1;
+    --danger:#cf222e;
+    --danger-soft:#ffebe9;
+    --warn:#9a6700;
+    --warn-soft:#fff8c5;
+    --radius:6px;
+    --font: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono: ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme: dark){
     :root{
-      --bg:#0f1115;
-      --card:#171a1f;
-      --txt:#e8eaed;
-      --txt2:#9aa2ae;
-      --txt3:#6b7280;
-      --line:#262a31;
-      --line2:#1f2329;
-      --brand:#4d8bff;
-      --brand-soft:#1a2438;
-      --ok:#34d399;
-      --ok-soft:#132a22;
-      --warn:#fbbf24;
-      --warn-soft:#2a2110;
-      --err:#f87171;
-      --err-soft:#2b1618;
-      --in:#11141a;
-      --in-line:#2b313a;
-      --shadow:0 1px 2px rgba(0,0,0,.3);
-      --shadow-lg:0 2px 10px rgba(0,0,0,.4);
+      --bg:#0d1117;
+      --surface:#161b22;
+      --surface2:#21262d;
+      --border:#30363d;
+      --border2:#21262d;
+      --fg:#e6edf3;
+      --fg2:#9198a1;
+      --fg3:#6e7681;
+      --accent:#4493f8;
+      --accent-hover:#58a6ff;
+      --accent-soft:#121d2f;
+      --success:#3fb950;
+      --success-soft:#12261a;
+      --danger:#f85149;
+      --danger-soft:#2d1618;
+      --warn:#d29922;
+      --warn-soft:#272115;
     }
   }
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{
-    margin:0;min-height:100vh;padding:32px 16px 48px;
-    background:var(--bg);color:var(--txt);
-    font:14.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    display:flex;flex-direction:column;align-items:center;
+    margin:0;min-height:100vh;padding:24px 16px 40px;
+    background:var(--bg);color:var(--fg);
+    font:14px/1.5 var(--font);
     -webkit-font-smoothing:antialiased;
+    display:flex;flex-direction:column;align-items:center;
   }
 
-  .card{
-    width:min(440px,100%);background:var(--card);
-    border:1px solid var(--line);border-radius:var(--radius);
-    padding:24px;margin-bottom:12px;box-shadow:var(--shadow);
+  /* 卡片：GitHub 的 Box —— 无阴影、细边框、白底 */
+  .box{
+    width:min(448px,100%);
+    background:var(--surface);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    margin-bottom:16px;
   }
-  .card.stack + .card.stack{margin-top:0}
+  .box-hd{
+    padding:16px;
+    border-bottom:1px solid var(--border2);
+    background:var(--surface);
+    border-radius:var(--radius) var(--radius) 0 0;
+  }
+  .box-hd h1{
+    font-size:14px;font-weight:600;margin:0;letter-spacing:0;
+    display:flex;align-items:center;gap:6px;
+  }
+  .box-hd h1 svg{width:16px;height:16px;color:var(--fg2);flex:none}
+  .box-hd p{margin:4px 0 0;font-size:12px;color:var(--fg2);line-height:1.5}
+  .box-bd{padding:16px}
+  .box-bd > *:last-child{margin-bottom:0}
+  .box-ft{
+    padding:12px 16px;border-top:1px solid var(--border2);
+    background:var(--surface2);border-radius:0 0 var(--radius) var(--radius);
+    font-size:12px;color:var(--fg2);text-align:center;
+  }
 
-  .hd{margin-bottom:20px}
-  .hd h1{
-    font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px;
-    display:flex;align-items:center;gap:8px;
+  /* 分段控件：GitHub 的 SegmentedControl */
+  .seg{
+    display:flex;gap:0;margin-bottom:16px;
+    border:1px solid var(--border);border-radius:var(--radius);
+    overflow:hidden;background:var(--surface2);
   }
-  .hd h1 svg{width:17px;height:17px;color:var(--brand);flex:none}
-  .hd p{margin:0;font-size:13px;color:var(--txt2)}
+  .seg button{
+    flex:1;margin:0;padding:5px 12px;border:none;border-radius:0;
+    background:transparent;color:var(--fg2);
+    font:inherit;font-size:12px;font-weight:500;cursor:pointer;
+    line-height:20px;box-shadow:none;width:auto;
+    transition:background .1s,color .1s;
+  }
+  .seg button + button{border-left:1px solid var(--border)}
+  .seg button.on{
+    background:var(--surface);color:var(--fg);font-weight:600;
+    box-shadow:inset 0 1px 0 var(--border);
+  }
 
-  .tabs{
-    display:flex;gap:2px;padding:2px;background:var(--line2);
-    border-radius:8px;margin-bottom:18px;
+  /* 表单：GitHub 的 FormControl */
+  .fc{margin-bottom:16px}
+  .fc:last-child{margin-bottom:0}
+  .fc > label{
+    display:block;font-size:12px;font-weight:600;color:var(--fg);
+    margin-bottom:5px;
   }
-  .tabs button{
-    flex:1;margin:0;padding:7px 4px;border:none;border-radius:6px;
-    background:transparent;color:var(--txt2);font:inherit;font-size:13px;
-    font-weight:500;cursor:pointer;box-shadow:none;width:auto;
-    transition:background .12s,color .12s;
-  }
-  .tabs button.on{background:var(--card);color:var(--txt);box-shadow:var(--shadow)}
-
-  label.f{display:block;margin-bottom:12px}
-  label.f > span{
-    display:block;font-size:12.5px;color:var(--txt2);margin-bottom:6px;font-weight:500;
-  }
+  .fc > .hint{font-size:12px;color:var(--fg3);margin-top:4px}
   input[type=text],input[type=password]{
-    width:100%;background:var(--in);color:var(--txt);
-    border:1px solid var(--in-line);border-radius:8px;
-    padding:11px 12px;font:inherit;font-size:15px;margin:0;
-    transition:border-color .12s,box-shadow .12s;
+    width:100%!important;margin:0;
+    padding:5px 12px;min-height:32px;
+    font:inherit;font-size:14px;
+    color:var(--fg);background:var(--surface);
+    border:1px solid var(--border);border-radius:var(--radius);
+    vertical-align:middle;
+    transition:border-color .1s,box-shadow .1s;
   }
+  input::placeholder{color:var(--fg3)}
   input:focus{
-    outline:none;border-color:var(--brand);
-    box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+    outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(9,105,218,.3);
   }
-  input::placeholder{color:var(--txt3)}
-
-  button{
-    width:100%;padding:11px 16px;margin:0 0 8px;
-    border:1px solid transparent;border-radius:8px;
-    font:inherit;font-size:14px;font-weight:500;cursor:pointer;
-    background:var(--brand);color:#fff;
-    transition:filter .12s,background .12s;
+  @media (prefers-color-scheme: dark){
+    input:focus{box-shadow:0 0 0 3px rgba(68,147,248,.3)}
   }
-  button:hover:not(:disabled){filter:brightness(1.06)}
-  button:active:not(:disabled){filter:brightness(.94)}
-  button:disabled{opacity:.45;cursor:not-allowed}
-  button.sec{
-    background:var(--card);color:var(--txt);
-    border-color:var(--in-line);
-  }
-  button.sec:hover:not(:disabled){background:var(--line2);filter:none}
-  button.sm{
-    width:auto !important;flex:none;margin:0;padding:5px 10px;
-    font-size:12.5px;border-radius:6px;
-    background:transparent;color:var(--txt2);border:1px solid var(--line);
-  }
-  button.sm:hover:not(:disabled){background:var(--line2);color:var(--txt);filter:none}
-  button.sm.danger{color:var(--err);border-color:var(--err-soft)}
-  button.sm.danger:hover{background:var(--err-soft);filter:none}
-  button.sm.ok{color:var(--ok);border-color:var(--line)}
-  button.sm.ok:hover{background:var(--ok-soft);filter:none}
-
-  .msg{min-height:18px;margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--txt2)}
-  .msg.ok{color:var(--ok)}
-  .msg.err{color:var(--err)}
-  .hidden{display:none !important}
-
-  .me{
-    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
-    padding:10px 12px;margin-bottom:18px;
-    background:var(--line2);border-radius:8px;font-size:13px;
-  }
-  .me .av{
-    width:26px;height:26px;flex:none;border-radius:50%;
-    background:var(--brand-soft);color:var(--brand);
-    display:grid;place-items:center;font-size:13px;font-weight:600;
-  }
-  .me b{font-weight:600}
-  .me .no{color:var(--txt3);font-size:12px;font-variant-numeric:tabular-nums}
-  .me .sp{flex:1;min-width:4px}
-
-  .drop{
-    border:1px dashed var(--in-line);border-radius:8px;
-    padding:28px 16px;text-align:center;cursor:pointer;
-    transition:border-color .15s,background .15s;margin-bottom:12px;
-  }
-  .drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
-  .drop svg{width:26px;height:26px;color:var(--txt3);margin-bottom:8px}
-  .drop .t1{font-size:13.5px;font-weight:500;color:var(--txt)}
-  .drop .t2{font-size:12px;color:var(--txt3);margin-top:2px}
   input[type=file]{display:none}
-  .preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+
+  /* 按钮：GitHub 的 Button */
+  button{
+    display:inline-block;width:100%;margin:0 0 8px;
+    padding:5px 16px;min-height:32px;
+    font:inherit;font-size:14px;font-weight:500;line-height:20px;
+    color:var(--fg);background:var(--surface2);
+    border:1px solid var(--border);border-radius:var(--radius);
+    cursor:pointer;text-align:center;vertical-align:middle;
+    transition:background .1s,border-color .1s;
+  }
+  button:hover:not(:disabled){background:var(--border2);border-color:var(--fg3)}
+  button:active:not(:disabled){background:var(--border)}
+  button:disabled{color:var(--fg3);cursor:default;opacity:.6}
+  button.primary{
+    color:#fff;background:var(--accent);border-color:var(--accent);
+  }
+  button.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
+  button.danger{color:var(--danger);border-color:var(--border)}
+  button.danger:hover:not(:disabled){background:var(--danger-soft);border-color:var(--danger)}
+  button.ok{color:var(--success);border-color:var(--border)}
+  button.ok:hover:not(:disabled){background:var(--success-soft);border-color:var(--success)}
+  /* 小按钮 */
+  button.sm{
+    width:auto!important;flex:none;margin:0;
+    padding:3px 12px;min-height:28px;
+    font-size:12px;line-height:20px;
+  }
+
+  /* 提示行 */
+  .msg{min-height:20px;margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--fg2)}
+  .msg.ok{color:var(--success)}
+  .msg.err{color:var(--danger)}
+  .hidden{display:none!important}
+
+  /* 当前账号条 */
+  .whoami{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:8px 12px;margin-bottom:16px;
+    background:var(--surface2);border:1px solid var(--border2);
+    border-radius:var(--radius);font-size:12px;
+  }
+  .whoami .avatar{
+    width:20px;height:20px;flex:none;border-radius:50%;
+    background:var(--accent);color:#fff;
+    display:grid;place-items:center;
+    font-size:11px;font-weight:600;font-family:var(--mono);
+  }
+  .whoami b{font-weight:600;color:var(--fg);font-size:13px}
+  .whoami .uid{
+    font-family:var(--mono);font-size:11px;color:var(--fg3);
+    background:var(--surface);border:1px solid var(--border2);
+    padding:0 5px;border-radius:4px;
+  }
+  .whoami .sp{flex:1;min-width:4px}
+
+  /* 拖放区 */
+  .drop{
+    border:1px dashed var(--border);border-radius:var(--radius);
+    padding:24px 16px;text-align:center;cursor:pointer;
+    background:var(--surface2);
+    transition:border-color .1s,background .1s;margin-bottom:16px;
+  }
+  .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
+  .drop svg{width:20px;height:20px;color:var(--fg3);margin-bottom:6px}
+  .drop .t1{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:2px}
+  .drop .t2{font-size:11.5px;color:var(--fg3)}
+  .preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
   .preview img{
-    width:56px;height:56px;object-fit:cover;border-radius:6px;
-    border:1px solid var(--line);
+    width:52px;height:52px;object-fit:cover;border-radius:4px;
+    border:1px solid var(--border);
   }
-  .bar{height:4px;border-radius:2px;background:var(--line2);overflow:hidden;display:none;margin:0 0 10px}
-  .bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .2s}
+  .bar{height:4px;border-radius:2px;background:var(--surface2);overflow:hidden;display:none;margin:0 0 12px}
+  .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 
-  .sec{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+  /* 区块标题：GitHub 的 SectionHeader 风格 */
+  .sec{margin-top:20px;padding-top:16px;border-top:1px solid var(--border2)}
   .sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
-  .sec-h{
-    display:flex;align-items:center;gap:8px;margin:0 0 10px;
-    font-size:12.5px;font-weight:600;color:var(--txt2);
-    text-transform:none;letter-spacing:0;
+  .sec-hd{
+    display:flex;align-items:center;gap:8px;margin:0 0 8px;
+    font-size:12px;font-weight:600;color:var(--fg);
   }
-  .sec-h .cnt{
-    font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;
-    background:var(--line2);color:var(--txt2);font-variant-numeric:tabular-nums;
+  .sec-hd .count{
+    font-family:var(--mono);font-size:11px;font-weight:400;
+    color:var(--fg2);background:var(--surface2);
+    border:1px solid var(--border2);border-radius:10px;
+    padding:0 7px;line-height:18px;
   }
-  .sec-h .sp{flex:1}
+  .sec-hd .sp{flex:1}
 
-  .row{
-    display:flex;align-items:center;gap:10px;padding:9px 0;
-    border-bottom:1px solid var(--line2);
+  /* 列表项：GitHub 的列表行 */
+  .item{
+    display:flex;align-items:center;gap:10px;
+    padding:8px 0;border-bottom:1px solid var(--border2);
+    font-size:13px;
   }
-  .row:last-child{border-bottom:none}
-  .row img{
-    width:42px;height:42px;flex:none;object-fit:cover;border-radius:6px;
-    border:1px solid var(--line);cursor:zoom-in;
+  .item:last-child{border-bottom:none}
+  .item .thumb{
+    width:40px;height:40px;flex:none;object-fit:cover;
+    border-radius:4px;border:1px solid var(--border);cursor:zoom-in;
   }
-  .row .nm{flex:1;min-width:0;font-size:13px;overflow:hidden}
-  .row .nm b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .row .nm span{display:block;font-size:11.5px;color:var(--txt3);margin-top:1px}
-  .tag{
-    font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap;
-    font-weight:500;flex:none;
+  .item .meta{flex:1;min-width:0}
+  .item .meta .name{
+    font-size:13px;font-weight:500;color:var(--fg);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
-  .tag.pending{background:var(--warn-soft);color:var(--warn)}
-  .tag.approved{background:var(--ok-soft);color:var(--ok)}
-  .tag.rejected{background:var(--err-soft);color:var(--err)}
-  .empty{text-align:center;color:var(--txt3);font-size:12.5px;padding:20px 0}
+  .item .meta .sub{
+    font-size:11.5px;color:var(--fg3);margin-top:1px;
+    font-family:var(--mono);
+  }
+  .item .ops{display:flex;gap:6px;flex:none}
 
-  .rev{
-    display:flex;align-items:center;gap:10px;padding:10px 0;
-    border-bottom:1px solid var(--line2);
+  /* 状态徽章：GitHub Label */
+  .badge{
+    flex:none;font-size:11px;font-weight:500;line-height:18px;
+    padding:0 7px;border-radius:10px;border:1px solid transparent;
+    white-space:nowrap;
   }
-  .rev:last-child{border-bottom:none}
-  .rev img{
-    width:50px;height:50px;flex:none;object-fit:cover;border-radius:6px;
-    border:1px solid var(--line);cursor:zoom-in;
+  .badge.pending{color:var(--warn);background:var(--warn-soft);border-color:var(--warn)}
+  .badge.approved{color:var(--success);background:var(--success-soft);border-color:var(--success)}
+  .badge.rejected{color:var(--danger);background:var(--danger-soft);border-color:var(--danger)}
+
+  .empty{
+    padding:16px 0;text-align:center;
+    font-size:12px;color:var(--fg3);
   }
-  .rev .info{flex:1;min-width:0;font-size:13px}
-  .rev .info b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rev .info span{display:block;font-size:11.5px;color:var(--txt3);margin-top:2px}
-  .rev .ops{display:flex;gap:6px;flex:none}
 
-  .foot{font-size:11.5px;color:var(--txt3);text-align:center;margin-top:16px;line-height:1.6}
-
+  /* 大图 */
   .lightbox{
-    position:fixed;inset:0;z-index:99;background:rgba(12,14,18,.92);
+    position:fixed;inset:0;z-index:99;background:rgba(1,4,9,.85);
     display:grid;place-items:center;cursor:zoom-out;
-    visibility:hidden;opacity:0;transition:opacity .15s;
+    visibility:hidden;opacity:0;transition:opacity .12s;
   }
   .lightbox.show{visibility:visible;opacity:1}
-  .lightbox img{max-width:94vw;max-height:86vh;border-radius:8px}
+  .lightbox img{max-width:92vw;max-height:86vh;border-radius:6px}
   .lightbox .x{
-    position:absolute;top:14px;right:14px;width:auto;margin:0;
-    padding:6px 14px;font-size:12.5px;border-radius:6px;
-    background:rgba(255,255,255,.14);color:#fff;border:none;
+    position:absolute;top:12px;right:12px;width:auto;margin:0;
+    padding:3px 12px;font-size:12px;
+    color:#fff;background:rgba(255,255,255,.16);
+    border:1px solid rgba(255,255,255,.24);border-radius:var(--radius);
   }
-  .lightbox .x:hover{background:rgba(255,255,255,.24);filter:none}
+  .lightbox .x:hover{background:rgba(255,255,255,.28)}
 
+  /* 移动端 */
   @media (max-width:430px){
-    body{padding:16px 12px 32px}
-    .card{padding:20px 16px;border-radius:8px}
-    .hd h1{font-size:15.5px}
-    .rev img{width:44px;height:44px}
-    .row img{width:38px;height:38px}
-    input[type=text],input[type=password]{font-size:16px}
+    body{padding:12px 8px 28px}
+    .box{border-radius:var(--radius)}
+    .box-hd{padding:12px 14px}
+    .box-bd{padding:14px}
+    .box-ft{padding:10px 14px}
+    input[type=text],input[type=password],select,textarea{font-size:16px}
+    button{min-height:36px}
+    button.sm{min-height:30px;font-size:12.5px}
+    .item .thumb{width:36px;height:36px}
   }
 </style>
 </head>
 <body>
 
 <!-- 登录 / 注册 -->
-<div class="card" id="loginCard">
-  <div class="hd">
+<div class="box" id="loginCard">
+  <div class="box-hd">
     <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
-      图片上传中心
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+      图片上传
     </h1>
-    <p>登录后上传图片，或使用 QQ 邮箱注册新账号</p>
+    <p>登录以上传图片，或使用 QQ 邮箱注册新账号</p>
   </div>
 
-  <div class="tabs">
-    <button id="tab-login" class="on" onclick="switchTab('login')">登录</button>
-    <button id="tab-reg" onclick="switchTab('reg')">注册</button>
-  </div>
+  <div class="box-bd">
+    <div class="seg">
+      <button id="tab-login" class="on" onclick="switchTab('login')">登录</button>
+      <button id="tab-reg" onclick="switchTab('reg')">注册</button>
+    </div>
 
-  <div id="formLogin">
-    <label class="f"><span>账号</span>
-      <input type="text" id="u" placeholder="账号名或 5-9 位数字 ID" autocomplete="username">
-    </label>
-    <label class="f"><span>密码</span>
-      <input type="password" id="p" placeholder="请输入密码" autocomplete="current-password">
-    </label>
-    <button id="loginBtn" onclick="doLogin()">登录</button>
-    <div class="msg" id="loginMsg"></div>
-  </div>
-
-  <div id="formReg" class="hidden">
-    <label class="f"><span>QQ 邮箱</span>
-      <input type="text" id="r-mail" placeholder="例如 12345@qq.com" autocomplete="off">
-    </label>
-    <label class="f"><span>邮箱验证码</span>
-      <div style="display:flex;gap:6px">
-        <input type="text" id="r-code" placeholder="6 位验证码" maxlength="6">
-        <button class="sm" id="codeBtn" onclick="sendCode()" style="white-space:nowrap;padding:0 12px">获取验证码</button>
+    <div id="formLogin">
+      <div class="fc">
+        <label for="u">账号</label>
+        <input type="text" id="u" placeholder="账号名或 5-9 位数字 ID" autocomplete="username">
       </div>
-    </label>
-    <label class="f"><span>账号名</span>
-      <input type="text" id="r-user" placeholder="2-20 位，字母 / 数字 / 中文">
-    </label>
-    <label class="f"><span>密码</span>
-      <input type="password" id="r-pass" placeholder="至少 4 位">
-    </label>
-    <button onclick="doApply()">注册账号</button>
-    <div class="msg" id="regMsg"></div>
+      <div class="fc">
+        <label for="p">密码</label>
+        <input type="password" id="p" placeholder="请输入密码" autocomplete="current-password">
+      </div>
+      <button class="primary" id="loginBtn" onclick="doLogin()">登录</button>
+      <div class="msg" id="loginMsg"></div>
+    </div>
+
+    <div id="formReg" class="hidden">
+      <div class="fc">
+        <label for="r-mail">QQ 邮箱</label>
+        <input type="text" id="r-mail" placeholder="例如 12345@qq.com" autocomplete="off">
+      </div>
+      <div class="fc">
+        <label for="r-code">邮箱验证码</label>
+        <div style="display:flex;gap:6px;align-items:center">
+          <input type="text" id="r-code" placeholder="6 位数字" maxlength="6">
+          <button class="sm" id="codeBtn" onclick="sendCode()" style="white-space:nowrap">获取验证码</button>
+        </div>
+        <div class="hint">验证码会发送到该邮箱，10 分钟内有效</div>
+      </div>
+      <div class="fc">
+        <label for="r-user">账号名</label>
+        <input type="text" id="r-user" placeholder="2-20 位，字母 / 数字 / 中文">
+      </div>
+      <div class="fc">
+        <label for="r-pass">密码</label>
+        <input type="password" id="r-pass" placeholder="至少 4 位">
+      </div>
+      <button class="primary" onclick="doApply()">注册账号</button>
+      <div class="msg" id="regMsg"></div>
+    </div>
   </div>
 
-  <div class="foot">一个邮箱只能注册一个账号，验证通过后立即生效</div>
+  <div class="box-ft">一个邮箱只能注册一个账号，验证通过后立即生效</div>
 </div>
 
 <!-- 上传 -->
-<div class="card hidden" id="uploadCard">
-  <div class="hd">
+<div class="box hidden" id="uploadCard">
+  <div class="box-hd">
     <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
       上传图片
     </h1>
-    <p>提交后等待管理员审核，通过后即可被机器人使用</p>
+    <p>提交后需管理员审核，通过后即可被机器人使用</p>
   </div>
 
-  <div class="me">
-    <div class="av" id="avatar">—</div>
-    <span><b id="whoami">—</b> <span class="no" id="whono"></span></span>
-    <span class="sp"></span>
-    <button class="sm" onclick="doChangePw()">改密码</button>
-    <button class="sm" onclick="doLogout()">退出</button>
-  </div>
-
-  <div class="drop" id="drop" onclick="document.getElementById('file').click()">
-    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
-    <div class="t1">点击选择图片</div>
-    <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
-  </div>
-  <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
-  <div class="preview" id="preview"></div>
-  <button id="go" onclick="doUpload()">提交审核</button>
-  <div class="bar" id="bar"><i></i></div>
-  <div class="msg" id="upMsg"></div>
-
-  <div class="sec hidden" id="adminEntry">
-    <button class="sec" onclick="openAdminPanel()" style="margin:0">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px;margin-right:5px"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/></svg>打开管理员审批面板
-    </button>
-  </div>
-
-  <div class="sec">
-    <div class="sec-h">
-      我的上传 <span class="cnt" id="mineCount">0</span>
+  <div class="box-bd">
+    <div class="whoami">
+      <div class="avatar" id="avatar">—</div>
+      <b id="whoami">—</b>
+      <span class="uid" id="whono"></span>
       <span class="sp"></span>
-      <button class="sm" onclick="loadMine()">刷新</button>
+      <button class="sm" onclick="doChangePw()">改密码</button>
+      <button class="sm" onclick="doLogout()">退出</button>
     </div>
-    <div id="mineList"></div>
+
+    <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
+      <div class="t1">点击选择图片</div>
+      <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
+    </div>
+    <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
+    <div class="preview" id="preview"></div>
+    <button class="primary" id="go" onclick="doUpload()">提交审核</button>
+    <div class="bar" id="bar"><i></i></div>
+    <div class="msg" id="upMsg"></div>
+
+    <div class="sec hidden" id="adminEntry">
+      <button onclick="openAdminPanel()" style="margin:0">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/></svg>
+        打开管理员审批面板
+      </button>
+    </div>
+
+    <div class="sec">
+      <div class="sec-hd">
+        我的上传
+        <span class="count" id="mineCount">0</span>
+        <span class="sp"></span>
+        <button class="sm" onclick="loadMine()">刷新</button>
+      </div>
+      <div id="mineList"></div>
+    </div>
+
+    <div class="sec">
+      <div class="sec-hd">账号安全</div>
+      <button onclick="doChangePw()" style="margin:0">修改登录密码</button>
+    </div>
   </div>
 
-  <div class="sec">
-    <div class="sec-h">账号安全</div>
-    <button class="sec" onclick="doChangePw()" style="margin:0">修改登录密码</button>
-  </div>
-
-  <div class="foot">图片上传后需管理员审核，请耐心等待</div>
+  <div class="box-ft">图片上传后需管理员审核</div>
 </div>
 
 <!-- 管理员审批 -->
-<div class="card hidden" id="adminCard">
-  <div class="hd">
+<div class="box hidden" id="adminCard">
+  <div class="box-hd">
     <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/><path d="M9 12l2 2 4-4"/></svg>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/><path d="M9 12l2 2 4-4"/></svg>
       管理员审批
     </h1>
-    <p>审核待发布的图片，处理注册申请</p>
+    <p>审核待发布图片，处理注册申请</p>
   </div>
 
-  <div class="me">
-    <div class="av" style="background:var(--ok-soft);color:var(--ok)">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M12 4l6.5 2.6v5c0 3.5-2.7 6-6.5 6.8-3.8-.8-6.5-3.3-6.5-6.8v-5z"/></svg>
-    </div>
-    <span><b>管理员模式</b> <span class="no" id="adminMode"></span></span>
-    <span class="sp"></span>
-    <button class="sm" onclick="closeAdminPanel()">返回</button>
-  </div>
-
-  <div id="pwWrap" class="hidden">
-    <label class="f"><span>管理密码</span>
-      <input type="password" id="apw" placeholder="后台设置的密码" oninput="pwChanged()">
-    </label>
-    <button onclick="loadAdmin()">进入审批面板</button>
-  </div>
-  <div class="msg" id="adminMsg"></div>
-
-  <div class="sec" id="adminBody" style="display:none">
-    <div class="sec-h">
-      待审核图片 <span class="cnt" id="revCount">0</span>
+  <div class="box-bd">
+    <div class="whoami">
+      <div class="avatar" style="background:var(--success)">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M5 12l4.5 4.5L19 7"/></svg>
+      </div>
+      <b>管理员模式</b>
+      <span class="uid" id="adminMode"></span>
       <span class="sp"></span>
-      <button class="sm" onclick="loadAdmin()">刷新</button>
+      <button class="sm" onclick="closeAdminPanel()">返回</button>
     </div>
-    <div id="revList"></div>
-  </div>
 
-  <div class="sec" id="adminBody2" style="display:none">
-    <div class="sec-h">
-      待批注册申请 <span class="cnt" id="apCount">0</span>
-      <span class="sp"></span>
-      <button class="sm" onclick="loadAdmin()">刷新</button>
+    <div id="pwWrap" class="hidden">
+      <div class="fc">
+        <label for="apw">管理密码</label>
+        <input type="password" id="apw" placeholder="后台设置的密码" oninput="pwChanged()">
+      </div>
+      <button class="primary" onclick="loadAdmin()">进入审批面板</button>
     </div>
-    <div id="apList"></div>
+    <div class="msg" id="adminMsg"></div>
+
+    <div class="sec" id="adminBody" style="display:none">
+      <div class="sec-hd">
+        待审核图片
+        <span class="count" id="revCount">0</span>
+        <span class="sp"></span>
+        <button class="sm" onclick="loadAdmin()">刷新</button>
+      </div>
+      <div id="revList"></div>
+    </div>
+
+    <div class="sec" id="adminBody2" style="display:none">
+      <div class="sec-hd">
+        待批注册申请
+        <span class="count" id="apCount">0</span>
+        <span class="sp"></span>
+        <button class="sm" onclick="loadAdmin()">刷新</button>
+      </div>
+      <div id="apList"></div>
+    </div>
   </div>
 </div>
 
@@ -451,7 +520,8 @@ async function doLogin() {
 function enterUpload(username, uidNumber, isAdmin) {
   $('#whoami').textContent = username;
   $('#avatar').textContent = (username || '?').slice(0, 1).toUpperCase();
-  $('#whono').textContent = uidNumber ? '· #' + uidNumber : '';
+  $('#whono').textContent = uidNumber ? '#' + uidNumber : '';
+  $('#whono').style.display = uidNumber ? '' : 'none';
   const admin = !!isAdmin || localStorage.getItem(AD_KEY) === '1';
   $('#adminEntry').classList.toggle('hidden', !admin);
   $('#loginCard').classList.add('hidden');
@@ -469,7 +539,7 @@ async function sendCode() {
   msg('#regMsg', '');
   try {
     await post('/remote/apply/send-code', {mail});
-    msg('#regMsg', '验证码已发送，10 分钟内有效');
+    msg('#regMsg', '验证码已发送');
     let n = 60;
     codeTimer = setInterval(() => {
       btn.textContent = n-- + 's';
@@ -515,7 +585,7 @@ drop.addEventListener('drop', e => setFiles([].slice.call(e.dataTransfer.files))
 function setFiles(fs) {
   files = fs.filter(f => f.type.startsWith('image/'));
   $('#preview').innerHTML = files.map(f => '<img src="' + URL.createObjectURL(f) + '">').join('');
-  msg('#upMsg', files.length ? '已选择 ' + files.length + ' 张' : '');
+  msg('#upMsg', files.length ? '已选择 ' + files.length + ' 张图片' : '');
 }
 
 async function doUpload() {
@@ -580,11 +650,11 @@ async function loadMine() {
     $('#mineCount').textContent = list.length;
     const tagText = {pending: '待审核', approved: '已通过', rejected: '未通过'};
     $('#mineList').innerHTML = list.length ? list.map(function (i) {
-      return '<div class="row">' +
-        '<img src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
-        '<span class="nm"><b>' + esc(i.original) + '</b>' +
-        '<span>' + esc((i.created_at || '').slice(5, 16)) + '</span></span>' +
-        '<span class="tag ' + (i.status || 'approved') + '" title="' + esc(i.review_note || '') + '">' +
+      return '<div class="item">' +
+        '<img class="thumb" src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+        '<div class="meta"><div class="name">' + esc(i.original) + '</div>' +
+        '<div class="sub">' + esc((i.created_at || '').slice(5, 16)) + '</div></div>' +
+        '<span class="badge ' + (i.status || 'approved') + '" title="' + esc(i.review_note || '') + '">' +
         (tagText[i.status] || '已通过') + '</span>' +
         '</div>';
     }).join('') : '<div class="empty">还没有上传记录</div>';
@@ -616,7 +686,7 @@ async function doLogout() {
 let adminPw = '';
 function openAdminPanel() {
   adminPw = localStorage.getItem(PW_KEY) || '';
-  $('#adminMode').textContent = localStorage.getItem(AD_KEY) === '1' ? '· 管理员账号' : '';
+  $('#adminMode').textContent = localStorage.getItem(AD_KEY) === '1' ? '管理员账号' : '';
   const hasSession = !!localStorage.getItem(TK_KEY) && localStorage.getItem(AD_KEY) === '1';
   if (hasSession) {
     $('#pwWrap').classList.add('hidden');
@@ -659,25 +729,25 @@ async function loadAdmin() {
   $('#adminBody2').style.display = '';
   $('#revCount').textContent = images.length;
   $('#revList').innerHTML = images.length ? images.map(function (i) {
-    return '<div class="rev">' +
-      '<img src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
-      '<span class="info"><b>' + esc(i.original) + '</b>' +
-      '<span>' + esc(i.uploader) + ' · ' + esc((i.created_at || '').slice(5, 16)) + '</span></span>' +
-      '<span class="ops">' +
+    return '<div class="item">' +
+      '<img class="thumb" src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+      '<div class="meta"><div class="name">' + esc(i.original) + '</div>' +
+      '<div class="sub">' + esc(i.uploader) + ' · ' + esc((i.created_at || '').slice(5, 16)) + '</div></div>' +
+      '<div class="ops">' +
       '<button class="sm ok" onclick="reviewOne(' + i.id + ',\'approve\')">通过</button>' +
       '<button class="sm danger" onclick="reviewOne(' + i.id + ',\'reject\')">驳回</button>' +
-      '</span></div>';
+      '</div></div>';
   }).join('') : '<div class="empty">暂无待审核图片</div>';
 
   $('#apCount').textContent = applies.length;
   $('#apList').innerHTML = applies.length ? applies.map(function (a) {
-    return '<div class="rev">' +
-      '<span class="info"><b>' + esc(a.username) + '</b>' +
-      '<span>' + esc(a.mail) + '</span></span>' +
-      '<span class="ops">' +
+    return '<div class="item">' +
+      '<div class="meta"><div class="name">' + esc(a.username) + '</div>' +
+      '<div class="sub">' + esc(a.mail) + '</div></div>' +
+      '<div class="ops">' +
       '<button class="sm ok" onclick="applyOne(' + a.id + ',\'approve\')">批准</button>' +
       '<button class="sm danger" onclick="applyOne(' + a.id + ',\'reject\')">驳回</button>' +
-      '</span></div>';
+      '</div></div>';
   }).join('') : '<div class="empty">暂无待批注册申请</div>';
 }
 

@@ -206,6 +206,9 @@ DEFAULT_SETTINGS = {
     "ai_model": "",
     "ai_system_prompt": "你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。",
     "ai_reply_mode": "at",   # off | at | all
+    # 多接口故障转移：每行 `名称|接口地址|模型|Key`
+    "ai_providers": "",
+    "ai_keyless_fallback": "1",   # 1=启用内置免Key兜底接口
 }
 
 from quotes_data import QUOTES as DEFAULT_QUOTES
