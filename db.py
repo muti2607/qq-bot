@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import sqlite3
 import threading
 import time
@@ -105,6 +106,17 @@ CREATE TABLE IF NOT EXISTS presets (
     targets  TEXT NOT NULL DEFAULT '[]',  -- JSON: [{"type":"group","id":123,"name":"xx"}]
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
+
+CREATE TABLE IF NOT EXISTS stickers (
+    id         INTEGER PRIMARY KEY AUTOINCREMENT,
+    filename   TEXT NOT NULL,                 -- data/stickers/xxx.png
+    note       TEXT NOT NULL DEFAULT '',      -- 自己写的备注（这张图什么意思）
+    tags       TEXT NOT NULL DEFAULT '',      -- 逗号分隔标签
+    usage      TEXT NOT NULL DEFAULT '',      -- 适合什么场景用
+    used_count INTEGER NOT NULL DEFAULT 0,    -- 发过几次
+    last_used  REAL NOT NULL DEFAULT 0,       -- 上次发送时间戳
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
 """
 
 
@@ -205,10 +217,19 @@ DEFAULT_SETTINGS = {
     "ai_api_key": "",
     "ai_model": "",
     "ai_system_prompt": "你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。",
-    "ai_reply_mode": "at",   # off | at | all
+    "ai_reply_mode": "at",   # off | all（all=不用@也回）| at（只回@）
     # 多接口故障转移：每行 `名称|接口地址|模型|Key`
     "ai_providers": "",
+    "ai_vision_providers": "",   # 视觉模型专用列表（看图用），留空则复用主接口
     "ai_keyless_fallback": "1",   # 1=启用内置免Key兜底接口
+    "ai_at_reply": "0",           # 回复时是否 @ 对方：0=不带（默认）1=带
+    "ai_group_gap": "25",         # all 模式下同一群两次回复的最小间隔（秒），防刷屏
+    "ai_use_face": "1",           # 允许发表情（QQ 小黄脸）
+    "ai_use_poke": "1",           # 允许戳一戳
+    "ai_use_sticker": "1",        # 允许发自己偷来的表情包
+    "ai_see_image": "1",          # 允许看图（视觉模型）
+    "ai_save_sticker": "1",       # 允许自己判断并收藏别人的表情
+    "ai_poke_reply_poke": "1",    # 被戳时回戳
 }
 
 from quotes_data import QUOTES as DEFAULT_QUOTES
@@ -411,6 +432,89 @@ def delete_image(image_id: int) -> None:
     with db() as conn:
         conn.execute("UPDATE tasks SET image_id=NULL WHERE image_id=?", (image_id,))
         conn.execute("DELETE FROM images WHERE id=?", (image_id,))
+
+
+# ---------------- stickers（表情库） ----------------
+
+STICKER_DIR = str(DATA_DIR / "stickers")
+
+
+def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") -> int:
+    """保存一张表情图片，返回 id。"""
+    os.makedirs(str(DATA_DIR / "stickers"), exist_ok=True)
+    import secrets as _secrets
+    name = "s-" + _secrets.token_hex(8) + ".png"
+    with open(os.path.join(str(DATA_DIR / "stickers"), name), "wb") as f:
+        f.write(data)
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO stickers(filename, note, tags, usage) VALUES(?,?,?,?)",
+            (name, note, tags, usage),
+        )
+        return int(cur.lastrowid)
+
+
+def sticker_path(sticker: dict) -> str:
+    return os.path.join(str(DATA_DIR / "stickers"), sticker["filename"])
+
+
+def list_stickers(limit: int = 100) -> list[dict[str, Any]]:
+    with db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM stickers ORDER BY used_count DESC, id DESC LIMIT ?", (limit,)
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
+def get_sticker(sid: int) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM stickers WHERE id=?", (sid,)).fetchone()
+    return dict(row) if row else None
+
+
+def pick_sticker(exclude_recent: int = 8) -> dict[str, Any] | None:
+    """随机挑一张，尽量避开最近发过的。"""
+    import random
+    with db() as conn:
+        rows = [dict(r) for r in conn.execute(
+            "SELECT * FROM stickers ORDER BY last_used ASC, RANDOM() LIMIT ?", (max(1, exclude_recent),)
+        ).fetchall()]
+        if not rows:
+            return None
+        return random.choice(rows)
+
+
+def touch_sticker(sid: int) -> None:
+    import time as _t
+    with db() as conn:
+        conn.execute(
+            "UPDATE stickers SET used_count=used_count+1, last_used=? WHERE id=?",
+            (_t.time(), sid),
+        )
+
+
+def set_sticker_note(sid: int, note: str | None = None, tags: str | None = None,
+                     usage: str | None = None) -> None:
+    sets, args = [], []
+    for col, val in (("note", note), ("tags", tags), ("usage", usage)):
+        if val is not None:
+            sets.append(f"{col}=?")
+            args.append(val)
+    if not sets:
+        return
+    with db() as conn:
+        conn.execute(f"UPDATE stickers SET {','.join(sets)} WHERE id=?", (*args, sid))
+
+
+def delete_sticker(sid: int) -> None:
+    st = get_sticker(sid)
+    if st:
+        try:
+            os.remove(sticker_path(st))
+        except OSError:
+            pass
+    with db() as conn:
+        conn.execute("DELETE FROM stickers WHERE id=?", (sid,))
 
 
 # ---------------- upload_users（远程上传账号） ----------------

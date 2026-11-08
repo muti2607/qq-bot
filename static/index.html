@@ -446,12 +446,18 @@
   .imgs .item:hover{transform:translateY(-2px);box-shadow:0 8px 18px rgba(236,72,153,.16)}
   .imgs .item.sel{outline:3px solid var(--pink2);outline-offset:-1px}
   .imgs img{width:100%;height:100%;object-fit:cover;display:block}
-  .imgs .badge{position:absolute;left:4px;top:4px;font-size:10px;padding:2px 7px;border-radius:999px;
-    background:rgba(16,185,129,.85);color:#fff;box-shadow:0 2px 6px rgba(0,0,0,.2)}
+  .imgs .badge{position:absolute;left:3px;top:3px;
+    font-size:9px;line-height:14px;padding:0 5px;border-radius:4px;
+    background:rgba(16,185,129,.88);color:#fff}
   .imgs .badge.pending{background:rgba(245,158,11,.9)}
   .imgs .badge.rejected{background:rgba(239,68,68,.9)}
-  .imgs .up{position:absolute;left:4px;bottom:4px;font-size:10px;padding:2px 7px;border-radius:999px;
-    background:rgba(15,23,42,.8);color:#93c5fd;max-width:calc(100% - 8px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  /* 上传者标签：左下角，避让右下角的放大键 */
+  .imgs .up{position:absolute;left:3px;bottom:3px;
+    font-size:9px;line-height:14px;padding:0 5px;border-radius:4px;
+    background:rgba(15,23,42,.72);color:#c7dcf7;
+    max-width:calc(100% - 30px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    opacity:.75;transition:opacity .15s;pointer-events:none}
+  .imgs .item:hover .up{opacity:1}
   .imgs .del{position:absolute;top:4px;right:4px;background:var(--chip-bg);
     color:#e05d6c;border-radius:999px;padding:1px 8px;font-size:12px;opacity:0;transition:.15s}
   .imgs .item:hover .del{opacity:1}
@@ -532,9 +538,12 @@
   .lightbox.show{visibility:visible;opacity:1}
   .lightbox .meta{position:absolute;bottom:24px;left:50%;transform:translateX(-50%);
     color:#fff;font-size:13px;background:rgba(0,0,0,.6);padding:8px 18px;border-radius:999px}
-  .imgs .item .zoom{position:absolute;bottom:4px;right:4px;background:rgba(15,23,42,.85);
-    color:#93c5fd;border-radius:8px;padding:2px 8px;font-size:11px;opacity:0;transition:.15s}
+  .imgs .item .zoom{position:absolute;right:3px;bottom:3px;
+    width:22px;height:22px;display:grid;place-items:center;
+    background:rgba(15,23,42,.78);color:#dbeafe;border-radius:5px;
+    font-size:11px;line-height:1;opacity:0;transition:opacity .15s;cursor:zoom-in}
   .imgs .item:hover .zoom{opacity:1}
+  @media (hover:none){.imgs .item .zoom{opacity:.85}}
   .stat{background:var(--card-soft);border:1px solid var(--line);
     border-radius:14px;padding:14px 6px;text-align:center}
   .stat b{display:block;font-size:22px;background:var(--grad);
@@ -799,7 +808,7 @@
     /* ========== 图片库 ========== */
     .imgs{grid-template-columns:repeat(auto-fill,minmax(104px,1fr)) !important;gap:10px}
     .imgs .item{border-radius:14px !important}
-    .imgs .badge{font-size:10px;padding:3px 8px}
+    .imgs .badge{font-size:9px;padding:0 5px}
 
     /* ========== 日志 ========== */
     .log{max-height:54vh !important;font-size:12px;border-radius:14px}
@@ -1069,7 +1078,7 @@
     border-radius:4px !important;font-size:10px !important;
     box-shadow:none !important;
   }
-  [data-theme="clean"] .imgs .up{background:transparent !important;color:var(--txt3, var(--sub)) !important}
+  [data-theme="clean"] .imgs .up{background:rgba(15,23,42,.72) !important;color:#c7dcf7 !important}
 
   /* 日志 */
   [data-theme="clean"] .log{
@@ -1132,6 +1141,7 @@
     <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="t">群组预设</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M16 14.5c2.6 0 4.5 1.6 4.5 4"/></svg></span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17.5l4.7-4.5 3.4 3.3 2.9-2.6 5.9 5.6"/></svg></span><span class="t">图片库</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-stickers" onclick="navTo('sec-stickers',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2"/><circle cx="9.3" cy="9.8" r="1"/><circle cx="14.7" cy="9.8" r="1"/></svg></span><span class="t">表情库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-upload-users" onclick="navTo('sec-upload-users',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg></span><span class="t">上传账号</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 11h7M8 15h5"/></svg></span><span class="t">运行日志</span><span class="dotmark"></span></button>
     <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2.2M12 18.3v2.2M4.9 12H3.1M20.9 12h-1.8M6.6 6.6l-1.3-1.3M18.7 18.7l-1.3-1.3M6.6 17.4l-1.3 1.3M18.7 5.3l-1.3 1.3"/></svg></span><span class="t">设置</span><span class="dotmark"></span></button>
@@ -1258,6 +1268,19 @@
         <div id="images" class="imgs"></div>
       </section>
 
+      <section class="panel view" id="sec-stickers">
+        <h2>表情库 <span class="muted" style="font-weight:400">（机器人自己从群里偷来的图，斗图时从这里挑）</span>
+          <span class="spacer"></span>
+          <button class="small" onclick="loadStickers()">刷新</button>
+        </h2>
+        <div class="hint" style="margin-bottom:10px">
+          看到有意思的图它会自己存下来并写备注。备注和标签决定它斗图时挑哪张——写得越准，挑得越对味。
+          想让它别用某张，直接删掉即可。
+        </div>
+        <div id="stickerCount" class="muted" style="margin-bottom:10px"></div>
+        <div id="stickers" class="imgs"></div>
+      </section>
+
       <section class="panel view" id="sec-upload-users">
         <h2>上传账号 <span class="muted" style="font-weight:400">（远程上传页 8001 需要账号登录，账号由你在此创建）</span>
           <span class="spacer"></span><button class="primary small" onclick="openUploadUserForm()">＋ 新建账号</button></h2>
@@ -1347,6 +1370,60 @@
         <label class="field"><span>多接口自动切换（每行一个，格式：名称|接口地址|模型|Key；某个失败会自动跳到下一个）</span>
           <textarea id="s-ai-providers" style="min-height:110px;font-size:12px;font-family:ui-monospace,Consolas,monospace" placeholder="智谱|https://open.bigmodel.cn/api/paas/v4|glm-4-flash|你的key&#10;硅基流动|https://api.siliconflow.cn/v1|Qwen/Qwen2.5-7B-Instruct|sk-你的key&#10;DeepSeek|https://api.deepseek.com/v1|deepseek-chat|sk-你的key"></textarea>
         </label>
+        <label class="field"><span>看图模型（每行一个，格式同上；留空则复用上面的接口地址。图片识别专用的视觉模型）</span>
+          <textarea id="s-ai-vision" style="min-height:70px;font-size:12px;font-family:ui-monospace,Consolas,monospace" placeholder="留空 = 用主接口的地址 + 内置视觉模型名"></textarea>
+        </label>
+        <div class="grid3" style="margin-top:6px">
+          <label class="field"><span>回复时 @ 对方</span>
+            <select id="s-ai-atreply">
+              <option value="0">不带 @</option>
+              <option value="1">带 @</option>
+            </select>
+          </label>
+          <label class="field"><span>允许发表情（小黄脸）</span>
+            <select id="s-ai-face">
+              <option value="1">允许</option>
+              <option value="0">禁止</option>
+            </select>
+          </label>
+          <label class="field"><span>允许戳一戳</span>
+            <select id="s-ai-poke">
+              <option value="1">允许</option>
+              <option value="0">禁止</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid3" style="margin-top:6px">
+          <label class="field"><span>允许发偷来的表情包</span>
+            <select id="s-ai-sticker">
+              <option value="1">允许</option>
+              <option value="0">禁止</option>
+            </select>
+          </label>
+          <label class="field"><span>允许看图</span>
+            <select id="s-ai-see">
+              <option value="1">允许</option>
+              <option value="0">禁止</option>
+            </select>
+          </label>
+          <label class="field"><span>允许自己偷图收藏</span>
+            <select id="s-ai-save">
+              <option value="1">允许</option>
+              <option value="0">禁止</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid2" style="margin-top:6px">
+          <label class="field"><span>群聊回复最小间隔（秒，防刷屏）</span>
+            <input id="s-ai-gap" type="number" min="0" max="600" placeholder="25">
+          </label>
+          <label class="field"><span>被戳时回戳</span>
+            <select id="s-ai-pokeback">
+              <option value="1">回戳</option>
+              <option value="0">只回话</option>
+            </select>
+          </label>
+        </div>
         <div class="grid2" style="margin-top:6px">
           <label class="field"><span>免 Key 兜底接口（Pollinations，无需 API Key）</span>
             <select id="s-ai-keyless">
@@ -1730,6 +1807,7 @@ function navTo(id, btn) {
   if (id === 'sec-logs') loadLogs();
   if (id === 'sec-groups') loadGroupMgr();
   if (id === 'sec-images') loadImages();
+  if (id === 'sec-stickers') loadStickers();
   if (id === 'sec-upload-users') loadUploadUsers();
   if (id === 'sec-settings') { loadSettingsIntoForm(); }
   try { localStorage.setItem('qqbot-view', id); } catch {}
@@ -2328,6 +2406,59 @@ function renderPool(box, sel) {
   });
 }
 
+// ---------- 表情库 ----------
+let stickers = [];
+async function loadStickers() {
+  try {
+    stickers = await api('/api/stickers');
+    renderStickers();
+  } catch (e) { toast(e.message, true); }
+}
+function renderStickers() {
+  const box = $('#stickers');
+  if (!box) return;
+  const cnt = $('#stickerCount');
+  if (cnt) cnt.textContent = stickers.length
+    ? `共 ${stickers.length} 张 · 按使用次数排序`
+    : '';
+  if (!stickers.length) {
+    box.innerHTML = '<div class="empty">还没有偷到表情。群里有人发表情时它会自己判断收藏。</div>';
+    return;
+  }
+  box.innerHTML = stickers.map(s => `
+    <div class="item" style="position:relative;flex-direction:column;align-items:stretch;height:auto;padding:6px" title="${esc(s.note)}">
+      <img src="/api/stickers/${s.id}/data" loading="lazy" decoding="async"
+           style="width:100%;aspect-ratio:1;object-fit:contain;background:#0001;border-radius:8px">
+      <div style="font-size:12px;margin-top:6px;line-height:1.3;word-break:break-all">${esc(s.note) || '<span class="muted">（无备注）</span>'}</div>
+      <div class="muted" style="font-size:11px;margin-top:2px">${esc(s.tags) || '—'} · 用过 ${s.used_count} 次</div>
+      <div style="display:flex;gap:4px;margin-top:6px">
+        <button class="small" style="flex:1" onclick="editSticker(${s.id})">改备注</button>
+        <button class="small danger" onclick="delSticker(${s.id})">删</button>
+      </div>
+    </div>`).join('');
+}
+async function editSticker(id) {
+  const s = stickers.find(x => x.id === id);
+  if (!s) return;
+  const note = prompt('这张图什么意思？（斗图时按这个挑）', s.note || '');
+  if (note === null) return;
+  const tags = prompt('标签，逗号分隔（如 嘲讽,无语）', s.tags || '');
+  if (tags === null) return;
+  try {
+    await api(`/api/stickers/${id}`, {method: 'POST', body: JSON.stringify({note, tags})});
+    toast('已保存');
+    loadStickers();
+  } catch (e) { toast(e.message, true); }
+}
+async function delSticker(id) {
+  if (!confirm('删掉这张表情？之后斗图就不会再用它。')) return;
+  try {
+    await api(`/api/stickers/${id}`, {method: 'DELETE'});
+    toast('已删除');
+    loadStickers();
+  } catch (e) { toast(e.message, true); }
+}
+
 async function loadImages() {
   try {
     images = await api('/api/images');
@@ -2489,7 +2620,7 @@ function renderImages() {
          title="#${i.id} ${esc(i.original)}${i.uploader ? ' · 上传者 ' + esc(i.uploader) : ''} · ${stLabel[i.status] || '已通过'}">
       <img src="/api/images/${i.id}/thumb" loading="lazy" decoding="async"
            onerror="if(!this.dataset.fb){this.dataset.fb=1;this.src='/api/images/${i.id}/file'}">
-      <span class="zoom" title="放大查看" onclick="showLightbox(${i.id});event.stopPropagation()">🔍 放大</span>
+      <span class="zoom" title="放大查看" onclick="showLightbox(${i.id});event.stopPropagation()">⤢</span>
       <span class="badge ${i.status || 'approved'}">${stLabel[i.status] || '已通过'}</span>
       ${i.uploader ? `<span class="up">@${esc(i.uploader)}${uidMap[i.uploader] ? ' #' + esc(uidMap[i.uploader]) : ''}</span>` : ''}
       <span class="del" title="单独删除" onclick="delImage(${i.id});event.stopPropagation()">✕</span>
@@ -3048,7 +3179,16 @@ async function openSettings() {
     $('#s-ai-key').value = s.ai_api_key || '';
     $('#s-ai-model').value = s.ai_model || '';
     $('#s-ai-providers').value = s.ai_providers || '';
+    $('#s-ai-vision').value = s.ai_vision_providers || '';
     $('#s-ai-keyless').value = s.ai_keyless_fallback || '1';
+    $('#s-ai-atreply').value = s.ai_at_reply || '0';
+    $('#s-ai-face').value = s.ai_use_face || '1';
+    $('#s-ai-poke').value = s.ai_use_poke || '1';
+    $('#s-ai-sticker').value = s.ai_use_sticker || '1';
+    $('#s-ai-see').value = s.ai_see_image || '1';
+    $('#s-ai-save').value = s.ai_save_sticker || '1';
+    $('#s-ai-gap').value = s.ai_group_gap || 25;
+    $('#s-ai-pokeback').value = s.ai_poke_reply_poke || '1';
     $('#s-ai-prompt').value = s.ai_system_prompt || '你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。';
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();

@@ -175,7 +175,16 @@ class SettingsIn(BaseModel):
     ai_system_prompt: str | None = None
     ai_reply_mode: str | None = None
     ai_providers: str | None = None
+    ai_vision_providers: str | None = None
     ai_keyless_fallback: str | None = None
+    ai_at_reply: str | None = None
+    ai_use_face: str | None = None
+    ai_use_poke: str | None = None
+    ai_use_sticker: str | None = None
+    ai_see_image: str | None = None
+    ai_save_sticker: str | None = None
+    ai_group_gap: str | None = None
+    ai_poke_reply_poke: str | None = None
 
 
 @app.get("/api/settings")
@@ -227,8 +236,15 @@ async def api_save_settings(body: SettingsIn):
         data["ai_reply_mode"] = body.ai_reply_mode.strip()
     if body.ai_providers is not None:
         data["ai_providers"] = body.ai_providers.strip()
+    if body.ai_vision_providers is not None:
+        data["ai_vision_providers"] = body.ai_vision_providers.strip()
     if body.ai_keyless_fallback is not None:
         data["ai_keyless_fallback"] = body.ai_keyless_fallback.strip()
+    for field in ("ai_at_reply", "ai_use_face", "ai_use_poke", "ai_use_sticker",
+                  "ai_see_image", "ai_save_sticker", "ai_group_gap", "ai_poke_reply_poke"):
+        value = getattr(body, field)
+        if value is not None:
+            data[field] = value.strip()
     db.set_settings(data)
     return {"ok": True}
 
@@ -690,17 +706,47 @@ async def api_run_task(task_id: int, body: RunIn | None = None):
 @app.post("/post")
 async def onebot_event(request: Request):
     """NapCat 的 HTTP POST 上报入口。带 X-Self-Info 或自配 Token 校验。"""
+    raw = await request.body()
+    # 原始请求落盘：排查“消息没反应”时唯一可信的证据
+    try:
+        with open("/tmp/post_raw.log", "a", encoding="utf-8") as f:
+            hdr = {k: v for k, v in request.headers.items()
+                   if k.lower() in ("authorization", "x-self-info", "content-type", "user-agent")}
+            f.write(f"{time.strftime('%H:%M:%S')} HEADERS={hdr} BODY={raw[:1200].decode('utf-8', 'replace')}\n")
+    except Exception:
+        pass
     expected = db.get_settings().get("post_token") or ""
     if expected:
-        got = request.headers.get("Authorization", "").removeprefix("Bearer ").strip()
-        if got != expected:
+        # NapCat 的 HTTP 客户端推送不带 Authorization（实测 headers 只有 content-type），
+        # 所以 token 只作为「公网门禁」：来自 docker 内网的请求放行，
+        # 从公网打进来的必须带对 token，防止伪造事件让机器人乱发消息。
+        client_ip = (request.client.host if request.client else "") or ""
+        from_lan = (client_ip.startswith("172.") or client_ip.startswith("10.")
+                    or client_ip.startswith("127.") or client_ip.startswith("192.168."))
+        got = request.headers.get("Authorization", "").strip()
+        if got.lower().startswith("bearer "):
+            got = got[7:].strip()
+        if not from_lan and got != expected:
+            db.add_log(
+                f"公网事件被拒（来源={client_ip}，Token 不匹配）",
+                "warn", None)
             return {"ok": False}
     try:
-        event = await request.json()
-    except Exception:
+        event = json.loads(raw)
+    except Exception as e:
+        db.add_log(f"事件上报解析失败：{e}", "warn", None)
         return {"ok": False}
-    if event.get("post_type") == "message":
+    ptype = event.get("post_type")
+    if ptype == "message":
+        mtype = event.get("message_type") or ("group" if event.get("group_id") else "private")
+        db.add_log(
+            f"收到 {mtype} 消息（{event.get('group_id') or event.get('user_id')}）："
+            + str(event.get("raw_message") or event.get("message"))[:100],
+            "info", None)
         triggers.handle_event_async(event)
+    elif ptype == "notice" and event.get("sub_type") == "poke":
+        db.add_log(f"被戳了一下（来自 {event.get('user_id')}）", "info", None)
+        triggers.handle_poke_async(event)
     return {"ok": True}
 
 
@@ -839,6 +885,55 @@ async def api_reset_quotes():
 
 
 # ---------------- 图片库 ----------------
+
+
+# ---------------- 表情库（机器人自己偷的表情） ----------------
+
+
+class StickerNoteIn(BaseModel):
+    note: str | None = None
+    tags: str | None = None
+    usage: str | None = None
+
+
+@app.get("/api/stickers")
+async def api_stickers():
+    rows = db.list_stickers(limit=500)
+    return [{
+        "id": r["id"],
+        "note": r.get("note") or "",
+        "tags": r.get("tags") or "",
+        "usage": r.get("usage") or "",
+        "used_count": r.get("used_count") or 0,
+        "created_at": r.get("created_at") or "",
+    } for r in rows]
+
+
+@app.get("/api/stickers/{sid}/data")
+async def api_sticker_data(sid: int):
+    row = db.get_sticker(sid)
+    if not row:
+        raise HTTPException(404, "表情不存在")
+    try:
+        path = Path(db.sticker_path(row))
+        return Response(content=path.read_bytes(), media_type="image/png")
+    except OSError:
+        raise HTTPException(404, "表情文件丢失")
+
+
+@app.post("/api/stickers/{sid}")
+async def api_sticker_note(sid: int, body: StickerNoteIn):
+    if not db.get_sticker(sid):
+        raise HTTPException(404, "表情不存在")
+    db.set_sticker_note(sid, note=body.note, tags=body.tags, usage=body.usage)
+    return {"ok": True}
+
+
+@app.delete("/api/stickers/{sid}")
+async def api_sticker_delete(sid: int):
+    db.delete_sticker(sid)
+    db.add_log(f"删除表情 #{sid}", "warn")
+    return {"ok": True}
 
 
 @app.get("/api/images")

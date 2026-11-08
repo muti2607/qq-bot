@@ -98,3 +98,42 @@ def get_status() -> dict[str, Any]:
         return {"online": True, "self_id": info.get("user_id"), "nickname": info.get("nickname")}
     except OneBotError as e:
         return {"online": False, "error": str(e)}
+
+
+def send_poke(group_id: int | None, user_id: int) -> Any:
+    """戳一戳。群聊要带 group_id，私聊只带 user_id。
+
+    NapCat 对群戳的实现是 send_poke；早期版本用 group_poke，这里自动降级。
+    """
+    payload: dict[str, Any] = {"user_id": int(user_id)}
+    if group_id:
+        payload["group_id"] = int(group_id)
+        try:
+            return call("send_poke", payload)
+        except OneBotError:
+            return call("group_poke", payload)
+    try:
+        return call("send_poke", payload)
+    except OneBotError:
+        return call("friend_poke", payload)
+
+
+def face_segment(face_id: int | str) -> dict[str, Any]:
+    """QQ 小黄脸表情。"""
+    return {"type": "face", "data": {"id": str(face_id)}}
+
+
+def read_container_file(path: str) -> bytes | None:
+    """读取 NapCat 容器内的文件。
+
+    机器人跑在另一个容器里，够不到宿主机路径；这里用共享卷里的软链不行，
+    所以走 NapCat 的 HTTP get_image 拿到的路径时，只能靠 compose 共享目录。
+    没有共享目录时返回 None，让调用方退回 URL 下载。
+    """
+    try:
+        p = Path(path)
+        if p.is_file():
+            return p.read_bytes()
+    except OSError:
+        pass
+    return None
