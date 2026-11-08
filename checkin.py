@@ -79,6 +79,10 @@ def checkin(username: str) -> dict:
             (gain, today, streak, username),
         )
     u2 = _get_user(username)
+    import db as _dbmod
+    _dbmod.add_point_log(username, gain, u2.get("points", 0),
+                  "每日签到" + (f"（连续{streak}天奖励+{bonus}）" if bonus else "")
+                  + (f"（活动{mult:g}倍）" if mult > 1.0 else ""))
     msg = f"签到成功 +{gain} 分"
     if mult > 1.0:
         msg += f"（活动 {mult:g} 倍）"
@@ -152,6 +156,9 @@ def exchange(username: str, tier_index: int) -> dict:
             "UPDATE upload_users SET points=points-?, admin_until=? WHERE username=?",
             (tier["points"], until, username),
         )
+    import db as _dbmod
+    _dbmod.add_point_log(username, -tier["points"], u["points"] - tier["points"],
+                  f"兑换管理员权限 {tier['label']}")
     return {"ok": True, "msg": f"兑换成功！管理员权限至 {until}",
             "spent": tier["points"], "admin_until": until,
             "points": u["points"] - tier["points"]}

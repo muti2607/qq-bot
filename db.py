@@ -735,6 +735,43 @@ def update_upload_user(uid: int, password: str | None = None,
         conn.execute(f"UPDATE upload_users SET {', '.join(fields)} WHERE id=?", args)
 
 
+CREATE_TABLE_PTLOG = """
+CREATE TABLE IF NOT EXISTS point_logs (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    username  TEXT NOT NULL,          -- 账号名
+    delta     INTEGER NOT NULL,       -- 正=获得，负=消耗
+    balance   INTEGER NOT NULL,       -- 变动后余额
+    reason    TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+);
+CREATE INDEX IF NOT EXISTS idx_ptlog_user ON point_logs(username, id);
+"""
+
+
+def _ensure_ptlog(conn: sqlite3.Connection) -> None:
+    conn.executescript(CREATE_TABLE_PTLOG)
+
+
+def add_point_log(username: str, delta: int, balance: int, reason: str = "") -> None:
+    with db() as conn:
+        _ensure_ptlog(conn)
+        conn.execute(
+            "INSERT INTO point_logs(username, delta, balance, reason) VALUES(?,?,?,?)",
+            (username, delta, balance, reason[:120]),
+        )
+
+
+def list_point_logs(username: str, limit: int = 50) -> list[dict]:
+    with db() as conn:
+        _ensure_ptlog(conn)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM point_logs WHERE username=? ORDER BY id DESC LIMIT ?",
+            (username, limit),
+        ).fetchall()
+    return [dict(r) for r in rows]
+
+
 def delete_upload_user(uid: int) -> None:
     with db() as conn:
         conn.execute("DELETE FROM upload_users WHERE id=?", (uid,))

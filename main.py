@@ -1249,6 +1249,12 @@ async def api_points_adjust(body: PointsAdjustIn):
         new = acts.adjust_points(body.username.strip(), body.delta, body.reason)
         if new is None:
             raise HTTPException(404, "账号不存在")
+        try:
+            import checkin as _ck
+            db.add_point_log(body.username.strip(), body.delta, new,
+                              "管理员调整" + (f"：{body.reason[:60]}" if body.reason else ""))
+        except Exception:
+            pass
         db.add_log(f"调整 {body.username} 积分 {body.delta:+d} → {new}" +
                    (f"（{body.reason[:30]}）" if body.reason else ""), "info")
         return {"ok": True, "username": body.username, "points": new}
@@ -1684,6 +1690,12 @@ async def remote_apply(request: Request, body: ApplyDoneIn):
     # 注册赠送 500 积分
     with db.db() as conn:
         conn.execute("UPDATE upload_users SET points=points+500 WHERE username=?", (username,))
+    try:
+        import checkin as _ck
+        _u2 = db.get_upload_user(username)
+        db.add_point_log(username, 500, _u2.get("points", 0), "新用户注册奖励")
+    except Exception:
+        pass
     db.add_log(f"邮箱注册自动通过：{username}（{body.mail}），赠送 500 积分", "info")
     rec = db.get_upload_user(username)
     return {"ok": True, "aid": aid, "auto": True,
@@ -1733,6 +1745,17 @@ async def remote_checkin(request: Request, body: CheckinIn):
     u = _upload_user_from(request)
     r = checkin.checkin(u)
     return r
+
+
+@remote_router.get("/remote/point-logs")
+async def remote_point_logs(request: Request):
+    """我的积分流水（最近 50 条）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    u = _upload_user_from(request)
+    return {"ok": True, "logs": db.list_point_logs(u, 50)}
 
 
 @remote_router.get("/remote/points")
