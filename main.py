@@ -167,6 +167,13 @@ class SettingsIn(BaseModel):
     smtp_pass: str | None = None
     admin_password: str | None = None
     rss_timeout: int | None = None
+    # AI 聊天配置
+    ai_enabled: str | None = None
+    ai_api_base: str | None = None
+    ai_api_key: str | None = None
+    ai_model: str | None = None
+    ai_system_prompt: str | None = None
+    ai_reply_mode: str | None = None
 
 
 @app.get("/api/settings")
@@ -176,6 +183,7 @@ async def api_get_settings():
     s["post_token"] = "******" if s.get("post_token") else ""
     s["remote_token"] = "******" if s.get("remote_token") else ""
     s["smtp_pass"] = "******" if s.get("smtp_pass") else ""
+    s["ai_api_key"] = "******" if s.get("ai_api_key") else ""
     s.pop("admin_password", None)
     s["has_password"] = _auth_required()
     return s
@@ -202,6 +210,19 @@ async def api_save_settings(body: SettingsIn):
         data["smtp_pass"] = body.smtp_pass.strip()
     if body.rss_timeout is not None:
         data["rss_timeout"] = str(body.rss_timeout)
+    # AI 聊天配置
+    if body.ai_enabled is not None:
+        data["ai_enabled"] = body.ai_enabled.strip()
+    if body.ai_api_base is not None:
+        data["ai_api_base"] = body.ai_api_base.strip()
+    if body.ai_api_key is not None and body.ai_api_key != "******":
+        data["ai_api_key"] = body.ai_api_key.strip()
+    if body.ai_model is not None:
+        data["ai_model"] = body.ai_model.strip()
+    if body.ai_system_prompt is not None:
+        data["ai_system_prompt"] = body.ai_system_prompt.strip()
+    if body.ai_reply_mode is not None:
+        data["ai_reply_mode"] = body.ai_reply_mode.strip()
     db.set_settings(data)
     return {"ok": True}
 

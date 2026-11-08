@@ -9,6 +9,7 @@ from zoneinfo import ZoneInfo
 import db
 import onebot
 import sender
+import ai
 
 TZ = ZoneInfo("Asia/Shanghai")
 
@@ -110,6 +111,9 @@ def handle_event(event: dict) -> None:
         break
 
     if not trigger:
+        # 没命中任何关键词触发词：尝试 AI 聊天回复
+        if _try_ai_reply(event, text, is_group, target_id, mentioned):
+            return
         return
 
     now = _dt.datetime.now(TZ)
@@ -170,6 +174,45 @@ def handle_event(event: dict) -> None:
             except Exception:
                 pass
         db.add_log(f"触发词《{trigger['keyword']}》回复失败：{e}", "error", None)
+
+
+def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentioned: bool) -> bool:
+    """未命中触发词时，根据 AI 回复模式决定是否用大模型回复。"""
+    mode = ai.reply_mode()
+    if mode == "off":
+        return False
+    if is_group:
+        # 群聊：at 模式下必须 @机器人；all 模式下全部回复
+        if mode == "at" and not mentioned:
+            return False
+    # 私聊：at/all 都回复
+
+    try:
+        reply = ai.chat(text)
+    except Exception as e:
+        db.add_log(f"AI 聊天出错：{e}", "error", None)
+        return False
+    if not reply:
+        return False
+
+    segments_out = []
+    if is_group:
+        self_qq = _self_qq()
+        uid = event.get("sender", {}).get("user_id")
+        if self_qq and uid:
+            segments_out.append({"type": "at", "data": {"qq": str(uid)}})
+            segments_out.append(onebot.text_segment(" "))
+    segments_out.append(onebot.text_segment(reply))
+
+    if not segments_out:
+        return False
+    try:
+        onebot.send_message("group" if is_group else "private", target_id, segments_out)
+        db.add_log(f"AI 已回复 {'群' if is_group else '私聊'} {target_id}（模式={mode}）", "info", None)
+        return True
+    except Exception as e:
+        db.add_log(f"AI 回复失败：{e}", "error", None)
+        return False
 
 
 def handle_event_async(event: dict) -> None:

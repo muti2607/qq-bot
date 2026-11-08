@@ -258,8 +258,7 @@
   }
   header h1{
     font-size:18px;margin:0;flex:none;font-weight:800;letter-spacing:.5px;
-    background:var(--grad);
-    -webkit-background-clip:text;background-clip:text;-webkit-text-fill-color:transparent;
+    color:var(--txt);
   }
   .status{display:flex;align-items:center;gap:7px;font-size:13px;color:var(--sub)}
   .dot{width:10px;height:10px;border-radius:50%;background:#c9c1d6}
@@ -282,7 +281,7 @@
   }
   .sidebar .brand{display:flex;align-items:center;gap:9px;font-size:16px;font-weight:800;
     padding:4px 8px 16px;margin-bottom:6px;border-bottom:1px solid var(--line);white-space:nowrap}
-  .sidebar .brand::before{content:"";width:6px;height:20px;border-radius:4px;background:var(--grad)}
+  .sidebar .brand::before{display:none}
   .sidebar .brand span{background:var(--grad);-webkit-background-clip:text;background-clip:text;
     -webkit-text-fill-color:transparent}
   .nav{
@@ -291,7 +290,13 @@
     cursor:pointer;text-align:left;transition:.18s;white-space:nowrap;box-shadow:none;
   }
   .nav:hover{background:var(--card-soft);color:var(--pink);transform:none;box-shadow:none}
-  .nav .ico{width:19px;text-align:center;font-size:15px;flex:none}
+  .nav .ico{
+    width:20px;height:20px;flex:none;display:grid;place-items:center;
+    color:var(--sub);transition:color .15s;
+  }
+  .nav .ico svg{width:100%;height:100%;display:block}
+  .nav:hover .ico,.nav.active .ico{color:var(--pink)}
+  .nav.active .ico{color:#fff}
   .nav .t{flex:1}
   .nav .dotmark{width:16px;height:7px;border-radius:999px;background:var(--line2);flex:none;transition:.18s}
   .nav.active{background:var(--grad);color:#fff;font-weight:600;box-shadow:0 6px 16px rgba(236,72,153,.28)}
@@ -643,8 +648,10 @@
     }
     .sidebar .nav:active{transform:scale(.98)}
     .sidebar .nav .ico{
-      font-size:21px;line-height:1;width:26px;text-align:center;flex:none;
+      width:22px;height:22px;flex:none;display:grid;place-items:center;
     }
+    .sidebar .nav .ico svg{width:22px;height:22px}
+    .sidebar .nav.active .ico{color:#fff !important}
     .sidebar .nav .t{
       font-size:15px !important;font-weight:500;color:var(--txt);
       white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -809,7 +816,7 @@
 <body>
 <header>
   <button class="menu-btn" id="menu-btn" onclick="toggleDrawer()" aria-label="菜单">☰</button>
-  <h1>✦ QQ 机器人</h1>
+  <h1><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px;display:inline-block;vertical-align:-3px;margin-right:7px"><path d="M12 3.2l2.5 5.1 5.6.8-4.05 3.95.96 5.6L12 15.9l-5.01 2.75.96-5.6L3.9 9.1l5.6-.8z"/></svg>QQ 机器人</h1>
   <div class="status"><span id="dot" class="dot" title="连接状态"></span></div>
   <div class="spacer"></div>
   <span id="page-title" class="page-title">性能</span>
@@ -825,16 +832,16 @@
 
   <!-- ========== 左侧任务栏 ========== -->
   <aside class="sidebar">
-    <div class="brand"><span>✦ QQ 机器人</span><button class="drawer-close" onclick="closeDrawer()" aria-label="关闭">✕</button></div>
-    <button class="nav active" data-nav="sec-metrics" onclick="navTo('sec-metrics',this)"><span class="ico">📊</span><span class="t">性能</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico">📋</span><span class="t">任务列表</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico">💬</span><span class="t">触发回复</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico">📁</span><span class="t">群组预设</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico">👥</span><span class="t">群组管理</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico">🖼️</span><span class="t">图片库</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-upload-users" onclick="navTo('sec-upload-users',this)"><span class="ico">🔑</span><span class="t">上传账号</span><span class="dotmark"></span></button>
-    <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico">📜</span><span class="t">运行日志</span><span class="dotmark"></span></button>
-    <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico">⚙️</span><span class="t">设置</span><span class="dotmark"></span></button>
+    <div class="brand"><span><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:19px;height:19px;display:inline-block;vertical-align:-3px;margin-right:7px"><path d="M12 3.2l2.5 5.1 5.6.8-4.05 3.95.96 5.6L12 15.9l-5.01 2.75.96-5.6L3.9 9.1l5.6-.8z"/></svg>QQ 机器人</span><button class="drawer-close" onclick="closeDrawer()" aria-label="关闭">✕</button></div>
+    <button class="nav active" data-nav="sec-metrics" onclick="navTo('sec-metrics',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 15l4-5 3 3 5-7"/></svg></span><span class="t">性能</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="17" rx="2"/><path d="M8 10h8M8 14h5"/></svg></span><span class="t">任务列表</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-5.4A7.5 7.5 0 0 1 12.5 4.5h.5A7.5 7.5 0 0 1 20 12z"/></svg></span><span class="t">触发回复</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-presets" onclick="navTo('sec-presets',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 8a2 2 0 0 1 2-2h4l2 2.5h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/></svg></span><span class="t">群组预设</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M16 14.5c2.6 0 4.5 1.6 4.5 4"/></svg></span><span class="t">群组管理</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17.5l4.7-4.5 3.4 3.3 2.9-2.6 5.9 5.6"/></svg></span><span class="t">图片库</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-upload-users" onclick="navTo('sec-upload-users',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg></span><span class="t">上传账号</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 11h7M8 15h5"/></svg></span><span class="t">运行日志</span><span class="dotmark"></span></button>
+    <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2.2M12 18.3v2.2M4.9 12H3.1M20.9 12h-1.8M6.6 6.6l-1.3-1.3M18.7 18.7l-1.3-1.3M6.6 17.4l-1.3 1.3M18.7 5.3l-1.3 1.3"/></svg></span><span class="t">设置</span><span class="dotmark"></span></button>
 
     <div class="side-quote" onclick="showQuote()" title="点击换一句">
       <p id="quote-text-side">“语言的隔阂，本质上是一个人——信息，知识，视野，圈层的隔阂。”</p>
@@ -843,7 +850,7 @@
 
     <div class="side-foot">
       <div class="side-sep"></div>
-      <button class="nav danger" onclick="logout()"><span class="ico">⏻</span><span class="t">退出登录</span><span class="dotmark"></span></button>
+      <button class="nav danger" onclick="logout()"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5v8"/><path d="M6.2 6.8a7 7 0 1 0 11.6 0"/></svg></span><span class="t">退出登录</span><span class="dotmark"></span></button>
       <div class="side-note">已连接 · <span id="side-status">检测中</span></div>
     </div>
   </aside>
@@ -1026,6 +1033,27 @@
         <label class="field"><span>新管理密码（留空=取消密码）</span><input id="s-new" type="password" autocomplete="new-password"></label>
       </div>
       <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
+      <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">AI 聊天（接入大模型，兼容 OpenAI /v1/chat/completions；如 DeepSeek、SiliconFlow、OpenRouter、Ollama 等）</span>
+        <div class="grid3">
+          <select id="s-ai-enabled" style="width:110px">
+            <option value="0">关闭</option>
+            <option value="1">开启</option>
+          </select>
+          <select id="s-ai-mode" style="width:130px">
+            <option value="at">仅 @机器人 / 私聊</option>
+            <option value="all">回复全部消息</option>
+            <option value="off">不回复（仅配置）</option>
+          </select>
+          <span class="hint" style="font-size:11px;color:var(--sub)">群聊需 @机器人 才会回复；私聊均回复。</span>
+        </div>
+        <label class="field"><span>接口地址 API Base</span><input id="s-ai-base" placeholder="https://api.deepseek.com/v1"></label>
+        <label class="field"><span>API Key</span><input id="s-ai-key" type="password" placeholder="sk-......"></label>
+        <label class="field"><span>模型名 Model</span><input id="s-ai-model" placeholder="deepseek-chat"></label>
+        <label class="field"><span>系统提示词 System Prompt</span><textarea id="s-ai-prompt" style="min-height:70px;font-size:12px" placeholder="你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。"></textarea></label>
+        <div class="hint" style="margin-top:6px;font-size:11px;color:var(--sub)">未命中任何关键词触发词时，才会调用 AI 回复；若想让 AI 优先处理，请不要设置相同的关键词触发词。</div>
+      </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
         <button class="small" onclick="loadQuoteEditor()">重载名言</button>
         <button class="primary" onclick="saveSettings()">💾 保存设置</button>
@@ -2322,7 +2350,7 @@ function renderTriggers() {
           <span class="pill off">${t.at_required ? '需@' : '免@'}</span>
           <span class="pill off">${t.at_reply === false ? '不@人' : '@提问者'}</span>
           <span class="pill off">${esc(scopeTxt)}</span>
-          ${qTxt ? `<span class="pill off">💬 ${qTxt}</span>` : ''}
+          ${qTxt ? `<span class="pill off"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:11px;height:11px;vertical-align:-1px;margin-right:3px"><path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8l-4 3v-5.4A7.5 7.5 0 0 1 12.5 4.5h.5A7.5 7.5 0 0 1 20 12z"/></svg>${qTxt}</span>` : ''}
           ${imgTxt ? `<span class="pill off">🖼 ${imgTxt}</span>` : ''}
         </div>
         <div class="meta"><span>${esc((t.reply_text || '').slice(0, 60)) || '（仅图片）'}</span><span>冷却 ${t.cooldown}s</span></div>
@@ -2547,6 +2575,12 @@ async function openSettings() {
     $('#s-smtp-user').value = s.smtp_user || '';
     $('#s-smtp-pass').value = s.smtp_pass || '';
     $('#s-rss').value = s.rss_timeout || 15;
+    $('#s-ai-enabled').value = s.ai_enabled || '0';
+    $('#s-ai-mode').value = s.ai_reply_mode || 'at';
+    $('#s-ai-base').value = s.ai_api_base || '';
+    $('#s-ai-key').value = s.ai_api_key || '';
+    $('#s-ai-model').value = s.ai_model || '';
+    $('#s-ai-prompt').value = s.ai_system_prompt || '你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。';
     $('#s-old').value = ''; $('#s-new').value = '';
     loadQuoteEditor();
   } catch (e) { toast(e.message, true); }
@@ -2585,6 +2619,12 @@ async function saveSettings() {
       smtp_user: $('#s-smtp-user').value.trim(),
       smtp_pass: $('#s-smtp-pass').value,
       rss_timeout: Number($('#s-rss').value) || 15,
+      ai_enabled: $('#s-ai-enabled').value,
+      ai_api_base: $('#s-ai-base').value.trim(),
+      ai_api_key: $('#s-ai-key').value,
+      ai_model: $('#s-ai-model').value.trim(),
+      ai_system_prompt: $('#s-ai-prompt').value.trim(),
+      ai_reply_mode: $('#s-ai-mode').value,
     })});
     // 名言只在内容有变化时才提交（避免 2000+ 条大 payload 反复发送/误触校验）
     const quoteLines = ($('#s-quotes').value || '').split('\n').map(x => x.trim()).filter(Boolean);

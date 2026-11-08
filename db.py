@@ -190,6 +190,13 @@ DEFAULT_SETTINGS = {
     "smtp_pass": "",
     "admin_password": "",
     "rss_timeout": "15",
+    # AI 聊天配置（兼容 OpenAI /v1/chat/completions，如 DeepSeek、SiliconFlow、OpenRouter、Ollama 等）
+    "ai_enabled": "0",
+    "ai_api_base": "",
+    "ai_api_key": "",
+    "ai_model": "",
+    "ai_system_prompt": "你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。",
+    "ai_reply_mode": "at",   # off | at | all
 }
 
 from quotes_data import QUOTES as DEFAULT_QUOTES
