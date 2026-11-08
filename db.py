@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS images (
     status      TEXT NOT NULL DEFAULT 'approved',  -- pending | approved | rejected
     uploader    TEXT NOT NULL DEFAULT '',          -- 上传者账号（远程上传时记录）
     review_note TEXT NOT NULL DEFAULT '',          -- 审核备注/拒绝原因
+    hash        TEXT NOT NULL DEFAULT '',          -- 内容哈希（去重用）
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -195,6 +196,17 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE upload_users ADD COLUMN banned_until TEXT NOT NULL DEFAULT ''")
     if "ban_reason" not in uu_cols:
         conn.execute("ALTER TABLE upload_users ADD COLUMN ban_reason TEXT NOT NULL DEFAULT ''")
+    img_cols = cols("images")
+    if "hash" not in img_cols:
+        conn.execute("ALTER TABLE images ADD COLUMN hash TEXT NOT NULL DEFAULT ''")
+    # 为已有图片补算哈希（读文件）
+    import hashlib as _hl
+    for row in conn.execute("SELECT id, filename, hash FROM images WHERE hash=''").fetchall():
+        fpath = UPLOAD_DIR / row["filename"]
+        if fpath.exists():
+            h = _hl.sha256(fpath.read_bytes()).hexdigest()
+            conn.execute("UPDATE images SET hash=? WHERE id=?", (h, row["id"]))
+    conn.execute("CREATE INDEX IF NOT EXISTS idx_images_hash ON images(hash)")
     # 给没有数字ID的账号补分配
     import random as _random
     used = {r["uid_number"] for r in conn.execute(
@@ -404,12 +416,21 @@ def list_images(only_approved: bool = False, status: str | None = None,
     return [dict(r) for r in rows]
 
 
+def find_image_by_hash(h: str) -> dict | None:
+    """按内容哈希找已有图片（任意状态，含已删除之外的）。"""
+    if not h:
+        return None
+    with db() as conn:
+        row = conn.execute("SELECT * FROM images WHERE hash=? LIMIT 1", (h,)).fetchone()
+    return dict(row) if row else None
+
+
 def add_image(filename: str, original: str, size: int,
-              status: str = "approved", uploader: str = "") -> int:
+              status: str = "approved", uploader: str = "", hash: str = "") -> int:
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO images(filename, original, size, status, uploader) VALUES(?,?,?,?,?)",
-            (filename, original, size, status, uploader),
+            "INSERT INTO images(filename, original, size, status, uploader, hash) VALUES(?,?,?,?,?,?)",
+            (filename, original, size, status, uploader, hash),
         )
         return int(cur.lastrowid)
 

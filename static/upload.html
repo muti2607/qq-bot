@@ -510,7 +510,7 @@
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
         上传图片
       </h1>
-      <p>提交后需管理员审核，通过后即可被机器人使用</p>
+      <p>上传后自动审核进入图库；重复图片会被自动拒绝</p>
     </div>
 
     <div class="box-bd">
@@ -827,7 +827,7 @@ async function doUpload() {
   $('#bar').firstElementChild.style.width = '100%';
   $('#go').disabled = false;
   if (!fail) {
-    msg('#upMsg', ok + ' 张已提交，等待管理员审核');
+    msg('#upMsg', ok + ' 张已自动审核通过，进入图库');
     files = [];
     fileEl.value = '';
     $('#preview').innerHTML = '';
