@@ -201,6 +201,8 @@
   }
 
   *{box-sizing:border-box}
+  /* 桌面端隐藏手机专用元素 */
+  .menu-btn,.page-title,.drawer-mask,.drawer-close{display:none}
   html{scroll-behavior:smooth}
   /* 矩阵主题：全局文字微光 + 边框辉光 */
   [data-theme="matrix"] .panel,
@@ -530,91 +532,141 @@
   .metrics-foot{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:12px;color:var(--sub)}
   
 
-  /* ==================== 手机端布局（<=980px） ====================
-     不依赖 position:fixed（QQ/微信内置 WebView 会忽略它），
-     不依赖 backdrop-filter / mask / blend-mode（同样不可靠）。
-     导航做成「紧贴 header 下方的横向滚动条」，普通文档流 + sticky。 */
+  /* ==================== 手机端布局（<=980px）· NapCat 风格 ====================
+     App Bar + 左侧抽屉导航（不用 fixed，改用 absolute/transform，
+     WebView 里同样可靠；抽屉开关用 JS 切 class） */
   @media (max-width:980px){
     html{-webkit-text-size-adjust:100%}
-    body{overflow-x:hidden}
-    /* 关掉所有在 WebView 里会出问题的特效 */
+    body{overflow-x:hidden;padding-top:0}
+    /* 关掉 WebView 里容易糊的特效 */
     header,.panel,.sidebar,.m-card,.card,button,input,select,textarea,
     body::before,body::after{
       backdrop-filter:none !important;-webkit-backdrop-filter:none !important;
     }
-    body::before,body::after{display:none !important}   /* 网格/扫描线叠层，WebView 里会糊成一片 */
-    /* 头部：普通文档流，非 sticky */
+    body::before,body::after{display:none !important}
+    /* ---------- App Bar ---------- */
     header{
-      position:static !important;padding:10px 12px;gap:8px;flex-wrap:wrap;
-      background:var(--dlg-bg) !important;box-shadow:none !important;
-      border-bottom:1px solid var(--line);
+      position:sticky !important;top:0;z-index:90;
+      display:flex !important;align-items:center;gap:8px;
+      padding:0 10px !important;height:52px;min-height:52px;
+      flex-wrap:nowrap !important;
+      background:var(--dlg-bg) !important;
+      border-bottom:1px solid var(--line) !important;
+      box-shadow:0 1px 0 rgba(0,0,0,.04) !important;
     }
-    header h1{font-size:15px}
-    header .muted,header .sub{display:none}
-    /* 外层：单列块布局 */
-    main{display:block !important;padding:0 !important;min-width:0;max-width:100vw;overflow-x:hidden}
-    .app-shell{
-      display:block !important;max-width:100vw;min-width:0;
-      padding:0 !important;margin:0;
+    header h1{font-size:15px;letter-spacing:0;flex:none}
+    header .status{display:none !important}
+    header .spacer{display:none !important}
+    header #clock{display:none !important}
+    header #theme-btn{
+      flex:none;width:38px;height:38px;min-height:0;padding:0 !important;
+      display:grid;place-items:center;font-size:16px;border-radius:10px;
+      margin-left:auto;
     }
-    /* 导航条：紧贴 header 下方，横向滚动，sticky 跟随（不用 fixed） */
+    /* 抽屉按钮 */
+    .menu-btn{
+      flex:none;display:grid;place-items:center;
+      width:38px;height:38px;min-height:0;padding:0;
+      border:none;border-radius:10px;background:transparent;
+      color:var(--txt);font-size:20px;line-height:1;cursor:pointer;
+    }
+    .menu-btn:active{background:var(--card-soft)}
+    /* 当前页标题（App Bar 中间） */
+    .page-title{
+      display:block !important;flex:1;text-align:left;
+      font-size:14px;font-weight:600;color:var(--txt);
+      overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    }
+    /* ---------- 抽屉 ---------- */
+    body{position:relative}   /* 抽屉 absolute 定位的父级 */
     .sidebar{
-      position:sticky !important;top:0;
-      bottom:auto !important;left:auto !important;right:auto !important;
-      z-index:70;
-      display:flex !important;flex-direction:row !important;
+      position:absolute !important;
+      top:0;left:0;bottom:auto;
+      height:100vh;max-height:100dvh;
+      width:236px;max-width:78vw;
+      padding-top:10px;
+      z-index:95;
+      display:flex !important;flex-direction:column !important;
       align-items:stretch;gap:2px;
       height:auto !important;min-height:0 !important;max-height:none !important;
-      width:100%;box-sizing:border-box;
-      padding:5px 6px;
-      margin:0 0 10px !important;
-      border:none !important;border-bottom:1px solid var(--line) !important;
+      padding:10px 8px calc(10px + env(safe-area-inset-bottom));
+      margin:0 !important;
+      border:none !important;border-right:1px solid var(--line) !important;
       border-radius:0 !important;
       background:var(--dlg-bg) !important;
-      box-shadow:0 4px 14px rgba(0,0,0,.06) !important;
-      overflow-x:auto !important;overflow-y:hidden;
+      box-shadow:6px 0 24px rgba(0,0,0,.16) !important;
+      overflow-y:auto;overflow-x:hidden;
+      transform:translateX(-100%);
+      transition:transform .24s ease;
       -webkit-overflow-scrolling:touch;
-      scrollbar-width:none;
     }
-    .sidebar::-webkit-scrollbar{display:none}
-    .sidebar .brand,.sidebar .side-quote,.sidebar .side-sep,.sidebar .side-note,
-    .sidebar .side-foot{display:none !important}
+    .sidebar.open{transform:translateX(0)}
+    .sidebar .brand{
+      display:flex !important;align-items:center;gap:8px;
+      font-size:14px;padding:4px 4px 12px;
+      border-bottom:1px solid var(--line);margin-bottom:6px;
+    }
+    .drawer-close{
+      display:grid !important;place-items:center;margin-left:auto;
+      width:34px;height:34px;min-height:0;padding:0;
+      border:none;border-radius:9px;background:transparent;
+      color:var(--sub);font-size:15px;cursor:pointer;
+    }
+    .drawer-close:active{background:var(--card-soft)}
     .sidebar .nav{
-      flex:0 0 auto !important;flex-direction:column;gap:1px;
-      align-items:center;justify-content:center;
-      width:auto !important;min-width:60px;min-height:50px;
-      padding:5px 7px !important;margin:0 !important;
-      border-radius:10px !important;box-shadow:none !important;
-      font-size:11px;white-space:nowrap;
+      flex:0 0 auto !important;flex-direction:row !important;
+      gap:10px;align-items:center;justify-content:flex-start;
+      width:100% !important;min-width:0;min-height:46px;
+      padding:10px 12px !important;margin:0 !important;
+      border-radius:12px !important;box-shadow:none !important;
+      font-size:14px;text-align:left;
     }
-    .sidebar .nav .ico{width:auto !important;font-size:18px;line-height:1.15}
-    .sidebar .nav .t{font-size:11px !important;font-weight:500;white-space:nowrap}
+    .sidebar .nav .ico{font-size:19px;line-height:1;width:24px;text-align:center}
+    .sidebar .nav .t{font-size:14px !important;font-weight:500}
     .sidebar .nav .dotmark{display:none !important}
     .sidebar .nav.active{
-      box-shadow:none !important;
-      background:rgba(56,189,248,.16) !important;color:var(--pink) !important;
+      background:var(--grad) !important;color:#fff !important;
+      box-shadow:0 4px 12px rgba(0,0,0,.14) !important;
     }
-    /* 内容区：不透明底 + 单列 */
-    .workspace{
-      min-width:0;max-width:100vw;padding:0 10px 24px !important;overflow:visible;
+    .sidebar .nav.active .t{color:#fff !important}
+    .sidebar .side-quote,.sidebar .side-sep{display:none !important}
+    .sidebar .side-foot{
+      margin-top:auto;display:flex !important;flex-direction:column;gap:2px;
+      border-top:1px solid var(--line);padding-top:8px;
     }
+    .sidebar .side-note{display:block !important;font-size:10.5px}
+    /* 遮罩 */
+    .drawer-mask{
+      display:none;position:absolute;left:0;top:0;right:0;height:100vh;z-index:94;
+      background:rgba(0,0,0,.42);opacity:0;transition:opacity .24s;
+    }
+    .drawer-mask.show{display:block;opacity:1}
+    /* ---------- 内容区 ---------- */
+    main{display:block !important;padding:0 !important;min-width:0;max-width:100vw;overflow-x:hidden}
+    .app-shell{display:block !important;max-width:100vw;min-width:0;padding:0 !important;margin:0}
+    .workspace{min-width:0;max-width:100vw;padding:12px 10px 28px !important;overflow:visible}
     .row{display:block !important;min-width:0}
     .col-main{display:block !important;min-width:0}
     .col-main .view{display:none}
-    .col-main .view.active{
-      display:block !important;opacity:1 !important;visibility:visible !important;
-    }
+    .col-main .view.active{display:block !important;opacity:1 !important;visibility:visible !important}
     .col-side{position:static !important;max-height:none !important;overflow:visible !important;margin-top:12px}
-    /* 面板：实心底色，不用半透明（半透明在 WebView 里会糊） */
+    /* 面板：NapCat 那种扁平卡片 */
     .panel{
       background:var(--dlg-bg) !important;
-      padding:13px 11px !important;border-radius:14px !important;
+      padding:14px 12px !important;border-radius:14px !important;
+      border:1px solid var(--line) !important;
+      box-shadow:0 1px 2px rgba(0,0,0,.04) !important;
       min-width:0;overflow:hidden;opacity:1 !important;
     }
-    .panel h2{font-size:13.5px;flex-wrap:wrap;gap:6px}
+    .panel h2{font-size:14px !important;margin-bottom:10px !important;flex-wrap:wrap;gap:6px}
     .panel h2 .small{padding:6px 12px;font-size:12px}
-    .metrics-grid{grid-template-columns:1fr !important}
-    .m-strip{grid-template-columns:repeat(2,1fr) !important}
+    .metrics-grid{grid-template-columns:1fr !important;gap:10px !important}
+    .m-card{flex-direction:row !important;gap:12px !important;padding:12px !important;align-items:center}
+    .ring{width:84px !important;height:84px !important}
+    .ring .inner b{font-size:15px !important}
+    .m-info{gap:2px}
+    .m-strip{grid-template-columns:repeat(2,1fr) !important;gap:8px !important}
+    .m-strip .cell{padding:10px 8px !important}
     .statgrid{grid-template-columns:repeat(2,1fr) !important}
     .tasklist{grid-template-columns:1fr !important;gap:10px}
     .tasklist .t{padding:12px}
@@ -627,40 +679,46 @@
     dialog{width:100vw !important;max-height:100dvh !important;height:100dvh !important;
       border-radius:0 !important;max-width:none !important}
     .dlg-body{max-height:calc(100dvh - 110px) !important;padding:14px !important}
+    .dlg-head{padding:12px 16px !important}
     .grid2,.grid3{grid-template-columns:1fr !important}
     .cronrow{grid-template-columns:1fr 1fr !important}
     .cronrow input{grid-column:span 2}
     input,select,textarea{font-size:16px !important;max-width:100%;box-sizing:border-box}
-    button{min-height:38px}
+    button{min-height:40px}
     .toast{bottom:16px !important;max-width:90vw}
-    .m-card{min-width:0}
-    .m-strip .cell{min-width:0}
     .quote{min-height:150px;padding:26px 16px 20px !important}
     .quote p{font-size:15px !important;line-height:1.8}
+    /* 手机端不显示 .menu-btn 外的旧元素 */
+    .sidebar .side-quote{display:none}
   }
   @media (max-width:400px){
-    .sidebar .nav{min-width:54px;padding:5px 5px !important}
-    .sidebar .nav .t{font-size:10px !important}
+    .sidebar{width:210px;max-width:82vw}
     .m-strip{grid-template-columns:1fr 1fr !important}
+    header h1{font-size:14px}
   }
 
 </style>
 </head>
 <body>
 <header>
+  <button class="menu-btn" id="menu-btn" onclick="toggleDrawer()" aria-label="菜单">☰</button>
   <h1>✦ QQ 机器人</h1>
   <div class="status"><span id="dot" class="dot" title="连接状态"></span></div>
   <div class="spacer"></div>
+  <span id="page-title" class="page-title">性能</span>
   <span id="clock" class="muted" style="font-size:12px"></span>
   <button class="small" onclick="cycleTheme()" id="theme-btn" title="切换主题">◐</button>
 </header>
+
+<!-- 抽屉遮罩（手机端） -->
+<div class="drawer-mask" id="drawer-mask" onclick="closeDrawer()"></div>
 
 <main>
  <div class="app-shell">
 
   <!-- ========== 左侧任务栏 ========== -->
   <aside class="sidebar">
-    <div class="brand"><span>✦ QQ 机器人</span></div>
+    <div class="brand"><span>✦ QQ 机器人</span><button class="drawer-close" onclick="closeDrawer()" aria-label="关闭">✕</button></div>
     <button class="nav active" data-nav="sec-metrics" onclick="navTo('sec-metrics',this)"><span class="ico">📊</span><span class="t">性能</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-tasks" onclick="navTo('sec-tasks',this)"><span class="ico">📋</span><span class="t">任务列表</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-triggers" onclick="navTo('sec-triggers',this)"><span class="ico">💬</span><span class="t">触发回复</span><span class="dotmark"></span></button>
@@ -1144,6 +1202,14 @@ function navTo(id, btn) {
   document.querySelectorAll('.sidebar .nav').forEach(x => {
     if (!x.dataset.nav && x.textContent.includes('设置')) x.classList.toggle('active', id === 'sec-settings');
   });
+  // 手机端 App Bar 标题同步
+  const titleEl = $('#page-title');
+  if (titleEl) {
+    const active = b || document.querySelector(`.sidebar .nav.active`);
+    const t = active ? (active.querySelector('.t') || {}).textContent : '';
+    titleEl.textContent = (t || '').trim() || 'QQ 机器人';
+  }
+  closeDrawer();   // 选完导航自动收起抽屉（桌面端无影响）
   window.scrollTo({top: 0, behavior: 'instant'});
   // 切到性能页立即刷新一次（不等下一个周期）
   if (id === 'sec-metrics') loadMetrics();
@@ -1153,6 +1219,23 @@ function navTo(id, btn) {
   if (id === 'sec-upload-users') loadUploadUsers();
   if (id === 'sec-settings') { loadSettingsIntoForm(); }
   try { localStorage.setItem('qqbot-view', id); } catch {}
+}
+
+// ---------- 手机端抽屉 ----------
+function toggleDrawer() {
+  const sb = document.querySelector('.sidebar');
+  const mask = $('#drawer-mask');
+  if (!sb) return;
+  const open = sb.classList.toggle('open');
+  if (mask) mask.classList.toggle('show', open);
+  document.body.style.overflow = open ? 'hidden' : '';
+}
+function closeDrawer() {
+  const sb = document.querySelector('.sidebar');
+  const mask = $('#drawer-mask');
+  if (sb) sb.classList.remove('open');
+  if (mask) mask.classList.remove('show');
+  document.body.style.overflow = '';
 }
 // 启动时恢复上次页面（默认性能）
 (function restoreView() {
