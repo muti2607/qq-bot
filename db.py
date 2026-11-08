@@ -417,11 +417,15 @@ def list_images(only_approved: bool = False, status: str | None = None,
 
 
 def find_image_by_hash(h: str) -> dict | None:
-    """按内容哈希找已有图片（任意状态，含已删除之外的）。"""
+    """按内容哈希找在库有效图片（pending/approved）。
+    rejected（人工驳回）的不算——允许上传者重传修正。"""
     if not h:
         return None
     with db() as conn:
-        row = conn.execute("SELECT * FROM images WHERE hash=? LIMIT 1", (h,)).fetchone()
+        row = conn.execute(
+            "SELECT * FROM images WHERE hash=? AND status IN ('pending','approved') LIMIT 1",
+            (h,),
+        ).fetchone()
     return dict(row) if row else None
 
 
