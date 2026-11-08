@@ -1508,9 +1508,9 @@ async def remote_upload_json(request: Request, body: RemoteUploadIn):
     if dup:
         dest.unlink(missing_ok=True)
         raise HTTPException(409, f"图片重复：图库中已存在相同内容的图片（#{dup['id']}），已被自动拒绝")
-    iid = db.add_image(fname, name, len(raw), status="approved", uploader=uploader, hash=h)
-    db.add_log(f"自动审核通过 {name}（{len(raw) // 1024} KB）由 {uploader} 上传（{ip}）", "info")
-    return {"ok": True, "id": iid, "size": len(raw), "status": "approved", "auto": True}
+    iid = db.add_image(fname, name, len(raw), status="pending", uploader=uploader, hash=h)
+    db.add_log(f"待审核图片 {name}（{len(raw) // 1024} KB）由 {uploader} 上传（{ip}）", "info")
+    return {"ok": True, "id": iid, "size": len(raw), "status": "pending"}
 
 
 @remote_router.post("/remote/upload-file")
@@ -1540,9 +1540,9 @@ async def remote_upload_file(request: Request, file: UploadFile = File(...)):
     if dup:
         dest.unlink(missing_ok=True)
         raise HTTPException(409, f"图片重复：图库中已存在相同内容的图片（#{dup['id']}），已被自动拒绝")
-    iid = db.add_image(fname, name, size, status="approved", uploader=uploader, hash=h)
-    db.add_log(f"自动审核通过 {name}（{size // 1024} KB）由 {uploader} 上传（{ip}）", "info")
-    return {"ok": True, "id": iid, "size": size, "status": "approved", "auto": True}
+    iid = db.add_image(fname, name, size, status="pending", uploader=uploader, hash=h)
+    db.add_log(f"待审核图片 {name}（{size // 1024} KB）由 {uploader} 上传（{ip}）", "info")
+    return {"ok": True, "id": iid, "size": size, "status": "pending"}
 
 
 class UploadLoginIn(BaseModel):
