@@ -393,6 +393,90 @@
   .stat-c span{font-size:11px;color:var(--fg3)}
   @media (max-width:430px){.stats-row{gap:6px}.stat-c b{font-size:16px}}
 
+
+  /* 签到 / 积分 */
+  .checkin-box{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:8px;margin-bottom:10px;flex-wrap:wrap;
+  }
+  .checkin-box .pts{
+    font-size:20px;font-weight:700;color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  .checkin-box .pts small{font-size:11px;color:var(--fg3);font-weight:400;margin-left:3px}
+  .checkin-box .sp{flex:1;min-width:6px}
+  .checkin-box button{
+    width:auto !important;flex:none;margin:0;padding:6px 14px;min-height:32px;
+    font-size:13px;border-radius:7px;
+  }
+  .checkin-box button.primary:disabled{
+    background:var(--surface2) !important;color:var(--fg3) !important;
+    border:1px solid var(--border) !important;
+  }
+  .streak-line{font-size:11.5px;color:var(--fg3);margin:-6px 0 12px}
+  .streak-line b{color:var(--fg)}
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .tier{
+    border:1px solid var(--border);border-radius:8px;padding:10px 8px;
+    text-align:center;cursor:pointer;transition:border-color .12s,background .12s;
+    background:var(--surface);
+  }
+  .tier:hover{border-color:var(--accent)}
+  .tier.on{border-color:var(--accent);background:var(--accent-soft)}
+  .tier .tp{font-size:15px;font-weight:700;color:var(--fg)}
+  .tier .tp small{font-size:10px;color:var(--fg3);font-weight:400}
+  .tier .td{font-size:11.5px;color:var(--fg2);margin-top:2px}
+  .tier .td b{color:var(--accent)}
+  .admin-timed{
+    padding:8px 12px;border-radius:8px;margin-bottom:8px;
+    background:var(--success-soft);color:var(--success);
+    font-size:12.5px;font-weight:500;
+  }
+  .admin-timed .x{color:var(--fg);font-family:var(--mono)}
+
+
+  /* 签到 / 积分 */
+  .checkin-box{
+    display:flex;align-items:center;gap:10px;padding:12px 14px;
+    background:var(--surface2);border:1px solid var(--border);
+    border-radius:8px;margin-bottom:10px;flex-wrap:wrap;
+  }
+  .checkin-box .pts{
+    font-size:20px;font-weight:700;color:var(--accent);
+    font-variant-numeric:tabular-nums;
+  }
+  .checkin-box .pts small{font-size:11px;color:var(--fg3);font-weight:400;margin-left:3px}
+  .checkin-box .sp{flex:1;min-width:6px}
+  .checkin-box button{
+    width:auto !important;flex:none;margin:0;padding:6px 14px;min-height:32px;
+    font-size:13px;border-radius:7px;
+  }
+  .checkin-box button.primary:disabled{
+    background:var(--surface2) !important;color:var(--fg3) !important;
+    border:1px solid var(--border) !important;
+  }
+  .streak-line{font-size:11.5px;color:var(--fg3);margin:-4px 0 14px}
+  .streak-line b{color:var(--fg)}
+  .tiers{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:10px}
+  .tier{
+    border:1px solid var(--border);border-radius:8px;padding:10px 8px;
+    text-align:center;cursor:pointer;transition:border-color .12s,background .12s;
+    background:var(--surface);
+  }
+  .tier:hover{border-color:var(--accent)}
+  .tier.on{border-color:var(--accent);background:var(--accent-soft)}
+  .tier .tp{font-size:15px;font-weight:700;color:var(--fg)}
+  .tier .tp small{font-size:10px;color:var(--fg3);font-weight:400}
+  .tier .td{font-size:11.5px;color:var(--fg2);margin-top:2px}
+  .tier .td b{color:var(--accent)}
+  .admin-timed{
+    padding:8px 12px;border-radius:8px;margin-bottom:8px;
+    background:var(--success-soft);color:var(--success);
+    font-size:12.5px;font-weight:500;
+  }
+  .admin-timed .x{color:var(--fg);font-family:var(--mono)}
+
 </style>
 </head>
 <body>
@@ -553,6 +637,24 @@
               <button class="sm" onclick="loadMine()">刷新</button>
             </div>
             <div id="mineList"></div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-hd">签到 · 积分</div>
+            <div class="checkin-box">
+              <span class="pts" id="ptsVal">0<small>分</small></span>
+              <span class="sp"></span>
+              <button class="primary" id="checkinBtn" onclick="doCheckin()">每日签到 +10</button>
+            </div>
+            <div class="streak-line" id="streakLine">连续签到 <b>0</b> 天 · 连续 7 天奖励 +50 · 连续 30 天奖励 +200</div>
+
+            <div class="sec-hd" style="margin-top:14px">兑换管理员权限</div>
+            <div class="admin-timed hidden" id="timedAdmin"></div>
+            <div class="tiers" id="tierBox"></div>
+            <button class="ghost" onclick="doExchange()" style="margin:0 0 10px">积分兑换管理员权限</button>
+            <div style="font-size:11.5px;color:var(--fg3);line-height:1.6">
+              兑换后获得对应时长的管理员权限（可审批图片、批准注册申请），到期自动收回。剩余时长可叠加。
+            </div>
           </div>
 
           <div class="sec">
@@ -738,6 +840,7 @@ function enterUpload(username, uidNumber, isAdmin) {
   $('#adminEntry').classList.toggle('hidden', !admin);
   showOnly('upload');
   loadMine();
+  loadPoints();
 }
 
 let codeTimer = null;
@@ -845,6 +948,72 @@ function esc(s) {
   return String(s == null ? '' : s).replace(/[&<>"']/g, function (c) {
     return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];
   });
+}
+
+/* ---------- 签到 / 积分 ---------- */
+let myTierIdx = -1;
+async function loadPoints() {
+  try {
+    const p = await fetch('/remote/points', {credentials: 'same-origin', headers: H()}).then(r => r.json());
+    if (!p.ok) return;
+    $('#ptsVal').innerHTML = p.points + '<small>分</small>';
+    $('#streakLine').innerHTML = '连续签到 <b>' + p.streak + '</b> 天 · 连续 7 天奖励 +50 · 连续 30 天奖励 +200';
+    const btn = $('#checkinBtn');
+    if (p.today_checked) {
+      btn.textContent = '今日已签到';
+      btn.disabled = true;
+    } else {
+      btn.textContent = '每日签到 +10';
+      btn.disabled = false;
+    }
+    const box = $('#tierBox');
+    box.innerHTML = p.tiers.map(function (t, idx) {
+      return '<div class="tier" onclick="pickTier(' + idx + ')" data-idx="' + idx + '">' +
+        '<div class="tp">' + t.points + '<small> 分</small></div>' +
+        '<div class="td">兑换 <b>' + t.label + '</b></div></div>';
+    }).join('');
+    const ta = $('#timedAdmin');
+    if (p.is_timed_admin && p.admin_until) {
+      ta.innerHTML = '🛡️ 管理员权限生效中 · 至 <span class="x">' + p.admin_until.slice(0, 16) + '</span>';
+      ta.classList.remove('hidden');
+    } else {
+      ta.classList.add('hidden');
+    }
+  } catch (e) {}
+}
+
+function pickTier(idx) {
+  myTierIdx = idx;
+  document.querySelectorAll('.tier').forEach(function (t) { t.classList.remove('on'); });
+  const el = document.querySelector('.tier[data-idx="' + idx + '"]');
+  if (el) el.classList.add('on');
+}
+
+async function doCheckin() {
+  const btn = $('#checkinBtn');
+  btn.disabled = true;
+  try {
+    const r = await post('/remote/checkin', {}, H());
+    if (r.ok) {
+      msg('#upMsg', r.msg);
+      loadPoints();
+    } else {
+      msg('#upMsg', r.msg, true);
+    }
+  } catch (e) { msg('#upMsg', e.message, true); }
+}
+
+async function doExchange() {
+  if (myTierIdx < 0) return alert('请先点选一个兑换档位');
+  const labels = ['1 天', '7 天', '30 天'];
+  if (!confirm('确认用积分兑换 ' + labels[myTierIdx] + ' 管理员权限？')) return;
+  try {
+    const r = await post('/remote/exchange', {tier: myTierIdx}, H());
+    if (r.ok) {
+      alert(r.msg);
+      loadPoints();
+    } else alert(r.msg);
+  } catch (e) { alert(e.message); }
 }
 
 async function loadMine() {

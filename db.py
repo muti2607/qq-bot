@@ -196,6 +196,11 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE upload_users ADD COLUMN banned_until TEXT NOT NULL DEFAULT ''")
     if "ban_reason" not in uu_cols:
         conn.execute("ALTER TABLE upload_users ADD COLUMN ban_reason TEXT NOT NULL DEFAULT ''")
+    try:
+        import checkin as _ck
+        _ck._migrate(conn)
+    except Exception:
+        pass
     img_cols = cols("images")
     if "hash" not in img_cols:
         conn.execute("ALTER TABLE images ADD COLUMN hash TEXT NOT NULL DEFAULT ''")

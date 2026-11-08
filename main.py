@@ -28,6 +28,7 @@ import db
 import onebot
 import scheduler
 import sender
+import checkin
 import mailer
 import triggers
 
@@ -1378,14 +1379,17 @@ def _require_admin_ctx(request: Request, admin_password: str = "") -> str:
     who = _parse_upload_token(tok) if tok else None
     if who:
         rec = db.get_upload_user(who)
-        if rec and rec.get("enabled") and rec.get("is_admin"):
-            # 管理员登录态：豁免该 IP 的限流（清计数与封禁）
-            ip = _client_ip(request)
-            with _RATE_LOCK:
-                _RATE_WINDOWS.pop(ip, None)
-                _BAN_UNTIL.pop(ip, None)
-                _BAN_UNTIL.pop(ip + ":hits", None)
-            return f"{who}(管理员账号)"
+        if rec and rec.get("enabled"):
+            timed = checkin.is_timed_admin(who)
+            if rec.get("is_admin") or timed:
+                # 管理员登录态：豁免该 IP 的限流（清计数与封禁）
+                ip = _client_ip(request)
+                with _RATE_LOCK:
+                    _RATE_WINDOWS.pop(ip, None)
+                    _BAN_UNTIL.pop(ip, None)
+                    _BAN_UNTIL.pop(ip + ":hits", None)
+                tag = "管理员账号" if rec.get("is_admin") else f"积分管理员(至 {rec.get('admin_until', '')[:10]})"
+                return f"{who}({tag})"
     # 方式二：管理密码
     cur = db.get_settings().get("admin_password", "")
     if cur and admin_password and secrets.compare_digest(admin_password, cur):
@@ -1622,6 +1626,51 @@ async def remote_apply_status(request: Request, mail: str):
     return {"ok": True, "status": "none"}
 
 
+class CheckinIn(BaseModel):
+    username: str = ""   # 可选；默认用登录态
+
+
+@remote_router.post("/remote/checkin")
+async def remote_checkin(request: Request, body: CheckinIn):
+    """每日签到（需登录态）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    u = _upload_user_from(request)
+    r = checkin.checkin(u)
+    return r
+
+
+@remote_router.get("/remote/points")
+async def remote_points(request: Request):
+    """我的积分 / 管理员状态 / 兑换档位。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    u = _upload_user_from(request)
+    return checkin.get_points(u)
+
+
+class ExchangeIn(BaseModel):
+    tier: int
+
+
+@remote_router.post("/remote/exchange")
+async def remote_exchange(request: Request, body: ExchangeIn):
+    """积分兑换管理员权限（时间制）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    u = _upload_user_from(request)
+    r = checkin.exchange(u, body.tier)
+    if r.get("ok"):
+        db.add_log(f"{u} 用 {r['spent']} 积分兑换管理员权限至 {r['admin_until']}", "info")
+    return r
+
+
 @remote_router.post("/remote/login")
 async def remote_login(request: Request, body: UploadLoginIn):
     ip = _client_ip(request)
@@ -1645,9 +1694,13 @@ async def remote_login(request: Request, body: UploadLoginIn):
             raise HTTPException(403, tip)
     tok = _make_upload_token(body.username.strip())
     rec = db.get_upload_user(body.username.strip())
+    pts = checkin.get_points(body.username.strip())
     resp = JSONResponse({"ok": True, "username": body.username.strip(),
                          "uid_number": (rec or {}).get("uid_number") or "",
                          "is_admin": bool((rec or {}).get("is_admin")),
+                         "is_timed_admin": pts.get("is_timed_admin", False),
+                         "points": pts.get("points", 0),
+                         "today_checked": pts.get("today_checked", False),
                          "token": tok})
     resp.set_cookie("upload_session", tok, httponly=True, samesite="lax",
                     max_age=_UPLOAD_SESSION_HOURS * 3600)
@@ -1663,9 +1716,14 @@ async def remote_logout():
 async def remote_me(request: Request):
     u = _upload_user_from(request)
     rec = db.get_upload_user(u)
+    pts = checkin.get_points(u)
     return {"ok": True, "username": u,
             "uid_number": (rec or {}).get("uid_number") or "",
             "is_admin": bool((rec or {}).get("is_admin")),
+            "is_timed_admin": pts.get("is_timed_admin", False),
+            "admin_until": pts.get("admin_until", ""),
+            "points": pts.get("points", 0),
+            "today_checked": pts.get("today_checked", False),
             "id": (rec or {}).get("id")}
 
 @remote_router.get("/remote/mine")
