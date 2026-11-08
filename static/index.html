@@ -304,80 +304,27 @@
   .side-quote .w{display:block;margin-top:6px;font-size:11px;color:var(--pink);font-weight:600}
   .side-foot{margin-top:auto;display:flex;flex-direction:column;gap:4px}
   .side-note{font-size:10.5px;color:var(--sub);text-align:center;padding:6px 0 0;opacity:.8}
-  @media (max-width:980px){
-    header{padding-left:14px}
-    .app-shell{grid-template-columns:1fr;padding:10px 10px 86px}  /* 底部留出 tabbar 空间 */
-    .sidebar{
-      position:fixed;bottom:0;left:0;right:0;z-index:50;
-      height:auto;min-height:0;flex-direction:row;align-items:stretch;gap:0;padding:6px 4px;
-      border-radius:20px 20px 0 0;border:1px solid var(--line);border-bottom:none;
-      background:var(--header-bg);backdrop-filter:blur(16px);
-      box-shadow:0 -6px 24px rgba(0,0,0,.10);
-      overflow:visible;
-    }
-    .sidebar .brand,.sidebar .side-quote,.sidebar .side-sep,.sidebar .side-note{display:none}
-    .sidebar .nav{
-      flex:1;flex-direction:column;gap:2px;align-items:center;justify-content:center;
-      width:auto;padding:6px 2px;border-radius:12px;font-size:10.5px;min-height:52px;
-    }
-    .sidebar .nav .ico{width:auto;font-size:19px}
-    .sidebar .nav .t{font-size:10.5px;font-weight:500}
-    .sidebar .nav .dotmark{display:none}
-    .sidebar .nav.active{box-shadow:none;background:rgba(236,72,153,.12);color:var(--pink)}
-    .sidebar .side-foot{margin:0;display:contents}
-  }
+  
   /* 手机底部 tabbar：显示时隐藏原生侧栏的次要项 */
-  @media (max-width:980px){
-    .sidebar .nav[data-nav]{display:flex}
-  }
+  
   /* ========== 手机触屏优化 ========== */
-  @media (max-width:980px){
-    header{padding:10px 14px}
-    header h1{font-size:15px}
-    main{padding:0 0 76px}  /* 底部 tabbar 高度 */
-    .app-shell{padding:10px 10px 10px}
-    .panel{padding:14px 12px;border-radius:16px}
-    .panel h2{font-size:13.5px;flex-wrap:wrap;gap:6px}
-    .panel h2 .small{padding:6px 12px;font-size:12px}  /* 面板按钮加大可点 */
-    .tasklist{grid-template-columns:1fr;gap:10px}
-    .tasklist .t{padding:12px}
-    .tasklist .ops{max-width:none;width:100%;justify-content:flex-end}
-    .tasklist .ops .small{padding:8px 14px;font-size:12.5px}  /* 操作按钮拇指可点 */
-    .tasklist .exec{width:56px;height:56px}
-    .imgs{grid-template-columns:repeat(auto-fill,minmax(96px,1fr))}
-    .log{max-height:280px;font-size:11.5px}
-    dialog{width:100vw;max-height:100vh;height:100dvh;border-radius:0;max-width:none}
-    .dlg-body{max-height:calc(100dvh - 120px);padding:14px}
-    .grid2,.grid3{grid-template-columns:1fr}
-    .cronrow{grid-template-columns:1fr 1fr}
-    .cronrow input{grid-column:span 2}
-    input,select,textarea{font-size:16px}  /* 防 iOS 聚焦缩放 */
-    button{min-height:38px}
-    .toast{bottom:calc(76px + 12px)}  /* 避开 tabbar */
-    .statgrid{grid-template-columns:repeat(4,1fr)}
-    .side-quote{display:none}
-  }
+  
   /* 单页切换（NapCat 风格）：同一时刻只显示一个板块 */
   .col-main .view{display:none}
   .col-main .view.active{display:flex;flex-direction:column;gap:16px}
   /* 日志页独占视口高度，内部滚动，不影响其他页 */
   #sec-logs.active{height:calc(100vh - 108px)}
   #sec-logs .log{flex:1;min-height:0;max-height:none;overflow:auto}
-  @media (max-width:980px){
-    #sec-logs.active{height:calc(100dvh - 170px)}
-  }
+  
   .panel{scroll-margin-top:84px}
   .workspace{min-width:0;padding:18px 24px 40px;max-width:1400px}
   .row{display:grid;grid-template-columns:minmax(0,1fr) 430px;gap:20px;align-items:start}
-  @media (max-width:980px){.row{grid-template-columns:1fr}}
+  
   /* 单页模式：col-main 只承载当前激活的一页 */
   .col-main{display:flex;flex-direction:column;gap:16px;min-width:0}
   .panel-log .log{flex:1;min-height:0;max-height:none;overflow:auto}
   .col-side{display:grid;gap:16px;align-content:start;position:sticky;top:76px;min-width:0;max-height:calc(100vh - 92px);overflow:auto}
-  @media (max-width:980px){
-    .col-side{position:static}
-    .panel-log .log{height:auto}
-  }
+  
   .panel{
     background:var(--card);backdrop-filter:blur(10px);
     border:1px solid var(--line);
@@ -579,11 +526,89 @@
   .m-bar{height:7px;border-radius:99px;background:var(--line2);overflow:hidden;margin-top:6px}
   .m-bar i{display:block;height:100%;border-radius:99px;background:var(--grad);transition:width .6s}
   .metrics-foot{display:flex;gap:10px;align-items:center;margin-top:12px;font-size:12px;color:var(--sub)}
+  
+
+  /* ==================== 手机端统一布局（<=980px） ==================== */
   @media (max-width:980px){
+    html{-webkit-text-size-adjust:100%}
+    body{overflow-x:hidden}
+    header{
+      padding:10px 14px;position:sticky;top:0;z-index:60;
+      gap:10px;flex-wrap:wrap;
+    }
+    header h1{font-size:15px}
+    header .muted, header .sub{display:none}
+    main{padding:0 0 72px;min-width:0;max-width:100vw;overflow-x:hidden}
+    .app-shell{
+      display:block;max-width:100vw;padding:10px 10px 80px;
+      margin:0;min-width:0;
+    }
+    /* 底部导航：横向滚动，9 项不再挤成竖排 */
+    .sidebar{
+      position:fixed;bottom:0;left:0;right:0;z-index:80;
+      height:auto;min-height:0;max-height:none;
+      flex-direction:row;align-items:stretch;gap:2px;
+      padding:6px 6px calc(6px + env(safe-area-inset-bottom));
+      border-radius:16px 16px 0 0;border:1px solid var(--line);border-bottom:none;
+      background:var(--header-bg);backdrop-filter:blur(16px);
+      box-shadow:0 -6px 24px rgba(0,0,0,.14);
+      overflow-x:auto;overflow-y:hidden;
+      scrollbar-width:none;-webkit-overflow-scrolling:touch;
+    }
+    .sidebar::-webkit-scrollbar{display:none}
+    .sidebar .brand,.sidebar .side-quote,.sidebar .side-sep,.sidebar .side-note{display:none}
+    .sidebar .nav{
+      flex:0 0 auto;flex-direction:column;gap:2px;align-items:center;justify-content:center;
+      width:auto;min-width:62px;min-height:54px;padding:6px 8px;
+      border-radius:12px;font-size:10.5px;white-space:nowrap;
+    }
+    .sidebar .nav .ico{width:auto;font-size:19px;line-height:1.1}
+    .sidebar .nav .t{font-size:10.5px;font-weight:500;white-space:nowrap}
+    .sidebar .nav .dotmark{display:none}
+    .sidebar .nav.active{box-shadow:none;background:rgba(56,189,248,.16);color:var(--pink)}
+    .sidebar .side-foot{margin:0;display:contents}
+    /* 内容区 */
+    .workspace{min-width:0;max-width:100vw;padding:0;overflow:hidden}
+    .row{display:block;min-width:0}
+    .col-main{display:block;min-width:0}
+    .col-main .view{display:none}
+    .col-main .view.active{display:block}
+    .col-side{
+      position:static;max-height:none;overflow:visible;
+      margin-top:14px;
+    }
+    .panel{padding:14px 12px;border-radius:16px;min-width:0;overflow:hidden}
+    .panel h2{font-size:13.5px;flex-wrap:wrap;gap:6px}
+    .panel h2 .small{padding:6px 12px;font-size:12px}
     .metrics-grid{grid-template-columns:1fr}
-    .m-strip{grid-template-columns:repeat(3,1fr)}
-    .m-card{min-height:150px}
+    .m-strip{grid-template-columns:repeat(2,1fr)}
+    .statgrid{grid-template-columns:repeat(2,1fr)}
+    .tasklist{grid-template-columns:1fr;gap:10px}
+    .tasklist .t{padding:12px}
+    .tasklist .ops{max-width:none;width:100%;justify-content:flex-end;flex-wrap:wrap}
+    .tasklist .ops .small{padding:8px 14px;font-size:12.5px}
+    .tasklist .exec{width:56px;height:56px}
+    .imgs{grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+    .log{max-height:280px;font-size:11.5px}
+    #sec-logs.active{height:auto}
+    #sec-logs .log{max-height:60vh}
+    dialog{width:100vw;max-height:100dvh;height:100dvh;border-radius:0;max-width:none}
+    .dlg-body{max-height:calc(100dvh - 120px);padding:14px}
+    .grid2,.grid3{grid-template-columns:1fr}
+    .cronrow{grid-template-columns:1fr 1fr}
+    .cronrow input{grid-column:span 2}
+    input,select,textarea{font-size:16px;max-width:100%}
+    button{min-height:38px}
+    .toast{bottom:calc(72px + 12px)}
+    .side-quote{display:none}
+    .m-card{min-width:0}
+    .m-strip .cell{min-width:0}
   }
+  @media (max-width:400px){
+    .m-strip{grid-template-columns:1fr 1fr}
+    .sidebar .nav{min-width:56px;padding:6px 5px}
+  }
+
 </style>
 </head>
 <body>
