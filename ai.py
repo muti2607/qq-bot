@@ -40,9 +40,10 @@ TEST_PROMPT = "用一句简短的中文跟我打个招呼"
 # 会话记忆：session_key -> {"at": ts, "msgs": [(role, content), ...]}
 _HISTORY: dict[str, dict[str, Any]] = {}
 _HISTORY_LOCK = threading.Lock()
-HISTORY_TURNS = 6          # 最多保留 6 条（3 轮问答）
-HISTORY_TTL = 1800         # 30 分钟没用就丢弃
-HISTORY_MAX_SESSIONS = 300
+HISTORY_TURNS = 16         # 保留最近 16 轮（32 条），够接上群聊话题
+HISTORY_TTL = 7200         # 2 小时没用就丢弃
+HISTORY_MAX_SESSIONS = 200
+HISTORY_MAX_CHARS = 6000   # 单会话总字数上限，超了砍最早的
 
 # 记住上次成功的接口名，下次优先尝试它
 _last_good: str | None = None
@@ -153,21 +154,45 @@ def providers() -> list[dict[str, str]]:
 # ---------------- 会话记忆 ----------------
 
 
+def _trim(msgs: list[dict[str, str]]) -> list[dict[str, str]]:
+    """按条数和总字数双重裁剪，保留最近的，且不切断问答配对。"""
+    if len(msgs) > HISTORY_TURNS * 2:
+        msgs = msgs[-HISTORY_TURNS * 2:]
+    # 字数预算
+    total = sum(len(m["content"]) for m in msgs)
+    while total > HISTORY_MAX_CHARS and len(msgs) > 2:
+        dropped = msgs.pop(0)
+        total -= len(dropped["content"])
+    # 确保第一条不是 assistant（否则模型会以为自己先开口）
+    while msgs and msgs[0]["role"] == "assistant":
+        msgs.pop(0)
+    return msgs
+
+
 def _history_get(session_key: str) -> list[dict[str, str]]:
     if not session_key:
         return []
     now = time.time()
     with _HISTORY_LOCK:
         item = _HISTORY.get(session_key)
-        if not item:
-            return []
-        if now - item["at"] > HISTORY_TTL:
-            _HISTORY.pop(session_key, None)
-            return []
-        return list(item["msgs"])
+        if item and now - item["at"] <= HISTORY_TTL:
+            return [dict(m) for m in item["msgs"]]
+        _HISTORY.pop(session_key, None)
+
+    # 内存没有（比如刚重启），从库里捞回来
+    try:
+        saved = db.load_memory(session_key, max_age=HISTORY_TTL)
+    except Exception:
+        saved = []
+    if saved:
+        with _HISTORY_LOCK:
+            _HISTORY[session_key] = {"at": now, "msgs": saved}
+        log.info("已从磁盘恢复会话上下文（%s，%d 条）", session_key, len(saved))
+    return saved
 
 
-def _history_add(session_key: str, user_text: str, reply: str) -> None:
+def _history_add(session_key: str, user_text: str, reply: str | None = None) -> None:
+    """追加一轮对话。reply 传 None 表示只旁听（群友之间说话，我没有参与）。"""
     if not session_key:
         return
     now = time.time()
@@ -177,20 +202,44 @@ def _history_add(session_key: str, user_text: str, reply: str) -> None:
             item = {"at": now, "msgs": []}
             _HISTORY[session_key] = item
         item["at"] = now
-        item["msgs"].append({"role": "user", "content": user_text})
-        item["msgs"].append({"role": "assistant", "content": reply})
-        if len(item["msgs"]) > HISTORY_TURNS * 2:
-            item["msgs"] = item["msgs"][-HISTORY_TURNS * 2:]
-        # 会话数过多时清掉最旧的一批
+        if user_text:
+            item["msgs"].append({"role": "user", "content": user_text})
+        if reply:
+            item["msgs"].append({"role": "assistant", "content": reply})
+        item["msgs"] = _trim(item["msgs"])
+        snapshot = list(item["msgs"])
         if len(_HISTORY) > HISTORY_MAX_SESSIONS:
             ordered = sorted(_HISTORY.items(), key=lambda kv: kv[1]["at"])
             for k, _ in ordered[: len(_HISTORY) - HISTORY_MAX_SESSIONS]:
                 _HISTORY.pop(k, None)
 
+    # 落盘（失败不影响对话）
+    try:
+        db.save_memory(session_key, snapshot)
+    except Exception:
+        pass
+
+
+def observe(session_key: str, line: str) -> None:
+    """旁听：把群友的话记进上下文，但不触发回复。
+
+    这样它知道「刚才谁说了什么」，被叫到时能接上，而不是断片。
+    """
+    if not session_key or not line:
+        return
+    line = line.strip()[:200]
+    if not line:
+        return
+    _history_add(session_key, line, None)
+
 
 def reset_history(session_key: str) -> None:
     with _HISTORY_LOCK:
         _HISTORY.pop(session_key, None)
+    try:
+        db.drop_memory(session_key)
+    except Exception:
+        pass
 
 
 # ---------------- 文本清洗 ----------------
@@ -328,6 +377,14 @@ def chat(user_text: str, system_prompt: str | None = None, session_key: str | No
         content = f"{speaker}：{content}"
     messages.append({"role": "user", "content": content})
 
+    # 有上下文时补一句说明，让模型知道上面是群聊记录、接下来该谁说话
+    if len(messages) > 1 and sys_prompt:
+        sys_prompt = sys_prompt + (
+            "\n【当前对话】下面是你所在群/私聊的最近聊天记录。"
+            "带「昵称：」的是别人说的，不带昵称的是你自己说过的。"
+            "接着最后一句自然地回应，别重复别人说过的话，别总结。"
+        )
+
     errors: list[str] = []
     for p in plist:
         started = time.time()
@@ -335,8 +392,10 @@ def chat(user_text: str, system_prompt: str | None = None, session_key: str | No
         cost = time.time() - started
         if reply:
             _last_good = p["name"]
-            _history_add(session_key or "", user_text.strip(), reply)
-            log.info("AI 由接口[%s] 在 %.1fs 内回复成功（%d 字）", p["name"], cost, len(reply))
+            # 记忆里只存对话内容本身，不存"昵称："前缀（避免重复叠加）
+            _history_add(session_key or "", content, reply)
+            log.info("AI 由接口[%s] 在 %.1fs 内回复成功（%d 字，上下文 %d 条）",
+                     p["name"], cost, len(reply), len(messages))
             return reply
         errors.append(p["name"])
 

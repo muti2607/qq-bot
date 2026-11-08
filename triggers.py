@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import datetime as _dt
+import queue
 import re
 import threading
 import time
@@ -33,11 +34,22 @@ _last_fight_reply: dict[int, float] = {}
 _last_collect_try: dict[int, float] = {}
 
 
-def _self_qq() -> int | None:
-    """缓存自己的 QQ 号（10 分钟内不重复查询）。"""
+def _self_qq(event: dict | None = None) -> int | None:
+    """自己的 QQ 号。优先用事件里自带的 self_id（零成本），其次用缓存。"""
     global _self_id, _self_id_at
+    # 事件里一般就带着 self_id，直接用，省一次 HTTP
+    if event:
+        sid = event.get("self_id")
+        if sid:
+            try:
+                _self_id = int(sid)
+                _self_id_at = time.time()
+                return _self_id
+            except (TypeError, ValueError):
+                pass
+
     now = time.time()
-    if _self_id is not None and now - _self_id_at < 600:
+    if _self_id is not None and now - _self_id_at < 3600:
         return _self_id
     try:
         info = onebot.get_login_info()
@@ -176,7 +188,7 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
     if desc:
         db.add_log(f"看懂了 {who} 的图：{desc[:60]}", "info", None)
         if is_group:
-            remember_line(target_id, f"{who}：[图片]{desc[:40]}", _self_qq())
+            remember_line(target_id, f"{who}：[图片]{desc[:40]}", _self_qq(event))
 
     # 3) 偷图（只存图片表情，小黄脸不存）
     #    收藏要多调一次模型，限速：同一群 2 分钟最多试一次
@@ -213,18 +225,28 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
             _send_ai_reply(reply, False, target_id, event)
         else:
             # 模型不可用也要有反应：回一张表情
-            st = stickers.random_sticker()
-            if st:
-                stickers.send_sticker("private", target_id, st)
+            if str(cfg.get("ai_use_qq_fav", "1")) == "1" and stickers.send_qq_favorite("private", target_id):
+                pass
+            else:
+                st = stickers.random_sticker()
+                if st:
+                    stickers.send_sticker("private", target_id, st)
         return True
 
     # 5) 群聊：被 @ / 在斗图 → 甩表情
     should_fight = mentioned or fighting
     if should_fight:
-        st = stickers.random_sticker()
-        sent_img = bool(st and stickers.send_sticker("group", target_id, st))
-        if sent_img:
-            db.add_log(f"斗图：甩出 #{st['id']}（{st.get('note') or '无备注'}）", "info", None)
+        # 优先用自己 QQ 收藏的表情（更贴自己的口味），没有再退回本地库
+        sent_img = False
+        if str(cfg.get("ai_use_qq_fav", "1")) == "1":
+            sent_img = stickers.send_qq_favorite("group", target_id)
+            if sent_img:
+                db.add_log("斗图：发了一张 QQ 收藏表情", "info", None)
+        if not sent_img:
+            st = stickers.random_sticker()
+            sent_img = bool(st and stickers.send_sticker("group", target_id, st))
+            if sent_img:
+                db.add_log(f"斗图：甩出 #{st['id']}（{st.get('note') or '无备注'}）", "info", None)
         # 配一句嘴
         try:
             ctx = f"{who}发了张图：{desc}" if desc else f"{who}发了{'小黄脸' if is_face else '张图'}"
@@ -261,6 +283,8 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
         return True
 
     # 没看懂又没配文：甩张表情，别沉默
+    if str(cfg.get("ai_use_qq_fav", "1")) == "1" and stickers.send_qq_favorite("group", target_id):
+        return True
     st = stickers.random_sticker()
     if st:
         stickers.send_sticker("group", target_id, st)
@@ -296,13 +320,20 @@ def _maybe_save(desc: str, seg: dict) -> int | None:
     tags = (m.group(2).strip() if m else "")
     if not note:
         return None
-    # 备注重复就别重复存
-    for row in db.list_stickers(limit=300):
-        if row.get("note") and row["note"] == note:
-            return None
+    # 内容去重由 db.add_sticker 负责（比对 md5）
     sid = stickers.save_sticker(seg, note=note, tags=tags)
-    if sid:
-        db.add_log(f"偷了张表情 #{sid}：{note}", "info", None)
+    if not sid:
+        return None
+    db.add_log(f"偷了张表情 #{sid}：{note}", "info", None)
+
+    # 同时收藏进 QQ 的「收藏表情」，手机上也能直接用
+    if str(db.get_settings().get("ai_fav_to_qq", "1")) == "1":
+        try:
+            sid2 = db.get_sticker(sid)
+            if sid2 and stickers.favorite_to_qq(sid2):
+                db.add_log(f"已同步收藏到 QQ 表情：{note}", "info", None)
+        except Exception as e:
+            db.add_log(f"同步到 QQ 收藏失败：{e}", "warn", None)
     return sid
 
 
@@ -332,10 +363,14 @@ def _send_ai_reply(reply: str, is_group: bool, target_id: int, event: dict) -> b
                     onebot.send_poke(int(target_id), int(uid))
                     delivered = True
             elif kind == "sticker":
-                st = stickers.random_sticker()
-                if st:
-                    delivered = stickers.send_sticker(
-                        "group" if is_group else "private", target_id, st) or delivered
+                where = "group" if is_group else "private"
+                if str(db.get_settings().get("ai_use_qq_fav", "1")) == "1" \
+                        and stickers.send_qq_favorite(where, target_id):
+                    delivered = True
+                else:
+                    st = stickers.random_sticker()
+                    if st:
+                        delivered = stickers.send_sticker(where, target_id, st) or delivered
         except Exception as e:
             db.add_log(f"动作 {kind} 失败：{e}", "warn", None)
     return delivered
@@ -350,7 +385,7 @@ def handle_event(event: dict) -> None:
     is_group, target_id = _event_target(event)
     session_key = f"{'g' if is_group else 'p'}:{target_id}"
     at_ids = _at_list(segments)
-    self_qq = _self_qq()
+    self_qq = _self_qq(event)
     mentioned = str(self_qq) in at_ids or "all" in at_ids
 
     # 只有 @ 没有文字（只 @ 了一下）：也当一句空话交给 AI，让它有反应
@@ -385,12 +420,18 @@ def handle_event(event: dict) -> None:
         if text and not text.startswith("（@了你"):
             remember_line(target_id, f"{who0}：{text}" if who0 else text, self_qq)
 
-    # 不接自己的话（reportSelfMessage 若打开会形成死循环）
+    # 自己的话不进上下文（否则会自问自答）
     if self_qq and str(event.get("user_id")) == str(self_qq):
         return
 
-    # all 模式下每条都回会很吵：同一群两次回复之间至少隔 N 秒
-    if is_group and ai.reply_mode() == "all":
+    # 旁听：不管回不回，都把这句记进会话上下文，被叫到时才能接上前文
+    if is_group and text and not text.startswith("（@了你"):
+        snd0 = event.get("sender", {}) or {}
+        who0 = snd0.get("card") or snd0.get("nickname") or ""
+        ai.observe(session_key, f"{who0}：{text}" if who0 else text)
+
+    # 限速：只限制「主动插话」，被 @ / 被点名时永远优先回，不受限速影响
+    if is_group and not mentioned and ai.reply_mode() == "all":
         try:
             gap = int(db.get_settings().get("ai_group_gap") or 25)
         except Exception:
@@ -399,6 +440,9 @@ def handle_event(event: dict) -> None:
         with _lock:
             last = _last_ai_group.get(int(target_id), 0.0)
             if gap > 0 and now_t - last < gap:
+                db.add_log(
+                    f"群 {target_id} 限速中（距上次回复 {now_t - last:.0f}s < {gap}s），这条不接",
+                    "info", None)
                 return
             _last_ai_group[int(target_id)] = now_t
 
@@ -545,7 +589,7 @@ def _parse_actions(reply: str) -> tuple[str, list[tuple[str, str]]]:
 
 def handle_poke(event: dict) -> None:
     """有人戳了机器人：按设置回戳，或者回一句话。"""
-    if event.get("target_id") and int(event["target_id"]) != int(_self_qq() or 0):
+    if event.get("target_id") and int(event["target_id"]) != int(_self_qq(event) or 0):
         return  # 戳的不是我
     settings = db.get_settings()
     if str(settings.get("ai_poke_reply_poke", "1")) == "1":
@@ -584,7 +628,7 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
     if is_group and mode == "at" and not mentioned:
         return False
 
-    self_qq = _self_qq()
+    self_qq = _self_qq(event)
     session_key = f"g:{target_id}" if is_group else f"p:{target_id}"
     snd = event.get("sender", {}) or {}
     speaker = snd.get("card") or snd.get("nickname") or ""
@@ -595,18 +639,11 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
         qtext = qtext.replace(f"[CQ:at,qq={self_qq}]", " ")
     qtext = qtext.strip()
 
-    # 只 @ 不说话 / 没文字：把最近群聊上下文喂给模型
+    # 上下文已经在 ai 的会话记忆里（triggers 会旁听每句话），这里只描述"这次发生了什么"
     if is_group and (not qtext or qtext in ("（@了你，没说话）",)):
-        recent = _recent_group_lines(target_id, limit=8)
-        if recent:
-            qtext = ("（群里刚才在聊：\n" + "\n".join(recent) +
-                     "\n——有人刚@了你/叫了你。就着上面的话题，随口接一句。）")
-        else:
-            qtext = "（群里刚@了你，没别的话。随口应一声。）"
-
-    # 群聊里非 @ 的普通发言：只有 all 模式才走到这里，让它知道自己在插话
-    if is_group and speaker and mode == "all" and not mentioned:
-        qtext = f"（群里正在聊：{qtext}）"
+        qtext = "（有人 @ 了你但没打字，接着群里刚才的话题随口应一句）"
+    elif is_group and mentioned:
+        qtext = f"（有人 @ 你：{qtext}）" if qtext else "（有人 @ 了你）"
 
     try:
         reply = ai.chat(qtext, session_key=session_key, speaker=speaker)
@@ -618,6 +655,18 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
 
     # 解析模型输出里的控制标记：[face:xx] 发表情，[poke] 戳对方
     clean_text, actions = _parse_actions(reply)
+
+    # 被 @ 或私聊时：只有表情没有文字，说明模型偷懒了，再要一句
+    if mentioned and not clean_text.strip() and actions:
+        try:
+            extra = ai.chat("（再说一句，3~12 字，别只发表情）", session_key=session_key)
+            if extra:
+                t2, _a2 = _parse_actions(extra)
+                if t2.strip():
+                    clean_text = t2.strip()
+        except Exception:
+            pass
+
     delivered = False
 
     # 1) 先发文字（不带 @，默认）
@@ -654,10 +703,14 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
                 onebot.send_poke(int(target_id), int(snd["user_id"]))
                 delivered = True
             elif kind == "sticker":
-                st = stickers.random_sticker()
-                if st:
-                    delivered = stickers.send_sticker(
-                        "group" if is_group else "private", target_id, st) or delivered
+                where = "group" if is_group else "private"
+                if str(db.get_settings().get("ai_use_qq_fav", "1")) == "1" \
+                        and stickers.send_qq_favorite(where, target_id):
+                    delivered = True
+                else:
+                    st = stickers.random_sticker()
+                    if st:
+                        delivered = stickers.send_sticker(where, target_id, st) or delivered
         except Exception as e:
             db.add_log(f"AI 动作 {kind} 执行失败：{e}", "warn", None)
 
@@ -667,8 +720,78 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
     return delivered
 
 
+# ---------------- 消息处理队列 ----------------
+# 群里刷屏时，原来每条消息各开一个线程，会并发打模型接口：
+# 既容易触发限流，回复顺序也会乱（后发的先回）。
+# 改成每个会话一条队列、串行处理。
+#
+# 关键设计：刷屏时"合并"而不是"逐条排队"——
+# 处理一条消息要 2~5 秒，若逐条排队，10 条消息会拖 30 秒以上，全都变成过期回复。
+# 所以：普通消息只保留最新一条（旧的在队列里等着时被新消息替换），
+# 而被 @ 的消息一条都不合并、不丢弃。
+_QUEUE_MAX = 6
+_PENDING: dict[str, dict] = {}          # 会话 -> 正在排队的最新普通消息
+_QUEUE_LOCK = threading.Lock()
+
+
+def _worker(session_key: str) -> None:
+    """每个会话一个常驻 worker，串行处理。"""
+    import queue as _q
+    q = _q.Queue()
+    _QUEUES[session_key] = q
+    while True:
+        event = q.get()
+        try:
+            handle_event(event)
+        except Exception as e:
+            db.add_log(f"处理消息出错（{session_key}）：{e}", "error", None)
+        finally:
+            q.task_done()
+            with _QUEUE_LOCK:
+                # 处理完这条，把期间攒下的"最新普通消息"补进来
+                nxt = _PENDING.pop(session_key, None)
+            if nxt is not None:
+                q.put_nowait(nxt)
+
+
+_QUEUES: dict[str, "queue.Queue"] = {}
+
+
+def _enqueue(session_key: str, event: dict, mentioned: bool) -> None:
+    with _QUEUE_LOCK:
+        q = _QUEUES.get(session_key)
+        if q is None:
+            threading.Thread(target=_worker, args=(session_key,), daemon=True).start()
+            # worker 线程里会建队列；这里等它建好
+            for _ in range(50):
+                if session_key in _QUEUES:
+                    break
+                time.sleep(0.01)
+            q = _QUEUES.get(session_key)
+            if q is None:
+                return
+
+        if not q.empty() or session_key in _PENDING:
+            # 正忙：@ 消息单独排队（不丢），普通消息只留最新一条
+            if mentioned:
+                q.put_nowait(event)
+                db.add_log(f"忙碌中，@ 消息已排队（{session_key}）", "info", None)
+            else:
+                _PENDING[session_key] = event       # 旧的直接被覆盖
+            return
+
+        q.put_nowait(event)
+
+
 def handle_event_async(event: dict) -> None:
-    threading.Thread(target=handle_event, args=(event,), daemon=True).start()
+    """按会话串行处理，避免并发导致乱序和丢消息。"""
+    segments = event.get("message")
+    at_ids = _at_list(segments)
+    self_qq = _self_qq(event)
+    mentioned = bool(self_qq) and (str(self_qq) in at_ids or "all" in at_ids)
+    is_group, target_id = _event_target(event)
+    session_key = f"{'g' if is_group else 'p'}:{target_id}"
+    _enqueue(session_key, event, mentioned)
 
 
 def handle_poke_async(event: dict) -> None:

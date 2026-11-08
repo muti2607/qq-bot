@@ -107,6 +107,12 @@ CREATE TABLE IF NOT EXISTS presets (
     created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
+CREATE TABLE IF NOT EXISTS chat_memory (
+    session_key TEXT PRIMARY KEY,             -- g:群号 / p:QQ号
+    payload     TEXT NOT NULL DEFAULT '[]',   -- JSON: [{"role":"user","content":"..."}]
+    updated_at  REAL NOT NULL DEFAULT 0
+);
+
 CREATE TABLE IF NOT EXISTS stickers (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     filename   TEXT NOT NULL,                 -- data/stickers/xxx.png
@@ -233,6 +239,9 @@ DEFAULT_SETTINGS = {
     "ai_use_sticker": "1",        # 允许发自己偷来的表情包
     "ai_see_image": "1",          # 允许看图（视觉模型）
     "ai_save_sticker": "1",       # 允许自己判断并收藏别人的表情
+    "ai_fav_to_qq": "1",          # 偷到的表情同时存进 QQ 的收藏表情
+    "ai_use_qq_fav": "1",         # 发表情时优先用 QQ 收藏表情
+    "ai_send_animated": "1",      # 允许发动图（GIF）
     "ai_poke_reply_poke": "1",    # 被戳时回戳
 }
 
@@ -443,7 +452,8 @@ def delete_image(image_id: int) -> None:
 STICKER_DIR = str(DATA_DIR / "stickers")
 
 
-def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") -> int | None:
+def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "",
+                ext: str = "png") -> int | None:
     """保存一张表情图片，返回 id；同一张图（内容相同）已存在时返回已有 id，不重复存。"""
     import hashlib
     h = hashlib.md5(data).hexdigest()
@@ -454,7 +464,10 @@ def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") ->
 
     os.makedirs(str(DATA_DIR / "stickers"), exist_ok=True)
     import secrets as _secrets
-    name = "s-" + _secrets.token_hex(8) + ".png"
+    ext = (ext or "png").lower().lstrip(".")
+    if ext not in ("png", "gif", "jpg", "jpeg", "webp"):
+        ext = "png"
+    name = "s-" + _secrets.token_hex(8) + "." + ext
     with open(os.path.join(str(DATA_DIR / "stickers"), name), "wb") as f:
         f.write(data)
     with db() as conn:
@@ -469,6 +482,53 @@ def find_sticker_by_hash(h: str) -> dict[str, Any] | None:
     with db() as conn:
         row = conn.execute("SELECT * FROM stickers WHERE content_hash=?", (h,)).fetchone()
     return dict(row) if row else None
+
+
+# ---------------- chat_memory（会话上下文持久化） ----------------
+
+
+def save_memory(session_key: str, messages: list[dict[str, str]]) -> None:
+    """把某个会话的上下文写盘，重启后还能接着聊。"""
+    if not session_key:
+        return
+    try:
+        payload = json.dumps(messages[-40:], ensure_ascii=False)
+        with db() as conn:
+            conn.execute(
+                "INSERT INTO chat_memory(session_key, payload, updated_at) VALUES(?,?,?) "
+                "ON CONFLICT(session_key) DO UPDATE SET payload=excluded.payload, "
+                "updated_at=excluded.updated_at",
+                (session_key, payload, time.time()),
+            )
+    except Exception:
+        pass
+
+
+def load_memory(session_key: str, max_age: float = 7200.0) -> list[dict[str, str]]:
+    """读回会话上下文；超过 max_age 秒没更新的丢弃。"""
+    if not session_key:
+        return []
+    try:
+        with db() as conn:
+            row = conn.execute(
+                "SELECT payload, updated_at FROM chat_memory WHERE session_key=?",
+                (session_key,)).fetchone()
+        if not row:
+            return []
+        if time.time() - float(row["updated_at"] or 0) > max_age:
+            return []
+        data = json.loads(row["payload"] or "[]")
+        return [m for m in data if isinstance(m, dict) and "role" in m and "content" in m]
+    except Exception:
+        return []
+
+
+def drop_memory(session_key: str) -> None:
+    try:
+        with db() as conn:
+            conn.execute("DELETE FROM chat_memory WHERE session_key=?", (session_key,))
+    except Exception:
+        pass
 
 
 def sticker_path(sticker: dict) -> str:

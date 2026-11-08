@@ -805,6 +805,20 @@
     }
     .tasklist .exec{width:54px;height:54px;border-radius:14px}
 
+    /* ========== 表情库（独立网格：卡片要能容纳按钮，不能沿用图片库的正方形裁切）========== */
+    .stgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(120px,1fr));gap:10px}
+    .stgrid .stcard{position:relative;display:flex;flex-direction:column;
+      border:1px solid var(--line2);border-radius:14px;background:var(--chip-bg);
+      padding:7px;overflow:visible}
+    .stgrid .stcard img{width:100%;aspect-ratio:1;object-fit:contain;
+      background:#0001;border-radius:9px;display:block}
+    .stgrid .stnote{font-size:12px;margin-top:6px;line-height:1.3;word-break:break-all;
+      max-height:2.6em;overflow:hidden}
+    .stgrid .stmeta{font-size:11px;color:var(--sub);margin-top:2px;word-break:break-all;
+      max-height:2.6em;overflow:hidden}
+    .stgrid .stbtns{display:flex;gap:5px;margin-top:7px}
+    .stgrid .stbtns button{flex:1;padding:5px 2px;font-size:12px;cursor:pointer}
+
     /* ========== 图片库 ========== */
     .imgs{grid-template-columns:repeat(auto-fill,minmax(104px,1fr)) !important;gap:10px}
     .imgs .item{border-radius:14px !important}
@@ -1278,8 +1292,37 @@
           想让它别用某张，直接删掉即可。
         </div>
         <div id="stickerCount" class="muted" style="margin-bottom:10px"></div>
-        <div id="stickers" class="imgs"></div>
+        <div id="stickers" class="stgrid"></div>
       </section>
+
+      <!-- 删除确认：不用 confirm()，手机浏览器常把它拦掉导致点了没反应 -->
+      <div id="stickerDelMask" style="display:none;position:fixed;inset:0;background:#0008;z-index:9999;align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--card,#fff);border-radius:14px;padding:18px;max-width:340px;width:100%;box-shadow:0 12px 40px #0004">
+          <div style="font-size:15px;font-weight:600;margin-bottom:8px">删除这张表情？</div>
+          <div id="stickerDelName" style="font-size:13px;color:var(--sub,#666);margin-bottom:16px;word-break:break-all"></div>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="small" style="flex:1;padding:10px" onclick="closeStickerDel()">取消</button>
+            <button type="button" class="small danger" id="stickerDelOk" style="flex:1;padding:10px">确认删除</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 改备注：同样不用 prompt() -->
+      <div id="stickerEditMask" style="display:none;position:fixed;inset:0;background:#0008;z-index:9999;align-items:center;justify-content:center;padding:16px">
+        <div style="background:var(--card,#fff);border-radius:14px;padding:18px;max-width:360px;width:100%;box-shadow:0 12px 40px #0004">
+          <div style="font-size:15px;font-weight:600;margin-bottom:12px">改备注</div>
+          <label class="field" style="margin-bottom:10px"><span style="font-size:12px">这张图什么意思（斗图时按这个挑）</span>
+            <input id="stickerEditNote" maxlength="60" placeholder="如：无语摊手">
+          </label>
+          <label class="field" style="margin-bottom:14px"><span style="font-size:12px">标签，逗号分隔</span>
+            <input id="stickerEditTags" maxlength="80" placeholder="如：嘲讽,无语">
+          </label>
+          <div style="display:flex;gap:10px">
+            <button type="button" class="small" style="flex:1;padding:10px" onclick="closeStickerEdit()">取消</button>
+            <button type="button" class="small primary" id="stickerEditOk" style="flex:1;padding:10px">保存</button>
+          </div>
+        </div>
+      </div>
 
       <section class="panel view" id="sec-upload-users">
         <h2>上传账号 <span class="muted" style="font-weight:400">（远程上传页 8001 需要账号登录，账号由你在此创建）</span>
@@ -1413,6 +1456,27 @@
             </select>
           </label>
         </div>
+        <div class="grid2" style="margin-top:6px">
+          <label class="field"><span>偷到的图同步存进 QQ 收藏表情</span>
+            <select id="s-ai-favqq">
+              <option value="1">同步（手机也能用）</option>
+              <option value="0">只存机器人自己的库</option>
+            </select>
+          </label>
+          <label class="field"><span>允许发动图（GIF）</span>
+            <select id="s-ai-animated">
+              <option value="1">允许</option>
+              <option value="0">只发静态图</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid2" style="margin-top:6px">
+          <label class="field"><span>发表情时优先用 QQ 收藏表情</span>
+            <select id="s-ai-qqfav">
+              <option value="1">优先用 QQ 收藏</option>
+              <option value="0">只用机器人自己的库</option>
+            </select>
+          </label>
         <div class="grid2" style="margin-top:6px">
           <label class="field"><span>群聊回复最小间隔（秒，防刷屏）</span>
             <input id="s-ai-gap" type="number" min="0" max="600" placeholder="25">
@@ -2408,56 +2472,148 @@ function renderPool(box, sel) {
 }
 
 // ---------- 表情库 ----------
-let stickers = [];
+// 变量不能叫 stickers：容器 div 的 id 也是 stickers，浏览器会把 id 暴露成同名全局，
+// 互相覆盖后按钮点了没反应。用 stickerList 避开。
+let stickerList = [];
 async function loadStickers() {
   try {
-    stickers = await api('/api/stickers');
+    stickerList = await api('/api/stickers');
     renderStickers();
   } catch (e) { toast(e.message, true); }
 }
 function renderStickers() {
-  const box = $('#stickers');
+  const box = document.getElementById('stickers');
   if (!box) return;
-  const cnt = $('#stickerCount');
-  if (cnt) cnt.textContent = stickers.length
-    ? `共 ${stickers.length} 张 · 按使用次数排序`
+  const cnt = document.getElementById('stickerCount');
+  if (cnt) cnt.textContent = stickerList.length
+    ? `共 ${stickerList.length} 张 · 按使用次数排序`
     : '';
-  if (!stickers.length) {
+  if (!stickerList.length) {
     box.innerHTML = '<div class="empty">还没有偷到表情。群里有人发表情时它会自己判断收藏。</div>';
     return;
   }
-  box.innerHTML = stickers.map(s => `
-    <div class="item" style="position:relative;flex-direction:column;align-items:stretch;height:auto;padding:6px" title="${esc(s.note)}">
-      <img src="/api/stickers/${s.id}/data" loading="lazy" decoding="async"
-           style="width:100%;aspect-ratio:1;object-fit:contain;background:#0001;border-radius:8px">
-      <div style="font-size:12px;margin-top:6px;line-height:1.3;word-break:break-all">${esc(s.note) || '<span class="muted">（无备注）</span>'}</div>
-      <div class="muted" style="font-size:11px;margin-top:2px">${esc(s.tags) || '—'} · 用过 ${s.used_count} 次</div>
-      <div style="display:flex;gap:4px;margin-top:6px">
-        <button class="small" style="flex:1" onclick="editSticker(${s.id})">改备注</button>
-        <button class="small danger" onclick="delSticker(${s.id})">删</button>
+  box.innerHTML = stickerList.map(s => `
+    <div class="stcard">
+      <img src="/api/stickers/${s.id}/data" loading="lazy" decoding="async" alt="${esc(s.note)}">
+      <div class="stnote">${esc(s.note) || '<span class="muted">（无备注）</span>'}</div>
+      <div class="stmeta">${esc(s.tags) || '—'} · 用过 ${s.used_count} 次</div>
+      <div class="stbtns">
+        <button type="button" class="small" onclick="openStickerEdit(${s.id})">改备注</button>
+        <button type="button" class="small" onclick="favSticker(${s.id}, this)">存QQ</button>
+        <button type="button" class="small danger" onclick="openStickerDel(${s.id})">删除</button>
       </div>
     </div>`).join('');
 }
-async function editSticker(id) {
-  const s = stickers.find(x => x.id === id);
-  if (!s) return;
-  const note = prompt('这张图什么意思？（斗图时按这个挑）', s.note || '');
-  if (note === null) return;
-  const tags = prompt('标签，逗号分隔（如 嘲讽,无语）', s.tags || '');
-  if (tags === null) return;
-  try {
-    await api(`/api/stickers/${id}`, {method: 'POST', body: JSON.stringify({note, tags})});
-    toast('已保存');
-    loadStickers();
-  } catch (e) { toast(e.message, true); }
+
+// ---------- 表情库：删除 / 改备注（用自定义弹窗，不用 confirm/prompt）----------
+let _delStickerId = null;
+function openStickerDel(id) {
+  const s = stickerList.find(x => x.id === id);
+  _delStickerId = id;
+  document.getElementById('stickerDelName').textContent =
+    (s && s.note) ? `「${s.note}」` : `#${id}`;
+  const mask = document.getElementById('stickerDelMask');
+  mask.style.display = 'flex';
 }
-async function delSticker(id) {
-  if (!confirm('删掉这张表情？之后斗图就不会再用它。')) return;
+function closeStickerDel() {
+  document.getElementById('stickerDelMask').style.display = 'none';
+  _delStickerId = null;
+}
+async function doStickerDel() {
+  const id = _delStickerId;
+  if (id === null) return;
+  const btn = document.getElementById('stickerDelOk');
+  btn.disabled = true;
+  btn.textContent = '删除中…';
   try {
-    await api(`/api/stickers/${id}`, {method: 'DELETE'});
+    const res = await fetch(`/api/stickers/${id}`, {
+      method: 'DELETE',
+      credentials: 'same-origin',
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status} ${t.slice(0, 120)}`);
+    }
+    closeStickerDel();
     toast('已删除');
-    loadStickers();
-  } catch (e) { toast(e.message, true); }
+    await loadStickers();
+  } catch (e) {
+    // 上报到服务器日志，这样后台「运行日志」里能直接看到失败原因
+    const msg = (e && e.message) ? e.message : String(e);
+    try {
+      await fetch('/api/client-error', {
+        method: 'POST',
+        credentials: 'same-origin',
+        headers: {'Content-Type': 'application/json'},
+        body: JSON.stringify({where: 'delSticker', id: id, message: msg}),
+      });
+    } catch {}
+    alert('删除失败：' + msg);
+  } finally {
+    btn.disabled = false;
+    btn.textContent = '确认删除';
+  }
+}
+
+async function favSticker(id, btn) {
+  const old = btn ? btn.textContent : '';
+  if (btn) { btn.disabled = true; btn.textContent = '收藏中…'; }
+  try {
+    const res = await fetch(`/api/stickers/${id}/favorite`, {
+      method: 'POST',
+      credentials: 'same-origin',
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    if (!res.ok) {
+      const t = await res.text();
+      throw new Error(`HTTP ${res.status} ${t.slice(0, 100)}`);
+    }
+    toast('已存进 QQ 收藏表情');
+    if (btn) btn.textContent = '已收藏';
+  } catch (e) {
+    alert('收藏失败：' + (e && e.message ? e.message : e));
+    if (btn) btn.textContent = old;
+  } finally {
+    if (btn) btn.disabled = false;
+  }
+}
+
+let _editStickerId = null;function openStickerEdit(id) {
+  const s = stickerList.find(x => x.id === id);
+  if (!s) return;
+  _editStickerId = id;
+  document.getElementById('stickerEditNote').value = s.note || '';
+  document.getElementById('stickerEditTags').value = s.tags || '';
+  document.getElementById('stickerEditMask').style.display = 'flex';
+}
+function closeStickerEdit() {
+  document.getElementById('stickerEditMask').style.display = 'none';
+  _editStickerId = null;
+}async function doStickerEdit() {
+  const id = _editStickerId;
+  if (id === null) return;
+  const note = document.getElementById('stickerEditNote').value.trim();
+  const tags = document.getElementById('stickerEditTags').value.trim();
+  const btn = document.getElementById('stickerEditOk');
+  btn.disabled = true;
+  try {
+    const res = await fetch(`/api/stickers/${id}`, {
+      method: 'POST',
+      credentials: 'same-origin',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({note, tags}),
+    });
+    if (res.status === 401) { location.href = '/login'; return; }
+    if (!res.ok) throw new Error(`HTTP ${res.status} ${(await res.text()).slice(0, 120)}`);
+    closeStickerEdit();
+    toast('已保存');
+    await loadStickers();
+  } catch (e) {
+    alert('保存失败：' + (e && e.message ? e.message : e));
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 async function loadImages() {
@@ -3188,6 +3344,9 @@ async function openSettings() {
     $('#s-ai-sticker').value = s.ai_use_sticker || '1';
     $('#s-ai-see').value = s.ai_see_image || '1';
     $('#s-ai-save').value = s.ai_save_sticker || '1';
+    $('#s-ai-favqq').value = s.ai_fav_to_qq || '1';
+    $('#s-ai-qqfav').value = s.ai_use_qq_fav || '1';
+    $('#s-ai-animated').value = s.ai_send_animated || '1';
     $('#s-ai-gap').value = s.ai_group_gap || 25;
     $('#s-ai-pokeback').value = s.ai_poke_reply_poke || '1';
     $('#s-ai-prompt').value = s.ai_system_prompt || '你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。';
@@ -3234,9 +3393,21 @@ async function saveSettings() {
       ai_api_key: $('#s-ai-key').value,
       ai_model: $('#s-ai-model').value.trim(),
       ai_providers: $('#s-ai-providers').value,
+      ai_vision_providers: $('#s-ai-vision').value,
       ai_keyless_fallback: $('#s-ai-keyless').value,
       ai_system_prompt: $('#s-ai-prompt').value.trim(),
       ai_reply_mode: $('#s-ai-mode').value,
+      ai_at_reply: $('#s-ai-atreply').value,
+      ai_use_face: $('#s-ai-face').value,
+      ai_use_poke: $('#s-ai-poke').value,
+      ai_use_sticker: $('#s-ai-sticker').value,
+      ai_see_image: $('#s-ai-see').value,
+      ai_save_sticker: $('#s-ai-save').value,
+      ai_fav_to_qq: $('#s-ai-favqq').value,
+      ai_use_qq_fav: $('#s-ai-qqfav').value,
+      ai_send_animated: $('#s-ai-animated').value,
+      ai_group_gap: $('#s-ai-gap').value,
+      ai_poke_reply_poke: $('#s-ai-pokeback').value,
     })});
     // 名言只在内容有变化时才提交（避免 2000+ 条大 payload 反复发送/误触校验）
     const quoteLines = ($('#s-quotes').value || '').split('\n').map(x => x.trim()).filter(Boolean);
@@ -3302,6 +3473,18 @@ function connectSSE() {
 }
 
 // ---------- 启动 ----------
+// 表情库弹窗按钮绑定（onclick 写在 HTML 上容易被内联脚本顺序坑到，这里显式绑）
+(function bindStickerDialogs() {
+  const delOk = document.getElementById('stickerDelOk');
+  if (delOk) delOk.addEventListener('click', doStickerDel);
+  const delMask = document.getElementById('stickerDelMask');
+  if (delMask) delMask.addEventListener('click', ev => { if (ev.target === delMask) closeStickerDel(); });
+  const editOk = document.getElementById('stickerEditOk');
+  if (editOk) editOk.addEventListener('click', doStickerEdit);
+  const editMask = document.getElementById('stickerEditMask');
+  if (editMask) editMask.addEventListener('click', ev => { if (ev.target === editMask) closeStickerEdit(); });
+})();
+
 fillSelects();
 loadImages();
 loadTriggers();

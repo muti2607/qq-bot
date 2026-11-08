@@ -150,7 +150,13 @@ async def api_logout():
 
 @app.get("/", response_class=HTMLResponse)
 async def index():
-    return (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
+    html = (BASE_DIR / "static" / "index.html").read_text(encoding="utf-8")
+    # 禁止缓存：改完页面要能立刻生效，否则浏览器会一直用旧的（删除按钮失效就是这个坑）
+    return HTMLResponse(html, headers={
+        "Cache-Control": "no-store, no-cache, must-revalidate, max-age=0",
+        "Pragma": "no-cache",
+        "Expires": "0",
+    })
 
 
 # ---------------- 设置 / 状态 ----------------
@@ -183,6 +189,9 @@ class SettingsIn(BaseModel):
     ai_use_sticker: str | None = None
     ai_see_image: str | None = None
     ai_save_sticker: str | None = None
+    ai_fav_to_qq: str | None = None
+    ai_use_qq_fav: str | None = None
+    ai_send_animated: str | None = None
     ai_group_gap: str | None = None
     ai_poke_reply_poke: str | None = None
 
@@ -241,7 +250,8 @@ async def api_save_settings(body: SettingsIn):
     if body.ai_keyless_fallback is not None:
         data["ai_keyless_fallback"] = body.ai_keyless_fallback.strip()
     for field in ("ai_at_reply", "ai_use_face", "ai_use_poke", "ai_use_sticker",
-                  "ai_see_image", "ai_save_sticker", "ai_group_gap", "ai_poke_reply_poke"):
+                  "ai_see_image", "ai_save_sticker", "ai_group_gap", "ai_poke_reply_poke",
+                  "ai_fav_to_qq", "ai_send_animated", "ai_use_qq_fav"):
         value = getattr(body, field)
         if value is not None:
             data[field] = value.strip()
@@ -896,6 +906,21 @@ class StickerNoteIn(BaseModel):
     usage: str | None = None
 
 
+class ClientErrorIn(BaseModel):
+    where: str = ""
+    id: int | None = None
+    message: str = ""
+
+
+@app.post("/api/client-error")
+async def api_client_error(body: ClientErrorIn):
+    """前端把报错上报到这里，方便在「运行日志」里看到浏览器侧到底出了什么问题。"""
+    db.add_log(
+        f"前端报错[{body.where} id={body.id}]：{body.message[:300]}",
+        "error", None)
+    return {"ok": True}
+
+
 @app.get("/api/stickers")
 async def api_stickers():
     rows = db.list_stickers(limit=500)
@@ -933,6 +958,92 @@ async def api_sticker_note(sid: int, body: StickerNoteIn):
 async def api_sticker_delete(sid: int):
     db.delete_sticker(sid)
     db.add_log(f"删除表情 #{sid}", "warn")
+    return {"ok": True}
+
+
+@app.post("/api/stickers/{sid}/favorite")
+async def api_sticker_favorite(sid: int):
+    """把这张表情收藏进 QQ 的「收藏表情」。"""
+    import stickers as st
+    row = db.get_sticker(sid)
+    if not row:
+        raise HTTPException(404, "表情不存在")
+    ok = await asyncio.to_thread(st.favorite_to_qq, row)
+    if not ok:
+        raise HTTPException(400, "收藏失败，检查 NapCat 是否在线")
+    db.add_log(f"手动收藏表情 #{sid} 到 QQ", "info")
+    return {"ok": True}
+
+
+@app.get("/api/qq-favorites")
+async def api_qq_favorites():
+    """QQ 收藏表情列表（只给数量，URL 太长）。"""
+    import stickers as st
+    urls = await asyncio.to_thread(st.qq_favorites)
+    return {"count": len(urls), "sample": urls[:3]}
+
+
+class TestStickerIn(BaseModel):
+    target_type: str = "private"
+    target_id: int = 0
+
+
+@app.post("/api/test-qq-favorite")
+async def api_test_qq_favorite(body: TestStickerIn):
+    """测试：从 QQ 收藏表情里挑一张发到指定目标（默认发给自己）。"""
+    import stickers as st
+    tid = body.target_id
+    if not tid:
+        import onebot as ob
+        try:
+            me = ob.get_login_info() or {}
+            tid = int(me.get("user_id") or 0)
+        except Exception:
+            raise HTTPException(400, "拿不到机器人自己的 QQ 号")
+    if not tid:
+        raise HTTPException(400, "请填写目标")
+
+    ok = await asyncio.to_thread(st.send_qq_favorite, body.target_type, tid)
+    if not ok:
+        raise HTTPException(400, "发送失败：QQ 收藏表情可能是空的，或 NapCat 不可用")
+    db.add_log(f"测试发送 QQ 收藏表情到 {body.target_type} {tid}", "info")
+    return {"ok": True, "count": len(st._fav_urls())}
+
+
+# ---------------- 会话上下文 ----------------
+
+
+@app.get("/api/memory")
+async def api_memory(session: str | None = None, limit: int = 30):
+    """查看某个会话的上下文；不传 session 则列出所有会话概况。"""
+    import ai as ai_mod
+    if session:
+        msgs = ai_mod._history_get(session)
+        return {"session": session, "count": len(msgs), "messages": msgs[-limit:]}
+    with ai_mod._HISTORY_LOCK:
+        items = [{"session": k, "count": len(v["msgs"]), "at": v["at"]}
+                 for k, v in ai_mod._HISTORY.items()]
+    items.sort(key=lambda x: -x["at"])
+    return {"sessions": items[:50], "total": len(items)}
+
+
+@app.delete("/api/memory")
+async def api_memory_clear(session: str | None = None):
+    """清空某会话上下文；不传 session 清空全部。"""
+    import ai as ai_mod
+    if session:
+        ai_mod.reset_history(session)
+        db.add_log(f"清空会话上下文：{session}", "info")
+    else:
+        with ai_mod._HISTORY_LOCK:
+            keys = list(ai_mod._HISTORY.keys())
+            ai_mod._HISTORY.clear()
+        for k in keys:
+            try:
+                db.drop_memory(k)
+            except Exception:
+                pass
+        db.add_log(f"清空全部会话上下文（{len(keys)} 个）", "info")
     return {"ok": True}
 
 
