@@ -198,12 +198,35 @@ def reset_history(session_key: str) -> None:
 
 _TAG_RE = re.compile(r"<\|?[a-zA-Z_]{2,}\|?>|</?think>|</?reasoning>", re.IGNORECASE)
 _MD_RE = re.compile(r"(\*\*|__|`{1,3}|^#{1,6}\s|^\s*[-*]\s)", re.MULTILINE)
+# 模型偶尔会"给建议"而不是"自己说话"，把这些前缀和包装剥掉
+_ADVICE_RE = re.compile(
+    r"^\s*(?:可以(?:这样|这么)?(?:回复|说|接)[:：]?|你可以(?:回复|说)[:：]?|"
+    r"建议(?:回复|说)?[:：]?|回复[:：]|这样说[:：]?|接一句[:：]?)\s*",
+    re.IGNORECASE)
+_QUOTE_LINE_RE = re.compile(r"^\s*>\s?", re.MULTILINE)
 
 
 def _clean(text: str) -> str:
-    """去掉推理标签和 Markdown 记号——QQ 上这些会变成乱码。"""
+    """去掉推理标签、Markdown 记号、建议式包装——QQ 上这些会变成乱码或不像人话。"""
     t = _TAG_RE.sub("", str(text))
     t = _MD_RE.sub("", t)
+    t = _QUOTE_LINE_RE.sub("", t)
+    t = _ADVICE_RE.sub("", t)
+    # 整段被引号包住：去掉首尾引号
+    t = t.strip()
+    if len(t) >= 2 and t[0] in "「“\"'" and t[-1] in "」”\"'":
+        t = t[1:-1].strip()
+    # 模型爱给"选项 A / 选项 B"：只取第一行像话的
+    lines = [ln.strip() for ln in t.splitlines() if ln.strip()]
+    if len(lines) > 1:
+        # 有多行时优先选第一个不带冒号收尾的短句
+        for ln in lines:
+            ln2 = _ADVICE_RE.sub("", ln).strip("“”「」\"' ")
+            if ln2 and len(ln2) <= 60 and not ln2.endswith(("：", ":")):
+                t = ln2
+                break
+        else:
+            t = lines[0]
     t = re.sub(r"\n{3,}", "\n\n", t).strip()
     return t
 

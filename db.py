@@ -110,6 +110,7 @@ CREATE TABLE IF NOT EXISTS presets (
 CREATE TABLE IF NOT EXISTS stickers (
     id         INTEGER PRIMARY KEY AUTOINCREMENT,
     filename   TEXT NOT NULL,                 -- data/stickers/xxx.png
+    content_hash TEXT NOT NULL DEFAULT '',    -- 图片内容 md5，用于按内容去重
     note       TEXT NOT NULL DEFAULT '',      -- 自己写的备注（这张图什么意思）
     tags       TEXT NOT NULL DEFAULT '',      -- 逗号分隔标签
     usage      TEXT NOT NULL DEFAULT '',      -- 适合什么场景用
@@ -176,6 +177,9 @@ def _migrate(conn: sqlite3.Connection) -> None:
     ):
         if name not in img_cols:
             conn.execute(f"ALTER TABLE images ADD COLUMN {name} {ddl}")
+    st_cols = cols("stickers")
+    if "content_hash" not in st_cols:
+        conn.execute("ALTER TABLE stickers ADD COLUMN content_hash TEXT NOT NULL DEFAULT ''")
     uu_cols = cols("upload_users")
     if "uid_number" not in uu_cols:
         conn.execute("ALTER TABLE upload_users ADD COLUMN uid_number TEXT")
@@ -439,8 +443,15 @@ def delete_image(image_id: int) -> None:
 STICKER_DIR = str(DATA_DIR / "stickers")
 
 
-def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") -> int:
-    """保存一张表情图片，返回 id。"""
+def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") -> int | None:
+    """保存一张表情图片，返回 id；同一张图（内容相同）已存在时返回已有 id，不重复存。"""
+    import hashlib
+    h = hashlib.md5(data).hexdigest()
+    with db() as conn:
+        row = conn.execute("SELECT id FROM stickers WHERE content_hash=?", (h,)).fetchone()
+        if row:
+            return int(row["id"])          # 已存在，直接复用
+
     os.makedirs(str(DATA_DIR / "stickers"), exist_ok=True)
     import secrets as _secrets
     name = "s-" + _secrets.token_hex(8) + ".png"
@@ -448,10 +459,16 @@ def add_sticker(data: bytes, note: str = "", tags: str = "", usage: str = "") ->
         f.write(data)
     with db() as conn:
         cur = conn.execute(
-            "INSERT INTO stickers(filename, note, tags, usage) VALUES(?,?,?,?)",
-            (name, note, tags, usage),
+            "INSERT INTO stickers(filename, content_hash, note, tags, usage) VALUES(?,?,?,?,?)",
+            (name, h, note, tags, usage),
         )
         return int(cur.lastrowid)
+
+
+def find_sticker_by_hash(h: str) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM stickers WHERE content_hash=?", (h,)).fetchone()
+    return dict(row) if row else None
 
 
 def sticker_path(sticker: dict) -> str:
@@ -588,6 +605,19 @@ def create_upload_user(username: str, password: str, note: str = "",
             return int(cur.lastrowid)
     except sqlite3.IntegrityError:
         return None
+
+
+def rename_upload_user(uid: int, new_name: str) -> bool:
+    """改账号名。成功返回 True，重名返回 False。"""
+    new_name = new_name.strip()
+    if not new_name:
+        return False
+    try:
+        with db() as conn:
+            conn.execute("UPDATE upload_users SET username=? WHERE id=?", (new_name, uid))
+            return True
+    except sqlite3.IntegrityError:
+        return False
 
 
 def update_upload_user(uid: int, password: str | None = None,

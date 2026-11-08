@@ -27,6 +27,8 @@ _last_sticker_at: dict[int, float] = {}
 _sticker_streak: dict[int, int] = {}
 # 媒体回复限速：群号 -> 上次因为图片而回复的时间
 _last_media_reply: dict[int, float] = {}
+# 斗图节奏限速：群号 -> 上次斗图回复的时间（跟着对方节奏走，间隔很短）
+_last_fight_reply: dict[int, float] = {}
 # 偷图限速：群号 -> 上次尝试收藏的时间（收藏要额外调一次模型，别太频繁）
 _last_collect_try: dict[int, float] = {}
 
@@ -131,7 +133,7 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
 
     # 1) 斗图节奏 + 限速
     streak = 1
-    media_cooled = True
+    allow_reply = True
     if is_group:
         now_t = time.time()
         with _lock:
@@ -140,15 +142,25 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
             streak = prev + 1 if now_t - recent <= 120 else 1
             _sticker_streak[int(target_id)] = streak
             _last_sticker_at[int(target_id)] = now_t
-            # 媒体回复也要限速：不是斗图节奏时，同一群 90 秒最多主动接一次图
-            last_media = _last_media_reply.get(int(target_id), 0.0)
-            media_cooled = (now_t - last_media) >= 90
-            if streak >= 2 or media_cooled:
-                _last_media_reply[int(target_id)] = now_t
+
+            if streak >= 2:
+                # 斗图：节奏跟着对方走，只要不是自己刚甩完立刻又接
+                last_fight = _last_fight_reply.get(int(target_id), 0.0)
+                allow_reply = (now_t - last_fight) >= 12
+                if allow_reply:
+                    _last_fight_reply[int(target_id)] = now_t
+            else:
+                # 普通群图：90 秒才主动接一次，免得每张都插嘴
+                last_media = _last_media_reply.get(int(target_id), 0.0)
+                allow_reply = (now_t - last_media) >= 90
+                if allow_reply:
+                    _last_media_reply[int(target_id)] = now_t
 
     # 被 @ 或私聊时不受限速影响；普通群图受
-    if is_group and not mentioned and streak < 2 and not media_cooled:
+    if is_group and not mentioned and not allow_reply:
         return True
+
+    fighting = is_group and streak >= 2
 
     # 2) 看图（小黄脸不调视觉，省额度）
     desc = ""
@@ -206,8 +218,8 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
                 stickers.send_sticker("private", target_id, st)
         return True
 
-    # 5) 群聊：被 @ / 连发 / 斗图 → 甩表情
-    should_fight = mentioned or streak >= 2
+    # 5) 群聊：被 @ / 在斗图 → 甩表情
+    should_fight = mentioned or fighting
     if should_fight:
         st = stickers.random_sticker()
         sent_img = bool(st and stickers.send_sticker("group", target_id, st))
@@ -253,19 +265,20 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
     if st:
         stickers.send_sticker("group", target_id, st)
     return True
-    try:
-        reply = ai.chat(prompt, session_key=session_key)
-    except Exception as e:
-        db.add_log(f"看图接话失败：{e}", "warn", None)
-        return True
-    if not reply or reply.strip().upper().startswith("NO"):
-        return True
-    _send_ai_reply(reply, is_group, target_id, event)
-    return True
 
 
 def _maybe_save(desc: str, seg: dict) -> int | None:
-    """问模型这张图值不值得偷；值得就存，并让它自己写备注。返回新 id。"""
+    """问模型这张图值不值得偷；值得就存，并让它自己写备注。返回新 id。
+
+    去重按图片内容（md5），不是按备注——同一张图换个说法也不能重复存。
+    """
+    # 先算内容哈希：已经在库里就别白调模型了
+    try:
+        if stickers.already_saved(seg):
+            return None
+    except Exception:
+        pass
+
     try:
         reply = ai.chat(
             f"这张图：{desc}\n"

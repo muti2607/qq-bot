@@ -1001,8 +1001,19 @@ async def api_create_upload_user(body: UploadUserIn):
 async def api_update_upload_user(uid: int, body: UploadUserIn):
     if body.password and len(body.password) < 4:
         raise HTTPException(400, "密码至少 4 位")
+    # 账号名可改：传入不同名字时先改名（重名校验）
+    cur = db.get_upload_user_by_id(uid)
+    if not cur:
+        raise HTTPException(404, "账号不存在")
+    if body.username.strip() and body.username.strip() != cur["username"]:
+        if not re.fullmatch(r"[A-Za-z0-9_\u4e00-\u9fff]{2,20}", body.username.strip()):
+            raise HTTPException(400, "账号名需 2-20 位字母/数字/下划线/中文")
+        if not db.rename_upload_user(uid, body.username.strip()):
+            raise HTTPException(400, "新账号名已被使用")
     db.update_upload_user(uid, password=body.password or None,
                           note=body.note, enabled=body.enabled, is_admin=body.is_admin)
+    db.add_log(f"修改上传账号 {cur['username']}" +
+               ("（改名 → " + body.username.strip() + "）" if body.username.strip() != cur["username"] else ""), "info")
     return {"ok": True}
 
 

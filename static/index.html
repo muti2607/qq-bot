@@ -1703,7 +1703,7 @@
     <div class="dlg-head"><h3 id="uu-title">新建上传账号</h3></div>
     <div class="dlg-body">
       <input type="hidden" id="uu-id">
-      <label class="field"><span>账号名（2-20 位，字母/数字/中文）</span>
+      <label class="field"><span id="uu-name-label">账号名（2-20 位，字母/数字/中文）</span>
         <input id="uu-name" maxlength="20" placeholder="例如 zhangsan">
       </label>
       <label class="field"><span id="uu-pw-label">密码（至少 4 位）</span>
@@ -2048,8 +2048,9 @@ function openUploadUserForm(id) {
   const u = id ? uploadUsers.find(x => x.id === id) : null;
   $('#uu-id').value = u ? u.id : '';
   $('#uu-title').textContent = u ? `编辑账号「${u.username}」` : '新建上传账号';
+  $('#uu-name-label').textContent = u ? '账号名（可修改）' : '账号名（2-20 位，字母/数字/中文）';
   $('#uu-name').value = u ? u.username : '';
-  $('#uu-name').disabled = !!u;
+  $('#uu-name').disabled = false;
   $('#uu-pw').value = '';
   $('#uu-pw-label').textContent = u ? '改密码（留空表示不改）' : '密码（至少 4 位）';
   $('#uu-pw').placeholder = u ? '留空则保持原密码' : '至少 4 位';

@@ -144,7 +144,11 @@ def is_sticker_like(seg: dict) -> bool:
 
 
 def save_sticker(seg: dict, note: str, tags: str = "", usage: str = "") -> int | None:
-    """把图片段存进表情库。返回 id，失败 None。"""
+    """把图片段存进表情库。
+
+    按图片内容 md5 去重：同一张图不管备注写得多不一样，都只存一份。
+    返回 id（可能是已存在的那个）；失败返回 None。
+    """
     got = fetch_image(seg)
     if not got:
         return None
@@ -156,11 +160,24 @@ def save_sticker(seg: dict, note: str, tags: str = "", usage: str = "") -> int |
         return None
     try:
         sid = db.add_sticker(png, note=note[:120], tags=tags[:80], usage=usage[:120])
-        log.info("存了一张表情 #%s：%s", sid, note)
+        if sid:
+            log.info("存表情 #%s：%s", sid, note)
         return sid
     except Exception as e:
         log.warning("存表情失败: %s", e)
         return None
+
+
+def already_saved(seg: dict) -> bool:
+    """这张图是不是已经在库里了（按内容哈希判断，不下载也能先粗判）。"""
+    got = fetch_image(seg)
+    if not got:
+        return False
+    png = to_png(got[0], max_side=480)
+    if not png:
+        return False
+    import hashlib
+    return db.find_sticker_by_hash(hashlib.md5(png).hexdigest()) is not None
 
 
 def random_sticker(exclude_recent: int = 8) -> dict[str, Any] | None:
