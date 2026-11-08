@@ -629,6 +629,29 @@
           </div>
         </div>
       </div>
+
+      <div class="sec" id="adminBody3" style="display:none">
+        <div class="sec-hd">
+          图片库管理
+          <span class="count" id="libCount">0</span>
+          <span class="sp"></span>
+          <button class="sm" onclick="loadAdmin()">刷新</button>
+        </div>
+        <div class="lib-filter" id="libFilter">
+          <button class="sm on" data-st="" onclick="libFilter('',this)">全部</button>
+          <button class="sm" data-st="approved" onclick="libFilter('approved',this)">已通过</button>
+          <button class="sm" data-st="pending" onclick="libFilter('pending',this)">待审核</button>
+          <button class="sm" data-st="rejected" onclick="libFilter('rejected',this)">未通过</button>
+        </div>
+        <div class="lib-grid" id="libGrid"></div>
+        <div class="lib-bar">
+          <span class="selinfo" id="libSelInfo">未选择</span>
+          <span class="sp"></span>
+          <button class="sm" onclick="libSelAll()">全选当前</button>
+          <button class="sm" onclick="libSelNone()">取消选择</button>
+          <button class="sm danger" id="libDelBtn" onclick="libDelete()" disabled>删除选中</button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
