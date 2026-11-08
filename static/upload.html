@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>图片上传 · QQ 机器人</title>
 <style>
-  /* GitHub Primer 风格：紧凑、灰调、小圆角、细边框、高信息密度 */
+  /* GitHub Primer 风格 · 居中舒适宽度（max 920px），宽屏左右分栏 */
   :root{
     color-scheme: light dark;
     --bg:#f6f8fa;
@@ -26,8 +26,8 @@
     --warn:#9a6700;
     --warn-soft:#fff8c5;
     --radius:6px;
-    --font: -apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei",sans-serif;
-    --mono: ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --font:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans","PingFang SC","Microsoft YaHei",sans-serif;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
   }
   @media (prefers-color-scheme: dark){
     :root{
@@ -53,104 +53,75 @@
 
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{
-    margin:0;min-height:100vh;padding:24px 16px 40px;
+    margin:0;min-height:100vh;padding:28px 20px 48px;
     background:var(--bg);color:var(--fg);
     font:14px/1.5 var(--font);
     -webkit-font-smoothing:antialiased;
   }
-  /* 宽屏铺满：内容用自适应网格撑开，最短 420px 最多 3 列 */
-  .wrap{
-    width:100%;max-width:1680px;margin:0 auto;
-    display:grid;gap:16px;align-items:start;
-    grid-template-columns:repeat(auto-fit,minmax(420px,1fr));
-  }
-  .wrap.single{grid-template-columns:1fr;max-width:520px}
+  /* 居中容器：宽屏最多 920px，两侧留白，视觉重心集中 */
+  .page{max-width:920px;margin:0 auto}
+  .page.narrow{max-width:440px}
 
-  /* 卡片：GitHub 的 Box —— 无阴影、细边框、白底 */
   .box{
-    width:100%;min-width:0;
     background:var(--surface);
     border:1px solid var(--border);
     border-radius:var(--radius);
     margin-bottom:16px;
+    overflow:hidden;
   }
   .box-hd{
-    padding:16px;
+    padding:14px 16px;
     border-bottom:1px solid var(--border2);
-    background:var(--surface);
-    border-radius:var(--radius) var(--radius) 0 0;
   }
   .box-hd h1{
-    font-size:14px;font-weight:600;margin:0;letter-spacing:0;
-    display:flex;align-items:center;gap:6px;
+    font-size:14px;font-weight:600;margin:0;
+    display:flex;align-items:center;gap:7px;
   }
   .box-hd h1 svg{width:16px;height:16px;color:var(--fg2);flex:none}
-  .box-hd p{margin:4px 0 0;font-size:12px;color:var(--fg2);line-height:1.5}
+  .box-hd p{margin:3px 0 0;font-size:12px;color:var(--fg2)}
   .box-bd{padding:16px}
-  .box-bd > *:last-child{margin-bottom:0}
-  /* 上传卡片内容在宽屏下分两栏 */
-  .split{display:grid;gap:16px;align-items:start}
-  @media (min-width:900px){
-    .split{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}
-    .split .col-l{border-right:1px solid var(--border2);padding-right:16px}
-    .split .col-l .sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
-  }
   .box-ft{
-    padding:12px 16px;border-top:1px solid var(--border2);
-    background:var(--surface2);border-radius:0 0 var(--radius) var(--radius);
-    font-size:12px;color:var(--fg2);text-align:center;
+    padding:10px 16px;border-top:1px solid var(--border2);
+    background:var(--surface2);font-size:11.5px;color:var(--fg3);
+    text-align:center;
   }
 
-  /* 分段控件：GitHub 的 SegmentedControl */
+  /* 分段控件 */
   .seg{
-    display:flex;gap:0;margin-bottom:16px;
-    border:1px solid var(--border);border-radius:var(--radius);
-    overflow:hidden;background:var(--surface2);
+    display:flex;border:1px solid var(--border);border-radius:var(--radius);
+    overflow:hidden;background:var(--surface2);margin-bottom:16px;
   }
   .seg button{
-    flex:1;margin:0;padding:5px 12px;border:none;border-radius:0;
+    flex:1;margin:0;padding:4px 12px;min-height:30px;
+    border:none;border-radius:0;box-shadow:none;
     background:transparent;color:var(--fg2);
-    font:inherit;font-size:12px;font-weight:500;cursor:pointer;
-    line-height:20px;box-shadow:none;width:auto;
-    transition:background .1s,color .1s;
+    font:inherit;font-size:12px;font-weight:500;line-height:20px;cursor:pointer;
   }
   .seg button + button{border-left:1px solid var(--border)}
-  .seg button.on{
-    background:var(--surface);color:var(--fg);font-weight:600;
-    box-shadow:inset 0 1px 0 var(--border);
-  }
+  .seg button.on{background:var(--surface);color:var(--fg);font-weight:600}
 
-  /* 表单：GitHub 的 FormControl */
-  .fc{margin-bottom:16px}
+  /* 表单 */
+  .fc{margin-bottom:14px}
   .fc:last-child{margin-bottom:0}
-  .fc > label{
-    display:block;font-size:12px;font-weight:600;color:var(--fg);
-    margin-bottom:5px;
-  }
-  .fc > .hint{font-size:12px;color:var(--fg3);margin-top:4px}
+  .fc > label{display:block;font-size:12px;font-weight:600;margin-bottom:5px}
+  .fc > .hint{font-size:11.5px;color:var(--fg3);margin-top:4px}
   input[type=text],input[type=password]{
-    width:100%!important;margin:0;
-    padding:5px 12px;min-height:32px;
-    font:inherit;font-size:14px;
-    color:var(--fg);background:var(--surface);
+    width:100%!important;margin:0;padding:4px 12px;min-height:32px;
+    font:inherit;font-size:14px;color:var(--fg);background:var(--surface);
     border:1px solid var(--border);border-radius:var(--radius);
-    vertical-align:middle;
     transition:border-color .1s,box-shadow .1s;
   }
   input::placeholder{color:var(--fg3)}
-  input:focus{
-    outline:none;border-color:var(--accent);
-    box-shadow:0 0 0 3px rgba(9,105,218,.3);
-  }
+  input:focus{outline:none;border-color:var(--accent);
+    box-shadow:0 0 0 3px rgba(9,105,218,.28)}
   @media (prefers-color-scheme: dark){
-    input:focus{box-shadow:0 0 0 3px rgba(68,147,248,.3)}
+    input:focus{box-shadow:0 0 0 3px rgba(68,147,248,.28)}
   }
   input[type=file]{display:none}
 
-  /* 按钮：GitHub 的 Button */
   button{
     display:inline-block;width:100%;margin:0 0 8px;
-    padding:5px 16px;min-height:32px;
+    padding:4px 16px;min-height:32px;
     font:inherit;font-size:14px;font-weight:500;line-height:20px;
     color:var(--fg);background:var(--surface2);
     border:1px solid var(--border);border-radius:var(--radius);
@@ -159,29 +130,24 @@
   }
   button:hover:not(:disabled){background:var(--border2);border-color:var(--fg3)}
   button:active:not(:disabled){background:var(--border)}
-  button:disabled{color:var(--fg3);cursor:default;opacity:.6}
-  button.primary{
-    color:#fff;background:var(--accent);border-color:var(--accent);
-  }
+  button:disabled{color:var(--fg3);cursor:default;opacity:.55}
+  button.primary{color:#fff;background:var(--accent);border-color:var(--accent)}
   button.primary:hover:not(:disabled){background:var(--accent-hover);border-color:var(--accent-hover)}
-  button.danger{color:var(--danger);border-color:var(--border)}
+  button.danger{color:var(--danger)}
   button.danger:hover:not(:disabled){background:var(--danger-soft);border-color:var(--danger)}
-  button.ok{color:var(--success);border-color:var(--border)}
+  button.ok{color:var(--success)}
   button.ok:hover:not(:disabled){background:var(--success-soft);border-color:var(--success)}
-  /* 小按钮 */
   button.sm{
     width:auto!important;flex:none;margin:0;
-    padding:3px 12px;min-height:28px;
-    font-size:12px;line-height:20px;
+    padding:2px 11px;min-height:26px;font-size:12px;line-height:18px;
   }
 
-  /* 提示行 */
-  .msg{min-height:20px;margin:8px 0 0;font-size:12px;line-height:1.6;color:var(--fg2)}
+  .msg{min-height:18px;margin:6px 0 0;font-size:12px;color:var(--fg2)}
   .msg.ok{color:var(--success)}
   .msg.err{color:var(--danger)}
   .hidden{display:none!important}
 
-  /* 当前账号条 */
+  /* 账号条 */
   .whoami{
     display:flex;align-items:center;gap:8px;flex-wrap:wrap;
     padding:8px 12px;margin-bottom:16px;
@@ -194,7 +160,7 @@
     display:grid;place-items:center;
     font-size:11px;font-weight:600;font-family:var(--mono);
   }
-  .whoami b{font-weight:600;color:var(--fg);font-size:13px}
+  .whoami b{font-weight:600;font-size:13px}
   .whoami .uid{
     font-family:var(--mono);font-size:11px;color:var(--fg3);
     background:var(--surface);border:1px solid var(--border2);
@@ -205,72 +171,76 @@
   /* 拖放区 */
   .drop{
     border:1px dashed var(--border);border-radius:var(--radius);
-    padding:24px 16px;text-align:center;cursor:pointer;
-    background:var(--surface2);
-    transition:border-color .1s,background .1s;margin-bottom:16px;
+    padding:26px 16px;text-align:center;cursor:pointer;
+    background:var(--surface2);margin-bottom:14px;
+    transition:border-color .1s,background .1s;
   }
   .drop:hover,.drop.over{border-color:var(--accent);background:var(--accent-soft)}
   .drop svg{width:20px;height:20px;color:var(--fg3);margin-bottom:6px}
-  .drop .t1{font-size:13px;font-weight:600;color:var(--fg);margin-bottom:2px}
+  .drop .t1{font-size:13px;font-weight:600;margin-bottom:2px}
   .drop .t2{font-size:11.5px;color:var(--fg3)}
-  .preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:16px}
+  .preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
   .preview img{
-    width:52px;height:52px;object-fit:cover;border-radius:4px;
-    border:1px solid var(--border);
+    width:50px;height:50px;object-fit:cover;
+    border-radius:4px;border:1px solid var(--border);
   }
-  .bar{height:4px;border-radius:2px;background:var(--surface2);overflow:hidden;display:none;margin:0 0 12px}
+  .bar{height:4px;border-radius:2px;background:var(--surface2);overflow:hidden;display:none;margin:0 0 10px}
   .bar i{display:block;height:100%;width:0;background:var(--accent);transition:width .2s}
 
-  /* 区块标题：GitHub 的 SectionHeader 风格 */
-  .sec{margin-top:20px;padding-top:16px;border-top:1px solid var(--border2)}
+  /* 区块 */
+  .sec{margin-top:18px;padding-top:14px;border-top:1px solid var(--border2)}
   .sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
   .sec-hd{
     display:flex;align-items:center;gap:8px;margin:0 0 8px;
-    font-size:12px;font-weight:600;color:var(--fg);
+    font-size:12px;font-weight:600;
   }
   .sec-hd .count{
-    font-family:var(--mono);font-size:11px;font-weight:400;
-    color:var(--fg2);background:var(--surface2);
-    border:1px solid var(--border2);border-radius:10px;
-    padding:0 7px;line-height:18px;
+    font-family:var(--mono);font-size:11px;font-weight:400;color:var(--fg2);
+    background:var(--surface2);border:1px solid var(--border2);
+    border-radius:10px;padding:0 6px;line-height:17px;
   }
   .sec-hd .sp{flex:1}
 
-  /* 列表项：GitHub 的列表行 */
+  /* 列表行 */
   .item{
     display:flex;align-items:center;gap:10px;
-    padding:8px 0;border-bottom:1px solid var(--border2);
-    font-size:13px;
+    padding:8px 0;border-bottom:1px solid var(--border2);font-size:13px;
   }
   .item:last-child{border-bottom:none}
   .item .thumb{
-    width:40px;height:40px;flex:none;object-fit:cover;
+    width:38px;height:38px;flex:none;object-fit:cover;
     border-radius:4px;border:1px solid var(--border);cursor:zoom-in;
   }
   .item .meta{flex:1;min-width:0}
   .item .meta .name{
-    font-size:13px;font-weight:500;color:var(--fg);
+    font-size:13px;font-weight:500;
     overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
   }
   .item .meta .sub{
-    font-size:11.5px;color:var(--fg3);margin-top:1px;
-    font-family:var(--mono);
+    font-size:11.5px;color:var(--fg3);margin-top:1px;font-family:var(--mono);
   }
   .item .ops{display:flex;gap:6px;flex:none}
 
-  /* 状态徽章：GitHub Label */
   .badge{
     flex:none;font-size:11px;font-weight:500;line-height:18px;
-    padding:0 7px;border-radius:10px;border:1px solid transparent;
-    white-space:nowrap;
+    padding:0 7px;border-radius:10px;border:1px solid transparent;white-space:nowrap;
   }
   .badge.pending{color:var(--warn);background:var(--warn-soft);border-color:var(--warn)}
   .badge.approved{color:var(--success);background:var(--success-soft);border-color:var(--success)}
   .badge.rejected{color:var(--danger);background:var(--danger-soft);border-color:var(--danger)}
+  .empty{padding:14px 0;text-align:center;font-size:12px;color:var(--fg3)}
 
-  .empty{
-    padding:16px 0;text-align:center;
-    font-size:12px;color:var(--fg3);
+  /* 宽屏：上传卡内部左右分栏，比例 1 : 1.15 */
+  @media (min-width:880px){
+    .split{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.15fr);gap:0}
+    .split .col-l{padding-right:18px;border-right:1px solid var(--border2)}
+    .split .col-r{padding-left:18px}
+    .split .col-r .sec{margin-top:0;padding-top:0;border-top:none}
+  }
+  @media (max-width:879px){
+    .split{display:block}
+    .split .col-l{padding-right:0;border-right:none;margin-bottom:18px}
+    .split .col-r{padding-left:0}
   }
 
   /* 大图 */
@@ -283,204 +253,208 @@
   .lightbox img{max-width:92vw;max-height:86vh;border-radius:6px}
   .lightbox .x{
     position:absolute;top:12px;right:12px;width:auto;margin:0;
-    padding:3px 12px;font-size:12px;
+    padding:2px 12px;min-height:26px;font-size:12px;
     color:#fff;background:rgba(255,255,255,.16);
     border:1px solid rgba(255,255,255,.24);border-radius:var(--radius);
   }
   .lightbox .x:hover{background:rgba(255,255,255,.28)}
 
-  /* 移动端 */
-  @media (max-width:700px){
-    .wrap{grid-template-columns:1fr;gap:12px}
-    .split{grid-template-columns:1fr}
-    .split .col-l{border-right:none;padding-right:0}
-  }
-  @media (max-width:430px){
-    body{padding:12px 8px 28px}
-    .box{border-radius:var(--radius)}
+  @media (max-width:520px){
+    body{padding:14px 10px 32px}
     .box-hd{padding:12px 14px}
     .box-bd{padding:14px}
-    .box-ft{padding:10px 14px}
+    .box-ft{padding:9px 14px}
     input[type=text],input[type=password],select,textarea{font-size:16px}
     button{min-height:36px}
     button.sm{min-height:30px;font-size:12.5px}
-    .item .thumb{width:36px;height:36px}
+    .drop{padding:22px 14px}
+    .item .thumb{width:34px;height:34px}
+    .seg button{min-height:34px;font-size:13px}
   }
 </style>
 </head>
 <body>
-<div class="wrap" id="wrap">
 
 <!-- 登录 / 注册 -->
-<div class="box" id="loginCard">
-  <div class="box-hd">
-    <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
-      图片上传
-    </h1>
-    <p>登录以上传图片，或使用 QQ 邮箱注册新账号</p>
-  </div>
-
-  <div class="box-bd">
-    <div class="seg">
-      <button id="tab-login" class="on" onclick="switchTab('login')">登录</button>
-      <button id="tab-reg" onclick="switchTab('reg')">注册</button>
+<div class="page narrow" id="loginWrap">
+  <div class="box" id="loginCard">
+    <div class="box-hd">
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+        图片上传
+      </h1>
+      <p>登录以上传图片，或使用 QQ 邮箱注册新账号</p>
     </div>
 
-    <div id="formLogin">
-      <div class="fc">
-        <label for="u">账号</label>
-        <input type="text" id="u" placeholder="账号名或 5-9 位数字 ID" autocomplete="username">
+    <div class="box-bd">
+      <div class="seg">
+        <button id="tab-login" class="on" onclick="switchTab('login')">登录</button>
+        <button id="tab-reg" onclick="switchTab('reg')">注册</button>
       </div>
-      <div class="fc">
-        <label for="p">密码</label>
-        <input type="password" id="p" placeholder="请输入密码" autocomplete="current-password">
-      </div>
-      <button class="primary" id="loginBtn" onclick="doLogin()">登录</button>
-      <div class="msg" id="loginMsg"></div>
-    </div>
 
-    <div id="formReg" class="hidden">
-      <div class="fc">
-        <label for="r-mail">QQ 邮箱</label>
-        <input type="text" id="r-mail" placeholder="例如 12345@qq.com" autocomplete="off">
-      </div>
-      <div class="fc">
-        <label for="r-code">邮箱验证码</label>
-        <div style="display:flex;gap:6px;align-items:center">
-          <input type="text" id="r-code" placeholder="6 位数字" maxlength="6">
-          <button class="sm" id="codeBtn" onclick="sendCode()" style="white-space:nowrap">获取验证码</button>
+      <div id="formLogin">
+        <div class="fc">
+          <label for="u">账号</label>
+          <input type="text" id="u" placeholder="账号名或 5-9 位数字 ID" autocomplete="username">
         </div>
-        <div class="hint">验证码会发送到该邮箱，10 分钟内有效</div>
+        <div class="fc">
+          <label for="p">密码</label>
+          <input type="password" id="p" placeholder="请输入密码" autocomplete="current-password">
+        </div>
+        <button class="primary" id="loginBtn" onclick="doLogin()">登录</button>
+        <div class="msg" id="loginMsg"></div>
       </div>
-      <div class="fc">
-        <label for="r-user">账号名</label>
-        <input type="text" id="r-user" placeholder="2-20 位，字母 / 数字 / 中文">
-      </div>
-      <div class="fc">
-        <label for="r-pass">密码</label>
-        <input type="password" id="r-pass" placeholder="至少 4 位">
-      </div>
-      <button class="primary" onclick="doApply()">注册账号</button>
-      <div class="msg" id="regMsg"></div>
-    </div>
-  </div>
 
-  <div class="box-ft">一个邮箱只能注册一个账号，验证通过后立即生效</div>
+      <div id="formReg" class="hidden">
+        <div class="fc">
+          <label for="r-mail">QQ 邮箱</label>
+          <input type="text" id="r-mail" placeholder="例如 12345@qq.com" autocomplete="off">
+        </div>
+        <div class="fc">
+          <label for="r-code">邮箱验证码</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="text" id="r-code" placeholder="6 位数字" maxlength="6">
+            <button class="sm" id="codeBtn" onclick="sendCode()" style="white-space:nowrap">获取验证码</button>
+          </div>
+          <div class="hint">验证码会发送到该邮箱，10 分钟内有效</div>
+        </div>
+        <div class="fc">
+          <label for="r-user">账号名</label>
+          <input type="text" id="r-user" placeholder="2-20 位，字母 / 数字 / 中文">
+        </div>
+        <div class="fc">
+          <label for="r-pass">密码</label>
+          <input type="password" id="r-pass" placeholder="至少 4 位">
+        </div>
+        <button class="primary" onclick="doApply()">注册账号</button>
+        <div class="msg" id="regMsg"></div>
+      </div>
+    </div>
+
+    <div class="box-ft">一个邮箱只能注册一个账号，验证通过后立即生效</div>
+  </div>
 </div>
 
 <!-- 上传 -->
-<div class="box hidden" id="uploadCard">
-  <div class="box-hd">
-    <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
-      上传图片
-    </h1>
-    <p>提交后需管理员审核，通过后即可被机器人使用</p>
-  </div>
-
-  <div class="box-bd">
-    <div class="whoami">
-      <div class="avatar" id="avatar">—</div>
-      <b id="whoami">—</b>
-      <span class="uid" id="whono"></span>
-      <span class="sp"></span>
-      <button class="sm" onclick="doChangePw()">改密码</button>
-      <button class="sm" onclick="doLogout()">退出</button>
+<div class="page hidden" id="uploadWrap">
+  <div class="box" id="uploadCard">
+    <div class="box-hd">
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+        上传图片
+      </h1>
+      <p>提交后需管理员审核，通过后即可被机器人使用</p>
     </div>
 
-    <div class="split">
-      <div class="col-l">
-        <div class="drop" id="drop" onclick="document.getElementById('file').click()">
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
-          <div class="t1">点击选择图片</div>
-          <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
-        </div>
-        <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
-        <div class="preview" id="preview"></div>
-        <button class="primary" id="go" onclick="doUpload()">提交审核</button>
-        <div class="bar" id="bar"><i></i></div>
-        <div class="msg" id="upMsg"></div>
-
-        <div class="sec hidden" id="adminEntry">
-          <button onclick="openAdminPanel()" style="margin:0">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/></svg>
-            打开管理员审批面板
-          </button>
-        </div>
+    <div class="box-bd">
+      <div class="whoami">
+        <div class="avatar" id="avatar">—</div>
+        <b id="whoami">—</b>
+        <span class="uid" id="whono"></span>
+        <span class="sp"></span>
+        <button class="sm" onclick="doChangePw()">改密码</button>
+        <button class="sm" onclick="doLogout()">退出</button>
       </div>
 
-      <div class="col-r">
-        <div class="sec">
-          <div class="sec-hd">
-            我的上传
-            <span class="count" id="mineCount">0</span>
-            <span class="sp"></span>
-            <button class="sm" onclick="loadMine()">刷新</button>
+      <div class="split">
+        <div class="col-l">
+          <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
+            <div class="t1">点击选择图片</div>
+            <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
           </div>
-          <div id="mineList"></div>
+          <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
+          <div class="preview" id="preview"></div>
+          <button class="primary" id="go" onclick="doUpload()">提交审核</button>
+          <div class="bar" id="bar"><i></i></div>
+          <div class="msg" id="upMsg"></div>
+
+          <div class="sec hidden" id="adminEntry">
+            <button onclick="openAdminPanel()" style="margin:0">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" style="width:14px;height:14px;vertical-align:-2px;margin-right:5px"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/></svg>
+              打开管理员审批面板
+            </button>
+          </div>
         </div>
 
-        <div class="sec">
-          <div class="sec-hd">账号安全</div>
-          <button onclick="doChangePw()" style="margin:0">修改登录密码</button>
+        <div class="col-r">
+          <div class="sec">
+            <div class="sec-hd">
+              我的上传
+              <span class="count" id="mineCount">0</span>
+              <span class="sp"></span>
+              <button class="sm" onclick="loadMine()">刷新</button>
+            </div>
+            <div id="mineList"></div>
+          </div>
+
+          <div class="sec">
+            <div class="sec-hd">账号安全</div>
+            <button onclick="doChangePw()" style="margin:0">修改登录密码</button>
+          </div>
         </div>
       </div>
     </div>
-  </div>
 
-  <div class="box-ft">图片上传后需管理员审核</div>
-</div>
+    <div class="box-ft">图片上传后需管理员审核</div>
+  </div>
 </div>
 
 <!-- 管理员审批 -->
-<div class="box hidden" id="adminCard">
-  <div class="box-hd">
-    <h1>
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/><path d="M9 12l2 2 4-4"/></svg>
-      管理员审批
-    </h1>
-    <p>审核待发布图片，处理注册申请</p>
-  </div>
-
-  <div class="box-bd">
-    <div class="whoami">
-      <div class="avatar" style="background:var(--success)">
-        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M5 12l4.5 4.5L19 7"/></svg>
-      </div>
-      <b>管理员模式</b>
-      <span class="uid" id="adminMode"></span>
-      <span class="sp"></span>
-      <button class="sm" onclick="closeAdminPanel()">返回</button>
+<div class="page hidden" id="adminWrap">
+  <div class="box" id="adminCard">
+    <div class="box-hd">
+      <h1>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/><path d="M9 12l2 2 4-4"/></svg>
+        管理员审批
+      </h1>
+      <p>审核待发布图片，处理注册申请</p>
     </div>
 
-    <div id="pwWrap" class="hidden">
-      <div class="fc">
-        <label for="apw">管理密码</label>
-        <input type="password" id="apw" placeholder="后台设置的密码" oninput="pwChanged()">
-      </div>
-      <button class="primary" onclick="loadAdmin()">进入审批面板</button>
-    </div>
-    <div class="msg" id="adminMsg"></div>
-
-    <div class="sec" id="adminBody" style="display:none">
-      <div class="sec-hd">
-        待审核图片
-        <span class="count" id="revCount">0</span>
+    <div class="box-bd">
+      <div class="whoami">
+        <div class="avatar" style="background:var(--success)">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="width:11px;height:11px"><path d="M5 12l4.5 4.5L19 7"/></svg>
+        </div>
+        <b>管理员模式</b>
+        <span class="uid" id="adminMode"></span>
         <span class="sp"></span>
-        <button class="sm" onclick="loadAdmin()">刷新</button>
+        <button class="sm" onclick="closeAdminPanel()">返回</button>
       </div>
-      <div id="revList"></div>
-    </div>
 
-    <div class="sec" id="adminBody2" style="display:none">
-      <div class="sec-hd">
-        待批注册申请
-        <span class="count" id="apCount">0</span>
-        <span class="sp"></span>
-        <button class="sm" onclick="loadAdmin()">刷新</button>
+      <div id="pwWrap" class="hidden">
+        <div class="fc">
+          <label for="apw">管理密码</label>
+          <input type="password" id="apw" placeholder="后台设置的密码" oninput="pwChanged()">
+        </div>
+        <button class="primary" onclick="loadAdmin()">进入审批面板</button>
       </div>
-      <div id="apList"></div>
+      <div class="msg" id="adminMsg"></div>
+
+      <div class="split">
+        <div class="col-l">
+          <div class="sec" id="adminBody" style="display:none">
+            <div class="sec-hd">
+              待审核图片
+              <span class="count" id="revCount">0</span>
+              <span class="sp"></span>
+              <button class="sm" onclick="loadAdmin()">刷新</button>
+            </div>
+            <div id="revList"></div>
+          </div>
+        </div>
+        <div class="col-r">
+          <div class="sec" id="adminBody2" style="display:none">
+            <div class="sec-hd">
+              待批注册申请
+              <span class="count" id="apCount">0</span>
+              <span class="sp"></span>
+              <button class="sm" onclick="loadAdmin()">刷新</button>
+            </div>
+            <div id="apList"></div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -527,6 +501,12 @@ function switchTab(which) {
   $('#tab-reg').classList.toggle('on', !isLogin);
 }
 
+function showOnly(which) {
+  $('#loginWrap').classList.toggle('hidden', which !== 'login');
+  $('#uploadWrap').classList.toggle('hidden', which !== 'upload');
+  $('#adminWrap').classList.toggle('hidden', which !== 'admin');
+}
+
 async function doLogin() {
   const u = $('#u').value.trim(), p = $('#p').value;
   if (!u || !p) return msg('#loginMsg', '请填写账号和密码', true);
@@ -550,9 +530,7 @@ function enterUpload(username, uidNumber, isAdmin) {
   $('#whono').style.display = uidNumber ? '' : 'none';
   const admin = !!isAdmin || localStorage.getItem(AD_KEY) === '1';
   $('#adminEntry').classList.toggle('hidden', !admin);
-  $('#loginCard').classList.add('hidden');
-  $('#uploadCard').classList.remove('hidden');
-  $('#adminCard').classList.add('hidden');
+  showOnly('upload');
   loadMine();
 }
 
@@ -720,16 +698,12 @@ function openAdminPanel() {
     $('#pwWrap').classList.remove('hidden');
     $('#apw').value = adminPw;
   }
-  $('#loginCard').classList.add('hidden');
-  $('#uploadCard').classList.add('hidden');
-  $('#adminCard').classList.remove('hidden');
+  showOnly('admin');
   loadAdmin();
 }
 function closeAdminPanel() {
-  $('#adminCard').classList.add('hidden');
-  const logged = !!localStorage.getItem(TK_KEY);
-  $('#loginCard').classList.toggle('hidden', logged);
-  $('#uploadCard').classList.toggle('hidden', !logged);
+  if (localStorage.getItem(TK_KEY)) showOnly('upload');
+  else showOnly('login');
 }
 function pwChanged() {
   adminPw = $('#apw').value.trim();
