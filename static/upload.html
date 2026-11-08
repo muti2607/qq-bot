@@ -155,6 +155,9 @@
   <div class="mine">
     <h3>账号安全</h3>
     <button class="ghost" onclick="doChangePw()" style="width:100%">🔑 修改登录密码</button>
+    <button class="ghost" id="admin-entry-btn" onclick="showAdmin()" style="width:100%;display:none">
+      🛡️ 打开审批面板（管理员权限）
+    </button>
   </div>
   <div class="note">图片上传后需管理员审核，请耐心等待</div>
 </div>
@@ -217,6 +220,8 @@ function showReg(on) {
   $('#st-reg').classList.toggle('on', on);
 }
 
+let isAdminUser = false;
+
 async function doLogin() {
   const u = $('#u').value.trim(), p = $('#p').value;
   if (!u || !p) return setSt('#loginStatus', '请输入账号和密码', true);
@@ -224,6 +229,8 @@ async function doLogin() {
   try {
     const d = await post('/remote/login', {username: u, password: p});
     localStorage.setItem('qqbot-upload-token', d.token);
+    localStorage.setItem('qqbot-is-admin', d.is_admin ? '1' : '');
+    isAdminUser = !!d.is_admin;
     enterUpload(d.username, d.uid_number);
   } catch (e) { setSt('#loginStatus', e.message, true); }
   $('#loginBtn').disabled = false;
@@ -231,6 +238,11 @@ async function doLogin() {
 
 function enterUpload(username, uidNumber) {
   $('#whoami').textContent = uidNumber ? `${username} (#${uidNumber})` : username;
+  // 管理员账号：显示「审批」按钮，无需管理密码
+  const len = localStorage.getItem('qqbot-is-admin') === '1';
+  isAdminUser = len;
+  const ad = $('#admin-entry-btn');
+  if (ad) ad.style.display = len ? '' : 'none';
   $('#loginCard').classList.add('hidden');
   $('#adminCard').classList.add('hidden');
   $('#uploadCard').classList.remove('hidden');
@@ -364,11 +376,17 @@ function exitAdmin() { location.reload(); }
 
 async function loadAdmin() {
   adminPw = $('#apw').value.trim() || adminPw;
-  if (!adminPw) return setSt('#loginStatus', '先输入管理密码', true);
+  // 管理员账号已登录：不需要再输管理密码
+  const hasSession = !!localStorage.getItem('qqbot-upload-token');
+  if (!adminPw && !hasSession) return setSt('#loginStatus', '先输入管理密码', true);
+  if (!adminPw && hasSession) {
+    // 无密码模式：靠登录态鉴权
+    adminPw = '';
+  }
   localStorage.setItem(PW_KEY, adminPw);
   showAdmin();
   try {
-    const imgs = await post('/remote/admin-pending', {admin_password: adminPw});
+    const imgs = await post('/remote/admin-pending', {admin_password: adminPw}, H());
     $('#revCount').textContent = (imgs.images || []).length;
     $('#revList').innerHTML = (imgs.images || []).length ? imgs.images.map(i => `
       <div class="rev">
@@ -380,8 +398,8 @@ async function loadAdmin() {
         </span>
       </div>`).join('') : '<div class="note">没有待审核的图片</div>';
 
-    const r = await fetch('/api/apply-requests?status=pending', {credentials: 'same-origin'});
-    const list = await r.json();
+    const ar = await post('/remote/admin-applies', {admin_password: adminPw}, H());
+    const list = ar.applies || [];
     $('#apCount').textContent = list.length;
     $('#apList').innerHTML = list.length ? list.map(a => `
       <div class="rev">
@@ -399,7 +417,7 @@ async function loadAdmin() {
 
 async function adminReview(id, action) {
   try {
-    await post('/remote/admin-review', {admin_password: adminPw, ids: [id], action});
+    await post('/remote/admin-review', {admin_password: adminPw, ids: [id], action}, H());
     toast(action === 'approve' ? '✅ 已通过' : '已驳回');
     loadAdmin();
   } catch (e) { toast(e.message, true); }
@@ -407,7 +425,7 @@ async function adminReview(id, action) {
 async function adminApply(aid, action) {
   try {
     await post(action === 'approve' ? '/remote/admin-apply-approve' : '/remote/admin-apply-reject',
-               {admin_password: adminPw, aid});
+               {admin_password: adminPw, aid}, H());
     toast(action === 'approve' ? '✅ 已批准，账号生效' : '已驳回申请');
     loadAdmin();
   } catch (e) { toast(e.message, true); }

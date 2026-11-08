@@ -858,6 +858,7 @@ class UploadUserIn(BaseModel):
     password: str = ""
     note: str = ""
     enabled: bool = True
+    is_admin: bool = False
 
 
 @app.get("/api/upload-users")
@@ -871,10 +872,11 @@ async def api_create_upload_user(body: UploadUserIn):
         raise HTTPException(400, "账号和密码不能为空")
     if len(body.password) < 4:
         raise HTTPException(400, "密码至少 4 位")
-    uid = db.create_upload_user(body.username, body.password, body.note)
+    uid = db.create_upload_user(body.username, body.password, body.note, body.is_admin)
     if uid is None:
         raise HTTPException(400, "账号已存在")
-    db.add_log(f"创建上传账号 {body.username}", "info")
+    role = "管理员" if body.is_admin else "普通"
+    db.add_log(f"创建上传账号 {body.username}（{role}）", "info")
     return {"ok": True, "id": uid}
 
 
@@ -883,7 +885,7 @@ async def api_update_upload_user(uid: int, body: UploadUserIn):
     if body.password and len(body.password) < 4:
         raise HTTPException(400, "密码至少 4 位")
     db.update_upload_user(uid, password=body.password or None,
-                          note=body.note, enabled=body.enabled)
+                          note=body.note, enabled=body.enabled, is_admin=body.is_admin)
     return {"ok": True}
 
 
@@ -1093,6 +1095,24 @@ def _parse_upload_token(tok: str) -> str | None:
         return username
     except Exception:
         return None
+
+def _require_admin_ctx(request: Request, admin_password: str = "") -> str:
+    """8001 审批鉴权：管理员账号登录态 OR 正确管理密码，任一通过即可。
+    返回操作者标识（用于日志）。"""
+    # 方式一：上传账号登录且该账号是管理员
+    tok = (request.headers.get("X-Upload-Session", "").strip()
+           or request.cookies.get("upload_session", ""))
+    who = _parse_upload_token(tok) if tok else None
+    if who:
+        rec = db.get_upload_user(who)
+        if rec and rec.get("enabled") and rec.get("is_admin"):
+            return f"{who}(管理员账号)"
+    # 方式二：管理密码
+    cur = db.get_settings().get("admin_password", "")
+    if cur and admin_password and secrets.compare_digest(admin_password, cur):
+        return "管理密码"
+    raise HTTPException(401, "需要管理员权限：请用管理员账号登录，或输入管理密码")
+
 
 def _upload_user_from(request: Request) -> str:
     """从 Header / Cookie 取出上传账号，失败抛 401。"""
@@ -1339,7 +1359,10 @@ async def remote_logout():
 async def remote_me(request: Request):
     u = _upload_user_from(request)
     rec = db.get_upload_user(u)
-    return {"ok": True, "username": u, "uid_number": (rec or {}).get("uid_number") or ""}
+    return {"ok": True, "username": u,
+            "uid_number": (rec or {}).get("uid_number") or "",
+            "is_admin": bool((rec or {}).get("is_admin")),
+            "id": (rec or {}).get("id")}
 
 @remote_router.get("/remote/mine")
 async def remote_mine(request: Request):
@@ -1385,9 +1408,7 @@ async def remote_admin_review(request: Request, body: AdminReviewIn):
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    cur = db.get_settings().get("admin_password", "")
-    if not cur or not secrets.compare_digest(body.admin_password, cur):
-        raise HTTPException(401, "管理员密码错误")
+    _require_admin_ctx(request, body.admin_password)
     if body.action not in ("approve", "reject"):
         raise HTTPException(400, "action 无效")
     status = "approved" if body.action == "approve" else "rejected"
@@ -1403,13 +1424,22 @@ async def remote_admin_pending(request: Request, admin_password: str = ""):
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    cur = db.get_settings().get("admin_password", "")
-    if not cur or not secrets.compare_digest(admin_password, cur):
-        raise HTTPException(401, "管理员密码错误")
+    _require_admin_ctx(request, admin_password)
     out = []
     for i in db.list_images(status="pending"):
         out.append({"id": i["id"], "original": i["original"], "uploader": i["uploader"], "created_at": i["created_at"]})
     return {"ok": True, "images": out}
+
+
+@remote_router.get("/remote/admin-applies")
+async def remote_admin_applies(request: Request, admin_password: str = ""):
+    """管理员查看待批注册申请（8001 审批面板用）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    _require_admin_ctx(request, admin_password)
+    return {"ok": True, "applies": db.list_applies("pending")}
 
 
 @remote_router.post("/remote/admin-apply-approve")
@@ -1419,9 +1449,7 @@ async def remote_admin_apply_approve(request: Request, body: dict):
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    cur = db.get_settings().get("admin_password", "")
-    if not cur or not secrets.compare_digest(str(body.get("admin_password", "")), cur):
-        raise HTTPException(401, "管理员密码错误")
+    _require_admin_ctx(request, str(body.get("admin_password", "")))
     uid = db.approve_apply(int(body.get("aid", 0)))
     if uid is None:
         raise HTTPException(400, "申请不存在、已处理或用户名冲突")
@@ -1436,9 +1464,7 @@ async def remote_admin_apply_reject(request: Request, body: dict):
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    cur = db.get_settings().get("admin_password", "")
-    if not cur or not secrets.compare_digest(str(body.get("admin_password", "")), cur):
-        raise HTTPException(401, "管理员密码错误")
+    _require_admin_ctx(request, str(body.get("admin_password", "")))
     aid = int(body.get("aid", 0))
     a = db.get_apply(aid)
     if not a or a["status"] != "pending":

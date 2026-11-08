@@ -1313,6 +1313,43 @@
   </form>
 </dialog>
 
+<dialog id="uuDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3 id="uu-title">新建上传账号</h3></div>
+    <div class="dlg-body">
+      <input type="hidden" id="uu-id">
+      <label class="field"><span>账号名（2-20 位，字母/数字/中文）</span>
+        <input id="uu-name" maxlength="20" placeholder="例如 zhangsan">
+      </label>
+      <label class="field"><span id="uu-pw-label">密码（至少 4 位）</span>
+        <input id="uu-pw" type="password" placeholder="至少 4 位" autocomplete="new-password">
+      </label>
+      <label class="field"><span>备注（可选）</span>
+        <input id="uu-note" maxlength="60" placeholder="用途 / 姓名">
+      </label>
+      <div class="field">
+        <span style="font-size:12px;color:var(--sub)">权限</span>
+        <div style="display:flex;flex-direction:column;gap:8px;margin-top:6px">
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="uu-enabled" checked style="width:auto;margin:0">
+            <span style="font-size:13px">启用该账号（关闭后无法登录）</span>
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+            <input type="checkbox" id="uu-admin" style="width:auto;margin:0">
+            <span style="font-size:13px">管理员权限（可审批图片、批准注册申请）</span>
+          </label>
+        </div>
+        <div class="hint" style="margin-top:6px">管理员账号登录 8001 后无需输入管理密码，直接看到审批面板。</div>
+      </div>
+      <div class="status" id="uu-msg" style="min-height:0;margin-top:4px"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="small" onclick="$('#uuDlg').close()">取消</button>
+      <button type="button" class="primary" onclick="saveUploadUser()">💾 保存</button>
+    </div>
+  </form>
+</dialog>
+
 
 
 <div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
@@ -1560,12 +1597,13 @@ async function loadUploadUsers() {
       <div class="body">
         <div class="title">👤 ${esc(u.username)}
           <span class="pill on" style="background:rgba(56,189,248,.15);color:var(--pink)" title="数字登录ID">#${esc(u.uid_number || '—')}</span>
+          ${u.is_admin ? '<span class="pill on" style="background:rgba(251,191,36,.18);color:#f59e0b" title="拥有管理员权限">★ 管理员</span>' : ''}
           <span class="pill ${u.enabled ? 'on' : 'off'}">${u.enabled ? '启用' : '停用'}</span>
         </div>
         <div class="meta"><span>${esc(u.note || '无备注')}</span><span>创建于 ${esc(u.created_at || '')}</span></div>
       </div>
       <div class="ops">
-        <button class="small" onclick="openUploadUserForm(${u.id})">改密码</button>
+        <button class="small" onclick="openUploadUserForm(${u.id})">编辑</button>
         <button class="small" onclick="toggleUploadUser(${u.id}, ${!u.enabled})">${u.enabled ? '停用' : '启用'}</button>
         <button class="small danger" onclick="delUploadUser(${u.id})">删除</button>
       </div>
@@ -1585,31 +1623,55 @@ async function rejectApply(aid) {
 
 function openUploadUserForm(id) {
   const u = id ? uploadUsers.find(x => x.id === id) : null;
-  const name = (prompt(u ? `账号「${u.username}」的新密码（留空表示不改）：` : '新账号名：', '') || '').trim();
-  if (u) {
-    if (!name) return;
-    if (name.length < 4) return toast('密码至少 4 位', true);
-    if (!confirm(`确认把账号「${u.username}」的密码改成新密码？`)) return;
-    api(`/api/upload-users/${u.id}`, {method: 'PUT', body: JSON.stringify({username: u.username, password: name, note: u.note, enabled: u.enabled})})
-      .then(() => { toast('密码已更新'); loadUploadUsers(); })
-      .catch(e => toast(e.message, true));
-    return;
-  }
-  if (!name) return;
-  const pw = (prompt(`为账号「${name}」设置密码（至少 4 位）：`, '') || '').trim();
-  if (!pw) return;
-  if (pw.length < 4) return toast('密码至少 4 位', true);
-  const note = (prompt('备注（可选，如 用途/姓名）：', '') || '').trim();
-  api('/api/upload-users', {method: 'POST', body: JSON.stringify({username: name, password: pw, note})})
-    .then(() => { toast(`账号「${name}」已创建`); loadUploadUsers(); })
-    .catch(e => toast(e.message, true));
+  $('#uu-id').value = u ? u.id : '';
+  $('#uu-title').textContent = u ? `编辑账号「${u.username}」` : '新建上传账号';
+  $('#uu-name').value = u ? u.username : '';
+  $('#uu-name').disabled = !!u;
+  $('#uu-pw').value = '';
+  $('#uu-pw-label').textContent = u ? '改密码（留空表示不改）' : '密码（至少 4 位）';
+  $('#uu-pw').placeholder = u ? '留空则保持原密码' : '至少 4 位';
+  $('#uu-note').value = u ? (u.note || '') : '';
+  $('#uu-enabled').checked = u ? !!u.enabled : true;
+  $('#uu-admin').checked = u ? !!u.is_admin : false;
+  $('#uu-msg').textContent = '';
+  $('#uuDlg').showModal();
+}
+
+async function saveUploadUser() {
+  const id = $('#uu-id').value;
+  const name = $('#uu-name').value.trim();
+  const pw = $('#uu-pw').value;
+  const note = $('#uu-note').value.trim();
+  const enabled = $('#uu-enabled').checked;
+  const isAdmin = $('#uu-admin').checked;
+  const msg = (m, err) => {
+    const el = $('#uu-msg');
+    el.textContent = m;
+    el.style.color = err ? 'var(--err)' : 'var(--ok)';
+  };
+  if (!name) return msg('账号名不能为空', true);
+  if (!id && pw.length < 4) return msg('密码至少 4 位', true);
+  if (id && pw && pw.length < 4) return msg('新密码至少 4 位', true);
+  try {
+    if (id) {
+      await api(`/api/upload-users/${id}`, {method: 'PUT', body: JSON.stringify({
+        username: name, password: pw, note, enabled, is_admin: isAdmin})});
+      msg('已保存');
+    } else {
+      await api('/api/upload-users', {method: 'POST', body: JSON.stringify({
+        username: name, password: pw, note, enabled, is_admin: isAdmin})});
+      msg('账号已创建');
+    }
+    loadUploadUsers();
+    setTimeout(() => { $('#uuDlg').close(); toast(isAdmin ? '账号已保存（管理员权限）' : '账号已保存'); }, 500);
+  } catch (e) { msg(e.message, true); }
 }
 
 async function toggleUploadUser(id, enabled) {
   const u = uploadUsers.find(x => x.id === id);
   if (!u) return;
   try {
-    await api(`/api/upload-users/${id}`, {method: 'PUT', body: JSON.stringify({username: u.username, password: '', note: u.note, enabled})});
+    await api(`/api/upload-users/${id}`, {method: 'PUT', body: JSON.stringify({username: u.username, password: '', note: u.note, enabled, is_admin: u.is_admin})});
     toast(enabled ? '已启用' : '已停用');
     loadUploadUsers();
   } catch (e) { toast(e.message, true); }

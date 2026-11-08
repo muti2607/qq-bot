@@ -78,6 +78,7 @@ CREATE TABLE IF NOT EXISTS upload_users (
     username    TEXT NOT NULL UNIQUE,
     password    TEXT NOT NULL,        -- sha256 hex
     uid_number  TEXT UNIQUE,          -- 5-9 位纯数字登录ID
+    is_admin    INTEGER NOT NULL DEFAULT 0,   -- 1=管理员（可审批图片/申请）
     note        TEXT NOT NULL DEFAULT '',
     enabled     INTEGER NOT NULL DEFAULT 1,
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
@@ -164,6 +165,8 @@ def _migrate(conn: sqlite3.Connection) -> None:
     uu_cols = cols("upload_users")
     if "uid_number" not in uu_cols:
         conn.execute("ALTER TABLE upload_users ADD COLUMN uid_number TEXT")
+    if "is_admin" not in uu_cols:
+        conn.execute("ALTER TABLE upload_users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
     # 给没有数字ID的账号补分配
     import random as _random
     used = {r["uid_number"] for r in conn.execute(
@@ -417,6 +420,7 @@ def list_upload_users() -> list[dict[str, Any]]:
         d = dict(r)
         d.pop("password", None)
         d["enabled"] = bool(d["enabled"])
+        d["is_admin"] = bool(d.get("is_admin"))
         out.append(d)
     return out
 
@@ -448,13 +452,15 @@ def alloc_uid_number(conn: sqlite3.Connection) -> str:
             return num
 
 
-def create_upload_user(username: str, password: str, note: str = "") -> int | None:
+def create_upload_user(username: str, password: str, note: str = "",
+                       is_admin: bool = False) -> int | None:
     try:
         with db() as conn:
             num = alloc_uid_number(conn)
             cur = conn.execute(
-                "INSERT INTO upload_users(username, password, uid_number, note, enabled) VALUES(?,?,?,?,1)",
-                (username.strip(), _hash_pw(password), num, note.strip()),
+                "INSERT INTO upload_users(username, password, uid_number, is_admin, note, enabled) "
+                "VALUES(?,?,?,?,?,1)",
+                (username.strip(), _hash_pw(password), num, int(bool(is_admin)), note.strip()),
             )
             return int(cur.lastrowid)
     except sqlite3.IntegrityError:
@@ -462,7 +468,8 @@ def create_upload_user(username: str, password: str, note: str = "") -> int | No
 
 
 def update_upload_user(uid: int, password: str | None = None,
-                       note: str | None = None, enabled: bool | None = None) -> None:
+                       note: str | None = None, enabled: bool | None = None,
+                       is_admin: bool | None = None) -> None:
     fields, args = [], []
     if password:
         fields.append("password=?")
@@ -473,6 +480,9 @@ def update_upload_user(uid: int, password: str | None = None,
     if enabled is not None:
         fields.append("enabled=?")
         args.append(int(bool(enabled)))
+    if is_admin is not None:
+        fields.append("is_admin=?")
+        args.append(int(bool(is_admin)))
     if not fields:
         return
     args.append(uid)
