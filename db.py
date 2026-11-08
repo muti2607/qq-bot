@@ -234,6 +234,8 @@ DEFAULT_SETTINGS = {
     "ai_keyless_fallback": "1",   # 1=启用内置免Key兜底接口
     "ai_at_reply": "0",           # 回复时是否 @ 对方：0=不带（默认）1=带
     "ai_group_gap": "25",         # all 模式下同一群两次回复的最小间隔（秒），防刷屏
+    "ai_send_min_gap": "6",       # 全局：任意两条消息最小间隔（秒），防封号
+    "ai_send_per_min": "8",       # 全局：每分钟最多发几条，防封号
     "ai_use_face": "1",           # 允许发表情（QQ 小黄脸）
     "ai_use_poke": "1",           # 允许戳一戳
     "ai_use_sticker": "1",        # 允许发自己偷来的表情包

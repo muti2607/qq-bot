@@ -1127,6 +1127,30 @@
   }
   [data-theme="clean"] .toast.err{background:var(--err) !important;color:#fff !important}
 
+
+  /* ==================== 桌面端两栏强制（>980px） ==================== */
+  @media (min-width:981px){
+    .app-shell{
+      display:grid !important;
+      grid-template-columns:220px minmax(0,1fr) !important;
+      gap:0 !important;
+    }
+    .workspace{padding:20px 24px 40px !important;max-width:none !important}
+    .row{
+      display:grid !important;
+      grid-template-columns:minmax(0,1fr) 430px !important;
+      gap:20px !important;
+      align-items:start !important;
+    }
+    .col-main{display:flex !important;flex-direction:column !important;min-width:0 !important}
+    .col-main .view.active{display:flex !important}
+    .col-side{
+      display:grid !important;gap:16px !important;
+      align-content:start !important;
+      position:sticky !important;top:76px !important;
+      max-height:calc(100vh - 92px) !important;overflow:auto !important;
+    }
+  }
 </style>
 </head>
 <body>

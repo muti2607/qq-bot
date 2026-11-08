@@ -33,6 +33,46 @@ _last_fight_reply: dict[int, float] = {}
 # 偷图限速：群号 -> 上次尝试收藏的时间（收藏要额外调一次模型，别太频繁）
 _last_collect_try: dict[int, float] = {}
 
+# ============ 全局发送节流（防封号）============
+# 真人在群里不会 2 秒回一条。原来"@ 不受限速"会导致连续 @ 时 2 秒连发 3 条，
+# 这是最像机器人的特征，风控最容易抓。这里给「所有对外发送」加一道硬约束：
+#   - 任意两条消息之间至少隔 min_gap 秒（默认 6）
+#   - 每分钟最多 max_per_min 条（默认 8）
+# 超了就等，不是丢弃——保证该说的话最终都会说，只是慢一点。
+_send_lock = threading.Lock()
+_send_times: list[float] = []
+
+
+def _throttle_send() -> None:
+    """在真正发送前调用：按节奏等一等，模拟真人打字速度。"""
+    try:
+        cfg = db.get_settings()
+        min_gap = float(cfg.get("ai_send_min_gap") or 6)
+        per_min = int(cfg.get("ai_send_per_min") or 8)
+    except Exception:
+        min_gap, per_min = 6.0, 8
+
+    while True:
+        with _send_lock:
+            now = time.time()
+            # 清掉 60 秒前的记录
+            while _send_times and now - _send_times[0] > 60:
+                _send_times.pop(0)
+
+            wait = 0.0
+            if _send_times:
+                gap_from_last = now - _send_times[-1]
+                if gap_from_last < min_gap:
+                    wait = max(wait, min_gap - gap_from_last)
+            if per_min > 0 and len(_send_times) >= per_min:
+                wait = max(wait, 60 - (now - _send_times[0]))
+
+            if wait <= 0:
+                _send_times.append(now)
+                return
+        # 等待时按小步睡，避免一次性睡死
+        time.sleep(min(wait, 1.0))
+
 
 def _self_qq(event: dict | None = None) -> int | None:
     """自己的 QQ 号。优先用事件里自带的 self_id（零成本），其次用缓存。"""
@@ -256,7 +296,7 @@ def _handle_media(event: dict, img_segs: list[dict], text: str, is_group: bool,
             if line:
                 t, _a = _parse_actions(line)
                 if t.strip():
-                    onebot.send_message("group", target_id, [onebot.text_segment(t.strip())])
+                    _safe_send("group", target_id, [onebot.text_segment(t.strip())])
         except Exception:
             pass
         return True
@@ -347,20 +387,20 @@ def _send_ai_reply(reply: str, is_group: bool, target_id: int, event: dict) -> b
     if clean_text and clean_text.strip() and "[taunt]" not in clean_text:
         segs = [onebot.text_segment(clean_text.strip())]
         try:
-            onebot.send_message("group" if is_group else "private", target_id, segs)
+            _safe_send("group" if is_group else "private", target_id, segs)
             delivered = True
         except Exception as e:
             db.add_log(f"发消息失败：{e}", "warn", None)
     for kind, arg in actions:
         try:
             if kind == "face":
-                onebot.send_message("group" if is_group else "private", target_id,
+                _safe_send("group" if is_group else "private", target_id,
                                     [{"type": "face", "data": {"id": str(arg)}}])
                 delivered = True
             elif kind == "poke" and is_group:
                 uid = (event.get("sender") or {}).get("user_id")
                 if uid:
-                    onebot.send_poke(int(target_id), int(uid))
+                    _safe_poke(int(target_id), int(uid))
                     delivered = True
             elif kind == "sticker":
                 where = "group" if is_group else "private"
@@ -523,7 +563,7 @@ def handle_event(event: dict) -> None:
         return
 
     try:
-        onebot.send_message("group" if is_group else "private", target_id, segments_out)
+        _safe_send("group" if is_group else "private", target_id, segments_out)
         db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}", "info", None)
     except Exception as e:
         # 带 @ 的回复失败（如提问者已退群、uid 解析失败）时降级为不带 @ 再发一次
@@ -531,7 +571,7 @@ def handle_event(event: dict) -> None:
             try:
                 retry = [sg for sg in segments_out if sg.get("type") != "at"]
                 retry = [sg for i, sg in enumerate(retry) if not (sg.get("type") == "text" and sg["data"]["text"] == " " and i == 0)]
-                onebot.send_message("group" if is_group else "private", target_id, retry)
+                _safe_send("group" if is_group else "private", target_id, retry)
                 db.add_log(f"触发词《{trigger['keyword']}》已回复 {'群' if is_group else '私聊'} {target_id}（@提问者失败已降级）", "info", None)
                 return
             except Exception:
@@ -597,9 +637,9 @@ def handle_poke(event: dict) -> None:
         uid = event.get("user_id")
         try:
             if group_id and uid:
-                onebot.send_poke(int(group_id), int(uid))
+                _safe_poke(int(group_id), int(uid))
             elif uid:
-                onebot.send_poke(None, int(uid))
+                _safe_poke(None, int(uid))
             db.add_log(f"被戳了，回戳 {uid}", "info", None)
             return
         except Exception as e:
@@ -612,11 +652,27 @@ def handle_poke(event: dict) -> None:
         if reply:
             text, actions = _parse_actions(reply)
             if text:
-                onebot.send_message("private", int(event["user_id"]),
+                _safe_send("private", int(event["user_id"]),
                                     [onebot.text_segment(text)])
                 db.add_log(f"被戳了，回了句话给 {event.get('user_id')}", "info", None)
     except Exception as e:
         db.add_log(f"戳一戳回复失败：{e}", "warn", None)
+
+
+def _safe_send(seg_type: str, target_id: int, segments: list, at_all: bool = False):
+    """所有对外发送都走这里：先过全局节流，再真正发。
+
+    这样无论从哪条代码路径发消息（文字/表情/图片/斗图），
+    都不会出现 2 秒连发这种机器人特征。
+    """
+    _throttle_send()
+    return onebot.send_message(seg_type, target_id, segments, at_all)
+
+
+def _safe_poke(group_id, user_id: int):
+    """戳一戳也要节流——连续戳同样是机器特征。"""
+    _throttle_send()
+    return onebot.send_poke(group_id, user_id)
 
 
 def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentioned: bool) -> bool:
@@ -678,12 +734,12 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
             segs.append(onebot.text_segment(" "))
         segs.append(onebot.text_segment(clean_text))
         try:
-            onebot.send_message("group" if is_group else "private", target_id, segs)
+            _safe_send("group" if is_group else "private", target_id, segs)
             delivered = True
         except Exception as e:
             if at_reply and len(segs) > 1:
                 try:
-                    onebot.send_message("group" if is_group else "private", target_id,
+                    _safe_send("group" if is_group else "private", target_id,
                                         [onebot.text_segment(clean_text)])
                     delivered = True
                     db.add_log("AI 回复已发出（@ 失败，降级为纯文本）", "info", None)
@@ -696,11 +752,11 @@ def _try_ai_reply(event: dict, text: str, is_group: bool, target_id: int, mentio
     for kind, arg in actions:
         try:
             if kind == "face":
-                onebot.send_message("group" if is_group else "private", target_id,
+                _safe_send("group" if is_group else "private", target_id,
                                     [{"type": "face", "data": {"id": str(arg)}}])
                 delivered = True
             elif kind == "poke" and is_group and snd.get("user_id"):
-                onebot.send_poke(int(target_id), int(snd["user_id"]))
+                _safe_poke(int(target_id), int(snd["user_id"]))
                 delivered = True
             elif kind == "sticker":
                 where = "group" if is_group else "private"
