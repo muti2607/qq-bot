@@ -477,6 +477,24 @@
   }
   .admin-timed .x{color:var(--fg);font-family:var(--mono)}
 
+
+  /* 活动公告条 */
+  .act-banner{
+    border:1px solid var(--border);border-left:3px solid var(--accent);
+    border-radius:8px;padding:10px 14px;background:var(--surface2);
+    font-size:12.5px;line-height:1.6;
+  }
+  .act-banner .at{
+    font-weight:700;color:var(--accent);display:flex;align-items:center;gap:6px;
+    margin-bottom:3px;
+  }
+  .act-banner .at .mult{
+    font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;
+    background:rgba(251,191,36,.15);color:var(--warn);
+  }
+  .act-banner .ab{color:var(--fg2);white-space:pre-wrap}
+  .act-banner + .drop{margin-top:14px}
+
 </style>
 </head>
 <body>
@@ -609,7 +627,9 @@
 
       <div class="split">
         <div class="col-l">
-          <div class="drop" id="drop" onclick="document.getElementById('file').click()">
+          <div id="actBanner" class="hidden" style="margin-bottom:14px"></div>
+
+  <div class="drop" id="drop" onclick="document.getElementById('file').click()">
             <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
             <div class="t1">点击选择图片</div>
             <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
@@ -841,6 +861,7 @@ function enterUpload(username, uidNumber, isAdmin) {
   showOnly('upload');
   loadMine();
   loadPoints();
+  loadActivitiesBanner();
 }
 
 let codeTimer = null;
@@ -1014,6 +1035,26 @@ async function doExchange() {
       loadPoints();
     } else alert(r.msg);
   } catch (e) { alert(e.message); }
+}
+
+async function loadActivitiesBanner() {
+  try {
+    const r = await fetch('/remote/activities', {credentials: 'same-origin'}).then(x => x.json());
+    if (!r.ok || !r.activities || !r.activities.length) {
+      $('#actBanner').classList.add('hidden');
+      $('#actBanner').innerHTML = '';
+      return;
+    }
+    $('#actBanner').innerHTML = r.activities.map(function (a) {
+      return '<div class="act-banner">' +
+        '<div class="at">📣 ' + esc(a.title) +
+        (a.multiplier > 1 ? '<span class="mult">' + a.multiplier + '× 积分加成</span>' : '') +
+        '</div>' +
+        (a.body ? '<div class="ab">' + esc(a.body) + '</div>' : '') +
+        '</div>';
+    }).join('');
+    $('#actBanner').classList.remove('hidden');
+  } catch (e) {}
 }
 
 async function loadMine() {

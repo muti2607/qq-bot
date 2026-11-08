@@ -1180,6 +1180,7 @@
     <button class="nav" data-nav="sec-groups" onclick="navTo('sec-groups',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="9" cy="8" r="3.2"/><path d="M3.5 19c0-3 2.5-5 5.5-5s5.5 2 5.5 5"/><circle cx="17.5" cy="9.5" r="2.4"/><path d="M16 14.5c2.6 0 4.5 1.6 4.5 4"/></svg></span><span class="t">群组管理</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-images" onclick="navTo('sec-images',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.5 17.5l4.7-4.5 3.4 3.3 2.9-2.6 5.9 5.6"/></svg></span><span class="t">图片库</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-stickers" onclick="navTo('sec-stickers',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="8.5"/><path d="M8.5 14.2c.9 1.3 2.1 2 3.5 2s2.6-.7 3.5-2"/><circle cx="9.3" cy="9.8" r="1"/><circle cx="14.7" cy="9.8" r="1"/></svg></span><span class="t">表情库</span><span class="dotmark"></span></button>
+    <button class="nav" data-nav="sec-activities" onclick="navTo('sec-activities',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 21.5l8.5-8.5a3.5 3.5 0 0 0-5-5L12 11.5 8.5 8a3.5 3.5 0 0 0-5 5z"/></svg></span><span class="t">积分活动</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-upload-users" onclick="navTo('sec-upload-users',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg></span><span class="t">上传账号</span><span class="dotmark"></span></button>
     <button class="nav" data-nav="sec-logs" onclick="navTo('sec-logs',this)"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4h11l3 3v13H5z"/><path d="M8 11h7M8 15h5"/></svg></span><span class="t">运行日志</span><span class="dotmark"></span></button>
     <button class="nav" id="nav-settings" onclick="navTo('sec-settings')"><span class="ico"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3.1"/><path d="M12 3.5v2.2M12 18.3v2.2M4.9 12H3.1M20.9 12h-1.8M6.6 6.6l-1.3-1.3M18.7 18.7l-1.3-1.3M6.6 17.4l-1.3 1.3M18.7 5.3l-1.3 1.3"/></svg></span><span class="t">设置</span><span class="dotmark"></span></button>
@@ -1347,6 +1348,15 @@
           </div>
         </div>
       </div>
+
+      <section class="panel view" id="sec-activities">
+        <h2>积分活动 <span class="muted" style="font-weight:400">（发布活动公告，可设签到倍率与有效期）</span>
+          <span class="spacer"></span>
+          <button class="primary small" onclick="openActivityForm()">＋ 发布活动</button>
+          <button class="small" onclick="openPointsOps()">⚡ 积分操作</button>
+        </h2>
+        <div id="activitylist" class="tasklist"></div>
+      </section>
 
       <section class="panel view" id="sec-upload-users">
         <h2>上传账号 <span class="muted" style="font-weight:400">（远程上传页 8001 需要账号登录，账号由你在此创建）</span>
@@ -1903,6 +1913,7 @@ function navTo(id, btn) {
   if (id === 'sec-images') loadImages();
   if (id === 'sec-stickers') loadStickers();
   if (id === 'sec-upload-users') loadUploadUsers();
+  if (id === 'sec-activities') loadActivities();
   if (id === 'sec-settings') { loadSettingsIntoForm(); }
   try { localStorage.setItem('qqbot-view', id); } catch {}
 }
@@ -2079,6 +2090,100 @@ async function updateStats() {
     $('#st-trig').textContent = triggers.length;
     $('#st-imgs').textContent = images.length;
   } catch {}
+}
+
+// ---------- 积分活动 ----------
+let activities = [];
+async function loadActivities() {
+  try { activities = await api('/api/activities'); } catch { activities = []; }
+  const box = $('#activitylist');
+  if (!box) return;
+  if (!activities.length) {
+    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有活动。发布后用户在上传页看到公告条；倍率>1 的活动会自动加成签到积分。</div>`;
+    return;
+  }
+  box.innerHTML = activities.map(a => `
+    <div class="t">
+      <div class="body">
+        <div class="title">📣 ${esc(a.title)}
+          <span class="pill ${a.enabled ? 'on' : 'off'}">${a.enabled ? '生效中' : '已停用'}</span>
+          ${a.multiplier > 1 ? `<span class="pill on" style="background:rgba(251,191,36,.15);color:#f59e0b">${a.multiplier}× 倍率</span>` : ''}
+        </div>
+        <div class="meta">
+          <span>${esc(a.body || '无正文')}</span>
+          <span>${a.start_at ? '起 ' + esc(a.start_at.slice(0, 16)) : ''} ${a.end_at ? '止 ' + esc(a.end_at.slice(0, 16)) : '长期'}</span>
+        </div>
+      </div>
+      <div class="ops">
+        <button class="small" onclick="openActivityForm(${a.id})">编辑</button>
+        <button class="small" onclick="toggleActivity(${a.id}, ${!a.enabled})">${a.enabled ? '停用' : '启用'}</button>
+        <button class="small danger" onclick="delActivity(${a.id})">删除</button>
+      </div>
+    </div>`).join('');
+}
+
+function openActivityForm(id) {
+  const a = id ? activities.find(x => x.id === id) : null;
+  const title = prompt(a ? `编辑活动「${a.title}」——新标题：` : '活动标题：', a ? a.title : '') || '';
+  if (!title.trim()) return;
+  const body = prompt('活动正文（显示给用户，可写规则说明）：', a ? (a.body || '') : '') || '';
+  const multStr = prompt('签到积分倍率（1 = 无加成，2 = 双倍）：', a ? a.multiplier : '1') || '1';
+  const mult = Math.max(1, parseFloat(multStr) || 1);
+  const end = prompt('结束时间（格式 2026-12-31 23:59:59，留空 = 长期有效）：', a ? (a.end_at || '') : '') || '';
+  const payload = {title: title.trim(), body: body.trim(), multiplier: mult, end_at: end.trim(),
+                   start_at: a ? (a.start_at || '') : '', enabled: a ? a.enabled : true};
+  const req = a
+    ? api(`/api/activities/${a.id}`, {method: 'PUT', body: JSON.stringify(payload)})
+    : api('/api/activities', {method: 'POST', body: JSON.stringify(payload)});
+  req.then(() => { toast(a ? '活动已更新' : '活动已发布'); loadActivities(); })
+     .catch(e => toast(e.message, true));
+}
+
+async function toggleActivity(id, enabled) {
+  const a = activities.find(x => x.id === id);
+  if (!a) return;
+  try {
+    await api(`/api/activities/${id}`, {method: 'PUT', body: JSON.stringify({
+      title: a.title, body: a.body, multiplier: a.multiplier,
+      start_at: a.start_at || '', end_at: a.end_at || '', enabled})});
+    toast(enabled ? '已启用' : '已停用');
+    loadActivities();
+  } catch (e) { toast(e.message, true); }
+}
+
+async function delActivity(id) {
+  if (!confirm('删除该活动？')) return;
+  try { await api(`/api/activities/${id}`, {method: 'DELETE'}); toast('已删除'); loadActivities(); }
+  catch (e) { toast(e.message, true); }
+}
+
+// ---------- 积分操作 ----------
+function openPointsOps() {
+  const mode = prompt('输入操作类型：\n1 = 单个账号加减分\n2 = 全员加分\n3 = 全员清零', '1');
+  if (!mode) return;
+  if (mode === '1') {
+    const name = (prompt('账号名（或数字 ID）：') || '').trim();
+    if (!name) return;
+    const delta = Number(prompt('积分变化（正数加分，负数扣分，如 100 或 -50）：') || 0);
+    if (!delta) return toast('数量无效', true);
+    const reason = (prompt('原因（可选，记入日志）：') || '').trim();
+    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({username: name, delta, reason})})
+      .then(r => { toast(`${name} 积分已调整为 ${r.points}`); loadUploadUsers(); })
+      .catch(e => toast(e.message, true));
+  } else if (mode === '2') {
+    const delta = Number(prompt('全员积分变化（正加负减）：') || 0);
+    if (!delta) return toast('数量无效', true);
+    const reason = (prompt('原因（可选）：') || '').trim();
+    if (!confirm(`确认给所有启用账号 ${delta > 0 ? '+' : ''}${delta} 积分？`)) return;
+    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({delta, reason})})
+      .then(r => { toast(`已影响 ${r.affected} 个账号`); loadUploadUsers(); })
+      .catch(e => toast(e.message, true));
+  } else if (mode === '3') {
+    if (!confirm('确认将所有账号积分清零？此操作不可恢复！')) return;
+    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({reset_all: true})})
+      .then(r => { toast(`已清零 ${r.affected} 个账号`); loadUploadUsers(); })
+      .catch(e => toast(e.message, true));
+  }
 }
 
 // ---------- 上传账号管理 ----------

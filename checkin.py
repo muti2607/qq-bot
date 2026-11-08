@@ -68,6 +68,10 @@ def checkin(username: str) -> dict:
         if streak > 0 and streak % days == 0:
             bonus += extra
     gain += bonus
+    # 活动倍率（取当前最高生效倍率）
+    mult = current_multiplier()
+    if mult > 1.0:
+        gain = int(gain * mult)
 
     with db() as conn:
         conn.execute(
@@ -75,9 +79,11 @@ def checkin(username: str) -> dict:
             (gain, today, streak, username),
         )
     u2 = _get_user(username)
-    msg = f"签到成功 +{DAILY_POINTS} 分"
+    msg = f"签到成功 +{gain} 分"
+    if mult > 1.0:
+        msg += f"（活动 {mult:g} 倍）"
     if bonus:
-        msg += f"，连续 {streak} 天奖励 +{bonus} 分"
+        msg += f"，含连续 {streak} 天奖励 +{bonus} 分"
     return {"ok": True, "msg": msg, "points": u2["points"],
             "streak": streak, "gain": gain, "bonus": bonus}
 
@@ -155,3 +161,131 @@ def is_timed_admin(username: str) -> bool:
     """是否有时间制管理员权限（含到期检查）。"""
     g = get_points(username)
     return g.get("is_timed_admin", False)
+
+
+# ---------------- 活动系统 ----------------
+
+def _activities_table(conn: sqlite3.Connection) -> None:
+    conn.execute("""
+CREATE TABLE IF NOT EXISTS activities (
+    id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    title     TEXT NOT NULL,
+    body      TEXT NOT NULL DEFAULT '',
+    multiplier REAL NOT NULL DEFAULT 1.0,   -- 签到倍率（1=无加成）
+    start_at  TEXT NOT NULL DEFAULT '',
+    end_at    TEXT NOT NULL DEFAULT '',
+    enabled   INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT (datetime('now','localtime'))
+)""")
+
+
+def _ensure_activities() -> None:
+    with db() as conn:
+        _activities_table(conn)
+
+
+def _ensure_activities_safe() -> None:
+    try:
+        _ensure_activities()
+    except Exception:
+        pass
+
+
+def list_activities(include_disabled: bool = True) -> list[dict]:
+    _ensure_activities_safe()
+    with db() as conn:
+        conn.row_factory = sqlite3.Row
+        sql = "SELECT * FROM activities"
+        if not include_disabled:
+            sql += " WHERE enabled=1"
+        rows = conn.execute(sql + " ORDER BY id DESC").fetchall()
+    return [dict(r) for r in rows]
+
+
+def active_activities() -> list[dict]:
+    """当前生效中的活动（enabled 且在有效期内），按倍率降序。"""
+    import datetime as _dt
+    now = _dt.datetime.now()
+    out = []
+    for a in list_activities(include_disabled=False):
+        ok = True
+        if a.get("start_at"):
+            try:
+                if _dt.datetime.strptime(a["start_at"], "%Y-%m-%d %H:%M:%S") > now:
+                    ok = False
+            except ValueError:
+                pass
+        if a.get("end_at"):
+            try:
+                if _dt.datetime.strptime(a["end_at"], "%Y-%m-%d %H:%M:%S") < now:
+                    ok = False
+            except ValueError:
+                pass
+        if ok:
+            out.append(a)
+    out.sort(key=lambda x: -x.get("multiplier", 1.0))
+    return out
+
+
+def current_multiplier() -> float:
+    """当前最高生效倍率（默认 1.0）。"""
+    acts = active_activities()
+    return max([a.get("multiplier", 1.0) for a in acts] or [1.0])
+
+
+def add_activity(title: str, body: str = "", multiplier: float = 1.0,
+                 start_at: str = "", end_at: str = "") -> int | None:
+    _ensure_activities_safe()
+    with db() as conn:
+        cur = conn.execute(
+            "INSERT INTO activities(title, body, multiplier, start_at, end_at, enabled) "
+            "VALUES(?,?,?,?,?,1)",
+            (title.strip(), body.strip(), max(1.0, float(multiplier)),
+             start_at.strip(), end_at.strip()),
+        )
+        return int(cur.lastrowid)
+
+
+def update_activity(aid: int, title: str, body: str, multiplier: float,
+                    start_at: str, end_at: str, enabled: bool) -> None:
+    _ensure_activities_safe()
+    with db() as conn:
+        conn.execute(
+            "UPDATE activities SET title=?, body=?, multiplier=?, start_at=?, end_at=?, enabled=? WHERE id=?",
+            (title.strip(), body.strip(), max(1.0, float(multiplier)),
+             start_at.strip(), end_at.strip(), int(bool(enabled)), aid),
+        )
+
+
+def delete_activity(aid: int) -> None:
+    _ensure_activities_safe()
+    with db() as conn:
+        conn.execute("DELETE FROM activities WHERE id=?", (aid,))
+
+
+# ---------------- 积分管理（后台） ----------------
+
+def adjust_points(username: str, delta: int, reason: str = "") -> int | None:
+    """调整单个账号积分（可为负）。返回新积分，账号不存在返回 None。"""
+    u = _get_user(username)
+    if not u:
+        return None
+    with db() as conn:
+        conn.execute("UPDATE upload_users SET points=MAX(0, points+?) WHERE username=?",
+                     (delta, username))
+    new = _get_user(username)
+    return new.get("points", 0)
+
+
+def grant_points_all(delta: int, reason: str = "") -> int:
+    """全员加分（可为负，不低于 0）。返回受影响人数。"""
+    with db() as conn:
+        cur = conn.execute("UPDATE upload_users SET points=MAX(0, points+?) WHERE enabled=1",
+                           (delta,))
+        return cur.rowcount
+
+
+def reset_points_all() -> int:
+    with db() as conn:
+        cur = conn.execute("UPDATE upload_users SET points=0")
+        return cur.rowcount

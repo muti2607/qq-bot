@@ -1183,6 +1183,82 @@ async def api_ban_user(uid: int, body: BanIn):
     return {"ok": True, "banned": True, "until": until}
 
 
+# ---------------- 积分活动 / 积分管理（后台） ----------------
+
+
+class ActivityIn(BaseModel):
+    title: str
+    body: str = ""
+    multiplier: float = 1.0
+    start_at: str = ""
+    end_at: str = ""
+    enabled: bool = True
+
+
+def _acts():
+    import checkin
+    checkin._ensure_activities_safe()
+    return checkin
+
+
+@app.get("/api/activities")
+async def api_activities_v2():
+    return _acts().list_activities()
+
+
+@app.post("/api/activities")
+async def api_add_activity(body: ActivityIn):
+    acts = _acts()
+    if not body.title.strip():
+        raise HTTPException(400, "活动标题不能为空")
+    aid = acts.add_activity(body.title, body.body, body.multiplier,
+                            body.start_at, body.end_at)
+    db.add_log(f"发布积分活动「{body.title}」（倍率 {body.multiplier:g}）", "info")
+    return {"ok": True, "id": aid}
+
+
+@app.put("/api/activities/{aid}")
+async def api_update_activity(aid: int, body: ActivityIn):
+    acts = _acts()
+    acts.update_activity(aid, body.title, body.body, body.multiplier,
+                         body.start_at, body.end_at, body.enabled)
+    return {"ok": True}
+
+
+@app.delete("/api/activities/{aid}")
+async def api_delete_activity(aid: int):
+    _acts().delete_activity(aid)
+    return {"ok": True}
+
+
+class PointsAdjustIn(BaseModel):
+    username: str = ""       # 空 = 全员
+    delta: int = 0
+    reason: str = ""
+    reset_all: bool = False
+
+
+@app.post("/api/points/adjust")
+async def api_points_adjust(body: PointsAdjustIn):
+    acts = _acts()
+    if body.reset_all:
+        n = acts.reset_points_all()
+        db.add_log(f"全员积分清零（{n} 人）", "warn")
+        return {"ok": True, "affected": n}
+    if body.username:
+        new = acts.adjust_points(body.username.strip(), body.delta, body.reason)
+        if new is None:
+            raise HTTPException(404, "账号不存在")
+        db.add_log(f"调整 {body.username} 积分 {body.delta:+d} → {new}" +
+                   (f"（{body.reason[:30]}）" if body.reason else ""), "info")
+        return {"ok": True, "username": body.username, "points": new}
+    # 全员
+    n = acts.grant_points_all(body.delta, body.reason)
+    db.add_log(f"全员积分 {body.delta:+d}（{n} 人受影响）" +
+               (f"：{body.reason[:30]}" if body.reason else ""), "info")
+    return {"ok": True, "affected": n}
+
+
 @app.delete("/api/upload-users/{uid}")
 async def api_delete_upload_user(uid: int):
     db.delete_upload_user(uid)
@@ -1631,6 +1707,20 @@ async def remote_apply_status(request: Request, mail: str):
 
 class CheckinIn(BaseModel):
     username: str = ""   # 可选；默认用登录态
+
+
+@remote_router.get("/remote/activities")
+async def remote_activities(request: Request):
+    """当前生效中的积分活动公告（用户端展示）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    acts = _acts()
+    acts._ensure_activities_safe()
+    out = [{"title": a["title"], "body": a["body"], "multiplier": a["multiplier"]}
+           for a in acts.active_activities()]
+    return {"ok": True, "activities": out, "multiplier": acts.current_multiplier()}
 
 
 @remote_router.post("/remote/checkin")
