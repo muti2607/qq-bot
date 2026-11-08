@@ -2,172 +2,242 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <title>图片上传 · QQ 机器人</title>
 <style>
   :root{
-    --bg:#0a0f1e; --bg2:#0d1526;
-    --card:#111b2e; --card2:#16213a;
-    --line:rgba(99,169,255,.18);
-    --txt:#dbeafe; --sub:#7b8bab;
-    --blue:#38bdf8; --indigo:#818cf8;
-    --grad:linear-gradient(135deg,#38bdf8,#818cf8);
-    --ok:#34d399; --warn:#fbbf24; --err:#f87171;
-    --in:#0d1526;
+    color-scheme: light dark;
+    --bg:#f5f6f8;
+    --card:#ffffff;
+    --txt:#1a1d21;
+    --txt2:#5a6270;
+    --txt3:#8b93a1;
+    --line:#e3e6ea;
+    --line2:#eff1f4;
+    --brand:#2563eb;
+    --brand-soft:#eff4ff;
+    --ok:#059669;
+    --ok-soft:#ecfdf5;
+    --warn:#b45309;
+    --warn-soft:#fffbeb;
+    --err:#dc2626;
+    --err-soft:#fef2f2;
+    --in:#ffffff;
+    --in-line:#d7dce3;
+    --shadow:0 1px 2px rgba(16,24,40,.04);
+    --shadow-lg:0 2px 8px rgba(16,24,40,.06);
+    --radius:10px;
   }
+  @media (prefers-color-scheme: dark){
+    :root{
+      --bg:#0f1115;
+      --card:#171a1f;
+      --txt:#e8eaed;
+      --txt2:#9aa2ae;
+      --txt3:#6b7280;
+      --line:#262a31;
+      --line2:#1f2329;
+      --brand:#4d8bff;
+      --brand-soft:#1a2438;
+      --ok:#34d399;
+      --ok-soft:#132a22;
+      --warn:#fbbf24;
+      --warn-soft:#2a2110;
+      --err:#f87171;
+      --err-soft:#2b1618;
+      --in:#11141a;
+      --in-line:#2b313a;
+      --shadow:0 1px 2px rgba(0,0,0,.3);
+      --shadow-lg:0 2px 10px rgba(0,0,0,.4);
+    }
+  }
+
   *{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
   body{
-    margin:0;min-height:100vh;padding:22px 14px 40px;color:var(--txt);
-    font:15px/1.65 -apple-system,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-    background:radial-gradient(760px 420px at 12% -8%, #12304f 0%, transparent 58%),
-               radial-gradient(680px 380px at 92% 4%, #241a52 0%, transparent 55%),
-               linear-gradient(165deg,#0a0f1e,#0d1526 60%,#090d18);
-    background-attachment:fixed;
+    margin:0;min-height:100vh;padding:32px 16px 48px;
+    background:var(--bg);color:var(--txt);
+    font:14.5px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
     display:flex;flex-direction:column;align-items:center;
+    -webkit-font-smoothing:antialiased;
   }
+
   .card{
-    background:var(--card);border:1px solid var(--line);border-radius:18px;
-    padding:24px 20px;width:min(430px,100%);
-    box-shadow:0 16px 44px rgba(0,0,0,.45);
-    margin-bottom:14px;
+    width:min(440px,100%);background:var(--card);
+    border:1px solid var(--line);border-radius:var(--radius);
+    padding:24px;margin-bottom:12px;box-shadow:var(--shadow);
   }
-  h1{
-    font-size:18px;margin:0 0 5px;font-weight:800;letter-spacing:.2px;
-    display:flex;align-items:center;gap:9px;color:var(--txt);
-  }
-  h1 .ic{width:23px;height:23px;flex:none;display:grid;place-items:center;color:var(--blue)}
-  h1 .ic svg{width:100%;height:100%}
-  .lbl{color:var(--sub);font-size:13px;margin:0 0 20px}
+  .card.stack + .card.stack{margin-top:0}
 
-  .steps{display:flex;gap:8px;margin-bottom:18px}
-  .steps button{
-    flex:1;margin:0;padding:11px 4px;border-radius:11px;font-size:13px;font-weight:600;
-    background:var(--card2) !important;border:1px solid var(--line) !important;
-    box-shadow:none !important;color:var(--sub) !important;
+  .hd{margin-bottom:20px}
+  .hd h1{
+    font-size:16px;font-weight:600;letter-spacing:-.01em;margin:0 0 4px;
+    display:flex;align-items:center;gap:8px;
   }
-  .steps button.on{
-    background:rgba(56,189,248,.12) !important;color:var(--blue) !important;
-    border-color:rgba(56,189,248,.42) !important;
-  }
+  .hd h1 svg{width:17px;height:17px;color:var(--brand);flex:none}
+  .hd p{margin:0;font-size:13px;color:var(--txt2)}
 
+  .tabs{
+    display:flex;gap:2px;padding:2px;background:var(--line2);
+    border-radius:8px;margin-bottom:18px;
+  }
+  .tabs button{
+    flex:1;margin:0;padding:7px 4px;border:none;border-radius:6px;
+    background:transparent;color:var(--txt2);font:inherit;font-size:13px;
+    font-weight:500;cursor:pointer;box-shadow:none;width:auto;
+    transition:background .12s,color .12s;
+  }
+  .tabs button.on{background:var(--card);color:var(--txt);box-shadow:var(--shadow)}
+
+  label.f{display:block;margin-bottom:12px}
+  label.f > span{
+    display:block;font-size:12.5px;color:var(--txt2);margin-bottom:6px;font-weight:500;
+  }
   input[type=text],input[type=password]{
     width:100%;background:var(--in);color:var(--txt);
-    border:1px solid var(--line);border-radius:11px;
-    padding:13px 15px;font:inherit;font-size:16px;margin-bottom:12px;
+    border:1px solid var(--in-line);border-radius:8px;
+    padding:11px 12px;font:inherit;font-size:15px;margin:0;
+    transition:border-color .12s,box-shadow .12s;
   }
-  input:focus{outline:none;border-color:var(--blue);box-shadow:0 0 0 3px rgba(56,189,248,.14)}
-  input::placeholder{color:#5b6b8a}
+  input:focus{
+    outline:none;border-color:var(--brand);
+    box-shadow:0 0 0 3px color-mix(in srgb, var(--brand) 15%, transparent);
+  }
+  input::placeholder{color:var(--txt3)}
 
   button{
-    width:100%;padding:13px 16px;border:none;border-radius:11px;color:#fff;
-    font:inherit;font-size:15px;font-weight:600;cursor:pointer;
-    background:var(--grad);box-shadow:0 8px 20px rgba(56,189,248,.2);
-    transition:filter .15s,transform .12s;margin-bottom:10px;
+    width:100%;padding:11px 16px;margin:0 0 8px;
+    border:1px solid transparent;border-radius:8px;
+    font:inherit;font-size:14px;font-weight:500;cursor:pointer;
+    background:var(--brand);color:#fff;
+    transition:filter .12s,background .12s;
   }
-  button:hover{filter:brightness(1.07)}
-  button:active{transform:scale(.985)}
-  button:disabled{opacity:.5;cursor:not-allowed;box-shadow:none}
-  button.ghost{
-    background:transparent;border:1px solid var(--line);color:var(--sub);
-    box-shadow:none;font-weight:500;
+  button:hover:not(:disabled){filter:brightness(1.06)}
+  button:active:not(:disabled){filter:brightness(.94)}
+  button:disabled{opacity:.45;cursor:not-allowed}
+  button.sec{
+    background:var(--card);color:var(--txt);
+    border-color:var(--in-line);
   }
-  button.ghost:hover{border-color:var(--blue);color:var(--blue)}
-  /* 行内小按钮：必须覆盖 width:100% */
-  button.inline{
-    width:auto !important;flex:none;margin:0;padding:5px 11px;
-    font-size:12px;font-weight:500;border-radius:8px;box-shadow:none;
-    background:var(--card2);border:1px solid var(--line);color:var(--sub);
+  button.sec:hover:not(:disabled){background:var(--line2);filter:none}
+  button.sm{
+    width:auto !important;flex:none;margin:0;padding:5px 10px;
+    font-size:12.5px;border-radius:6px;
+    background:transparent;color:var(--txt2);border:1px solid var(--line);
   }
-  button.inline:hover{border-color:var(--blue);color:var(--blue);filter:none}
-  button.inline.solid{background:var(--grad);border:none;color:#fff}
+  button.sm:hover:not(:disabled){background:var(--line2);color:var(--txt);filter:none}
+  button.sm.danger{color:var(--err);border-color:var(--err-soft)}
+  button.sm.danger:hover{background:var(--err-soft);filter:none}
+  button.sm.ok{color:var(--ok);border-color:var(--line)}
+  button.sm.ok:hover{background:var(--ok-soft);filter:none}
 
-  .msg{min-height:22px;margin:8px 0 0;font-size:13.5px;line-height:1.6}
+  .msg{min-height:18px;margin:6px 0 0;font-size:12.5px;line-height:1.5;color:var(--txt2)}
   .msg.ok{color:var(--ok)}
-  .msg.err{color:var(--err);font-weight:500}
+  .msg.err{color:var(--err)}
   .hidden{display:none !important}
 
   .me{
-    display:flex;align-items:center;gap:9px;flex-wrap:wrap;
-    padding:11px 13px;margin-bottom:16px;border-radius:11px;
-    background:var(--card2);border:1px solid var(--line);font-size:13.5px;
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:10px 12px;margin-bottom:18px;
+    background:var(--line2);border-radius:8px;font-size:13px;
   }
-  .me .av{width:25px;height:25px;flex:none;display:grid;place-items:center;color:var(--blue)}
-  .me .av svg{width:100%;height:100%}
-  .me b{color:var(--txt);font-weight:700}
-  .me .no{color:var(--sub);font-size:12px;margin-left:4px}
+  .me .av{
+    width:26px;height:26px;flex:none;border-radius:50%;
+    background:var(--brand-soft);color:var(--brand);
+    display:grid;place-items:center;font-size:13px;font-weight:600;
+  }
+  .me b{font-weight:600}
+  .me .no{color:var(--txt3);font-size:12px;font-variant-numeric:tabular-nums}
   .me .sp{flex:1;min-width:4px}
 
   .drop{
-    border:2px dashed var(--line);border-radius:13px;padding:26px 14px;
-    text-align:center;cursor:pointer;transition:.18s;background:rgba(56,189,248,.03);
-    margin-bottom:14px;
+    border:1px dashed var(--in-line);border-radius:8px;
+    padding:28px 16px;text-align:center;cursor:pointer;
+    transition:border-color .15s,background .15s;margin-bottom:12px;
   }
-  .drop:hover,.drop.over{border-color:var(--blue);background:rgba(56,189,248,.08)}
-  .drop .ic{width:36px;height:36px;margin:0 auto 8px;display:grid;place-items:center;color:var(--blue);opacity:.85}
-  .drop .ic svg{width:100%;height:100%}
-  .drop .t1{font-size:14.5px;font-weight:700;color:var(--txt)}
-  .drop .t2{font-size:12px;color:var(--sub);margin-top:3px}
+  .drop:hover,.drop.over{border-color:var(--brand);background:var(--brand-soft)}
+  .drop svg{width:26px;height:26px;color:var(--txt3);margin-bottom:8px}
+  .drop .t1{font-size:13.5px;font-weight:500;color:var(--txt)}
+  .drop .t2{font-size:12px;color:var(--txt3);margin-top:2px}
   input[type=file]{display:none}
-  .preview{display:flex;flex-wrap:wrap;gap:8px;justify-content:center;margin-bottom:12px}
-  .preview img{width:62px;height:62px;object-fit:cover;border-radius:10px;border:1px solid var(--line)}
-  .bar{height:6px;border-radius:99px;background:rgba(255,255,255,.08);overflow:hidden;display:none;margin:4px 0 10px}
-  .bar i{display:block;height:100%;width:0;border-radius:99px;background:var(--grad);transition:width .25s}
+  .preview{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+  .preview img{
+    width:56px;height:56px;object-fit:cover;border-radius:6px;
+    border:1px solid var(--line);
+  }
+  .bar{height:4px;border-radius:2px;background:var(--line2);overflow:hidden;display:none;margin:0 0 10px}
+  .bar i{display:block;height:100%;width:0;background:var(--brand);transition:width .2s}
 
-  .sec{margin-top:20px;padding-top:16px;border-top:1px solid var(--line)}
-  .sec:first-child{margin-top:0;padding-top:0;border-top:none}
+  .sec{margin-top:22px;padding-top:20px;border-top:1px solid var(--line)}
+  .sec:first-of-type{margin-top:0;padding-top:0;border-top:none}
   .sec-h{
     display:flex;align-items:center;gap:8px;margin:0 0 10px;
-    font-size:13px;font-weight:700;color:var(--sub);
+    font-size:12.5px;font-weight:600;color:var(--txt2);
+    text-transform:none;letter-spacing:0;
   }
   .sec-h .cnt{
-    font-size:11px;font-weight:600;padding:1px 7px;border-radius:99px;
-    background:rgba(56,189,248,.14);color:var(--blue);
+    font-size:11px;font-weight:600;padding:1px 6px;border-radius:4px;
+    background:var(--line2);color:var(--txt2);font-variant-numeric:tabular-nums;
   }
   .sec-h .sp{flex:1}
 
   .row{
     display:flex;align-items:center;gap:10px;padding:9px 0;
-    border-bottom:1px solid var(--line);font-size:12.5px;
+    border-bottom:1px solid var(--line2);
   }
   .row:last-child{border-bottom:none}
   .row img{
-    width:44px;height:44px;flex:none;object-fit:cover;border-radius:9px;
+    width:42px;height:42px;flex:none;object-fit:cover;border-radius:6px;
     border:1px solid var(--line);cursor:zoom-in;
   }
-  .row .nm{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--txt)}
-  .row .nm .t{display:block;font-size:12px;color:var(--sub);margin-top:1px}
-  .tag{font-size:11px;padding:3px 9px;border-radius:99px;white-space:nowrap;font-weight:600}
-  .tag.pending{background:rgba(251,191,36,.14);color:var(--warn)}
-  .tag.approved{background:rgba(52,211,153,.14);color:var(--ok)}
-  .tag.rejected{background:rgba(248,113,113,.14);color:var(--err)}
-  .empty{text-align:center;color:var(--sub);font-size:12.5px;padding:18px 0}
+  .row .nm{flex:1;min-width:0;font-size:13px;overflow:hidden}
+  .row .nm b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .row .nm span{display:block;font-size:11.5px;color:var(--txt3);margin-top:1px}
+  .tag{
+    font-size:11px;padding:2px 7px;border-radius:4px;white-space:nowrap;
+    font-weight:500;flex:none;
+  }
+  .tag.pending{background:var(--warn-soft);color:var(--warn)}
+  .tag.approved{background:var(--ok-soft);color:var(--ok)}
+  .tag.rejected{background:var(--err-soft);color:var(--err)}
+  .empty{text-align:center;color:var(--txt3);font-size:12.5px;padding:20px 0}
 
-  .rev{display:flex;align-items:center;gap:10px;padding:10px 0;border-bottom:1px solid var(--line)}
+  .rev{
+    display:flex;align-items:center;gap:10px;padding:10px 0;
+    border-bottom:1px solid var(--line2);
+  }
   .rev:last-child{border-bottom:none}
-  .rev img{width:54px;height:54px;flex:none;object-fit:cover;border-radius:10px;
-    border:1px solid var(--line);cursor:zoom-in}
-  .rev .info{flex:1;min-width:0;font-size:12.5px}
-  .rev .info .n{display:block;color:var(--txt);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-  .rev .info .u{display:block;color:var(--sub);font-size:11.5px;margin-top:2px}
+  .rev img{
+    width:50px;height:50px;flex:none;object-fit:cover;border-radius:6px;
+    border:1px solid var(--line);cursor:zoom-in;
+  }
+  .rev .info{flex:1;min-width:0;font-size:13px}
+  .rev .info b{display:block;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .rev .info span{display:block;font-size:11.5px;color:var(--txt3);margin-top:2px}
   .rev .ops{display:flex;gap:6px;flex:none}
-  .rev .ops button.inline.ok{background:rgba(52,211,153,.16);border-color:rgba(52,211,153,.5);color:var(--ok)}
-  .rev .ops button.inline.no{background:rgba(248,113,113,.13);border-color:rgba(248,113,113,.45);color:var(--err)}
 
-  .note{font-size:11.5px;color:var(--sub);text-align:center;margin-top:14px;line-height:1.7}
+  .foot{font-size:11.5px;color:var(--txt3);text-align:center;margin-top:16px;line-height:1.6}
 
-  .lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:99;
-    visibility:hidden;opacity:0;display:grid;place-items:center;cursor:zoom-out}
+  .lightbox{
+    position:fixed;inset:0;z-index:99;background:rgba(12,14,18,.92);
+    display:grid;place-items:center;cursor:zoom-out;
+    visibility:hidden;opacity:0;transition:opacity .15s;
+  }
   .lightbox.show{visibility:visible;opacity:1}
-  .lightbox img{max-width:94vw;max-height:88vh;border-radius:12px;box-shadow:0 20px 70px rgba(0,0,0,.8)}
-  .lightbox .x{position:absolute;top:16px;right:16px;width:auto;padding:7px 16px;
-    font-size:13px;background:rgba(255,255,255,.12);border:none;color:#fff;box-shadow:none}
+  .lightbox img{max-width:94vw;max-height:86vh;border-radius:8px}
+  .lightbox .x{
+    position:absolute;top:14px;right:14px;width:auto;margin:0;
+    padding:6px 14px;font-size:12.5px;border-radius:6px;
+    background:rgba(255,255,255,.14);color:#fff;border:none;
+  }
+  .lightbox .x:hover{background:rgba(255,255,255,.24);filter:none}
 
-  @media (max-width:420px){
-    body{padding:12px 10px 28px}
-    .card{padding:20px 16px;border-radius:15px}
-    h1{font-size:17px}
-    .rev img{width:46px;height:46px}
-    .row img{width:40px;height:40px}
+  @media (max-width:430px){
+    body{padding:16px 12px 32px}
+    .card{padding:20px 16px;border-radius:8px}
+    .hd h1{font-size:15.5px}
+    .rev img{width:44px;height:44px}
+    .row img{width:38px;height:38px}
+    input[type=text],input[type=password]{font-size:16px}
   }
 </style>
 </head>
@@ -175,59 +245,75 @@
 
 <!-- 登录 / 注册 -->
 <div class="card" id="loginCard">
-  <h1>
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16.5V4.5"/><path d="M7.5 9L12 4.5 16.5 9"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></span>
-    图片上传中心
-  </h1>
-  <p class="lbl">登录上传，或使用 QQ 邮箱注册新账号</p>
+  <div class="hd">
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+      图片上传中心
+    </h1>
+    <p>登录后上传图片，或使用 QQ 邮箱注册新账号</p>
+  </div>
 
-  <div class="steps">
-    <button id="tab-login" class="on" onclick="switchTab('login')">① 登录</button>
-    <button id="tab-reg" onclick="switchTab('reg')">② 注册账号</button>
+  <div class="tabs">
+    <button id="tab-login" class="on" onclick="switchTab('login')">登录</button>
+    <button id="tab-reg" onclick="switchTab('reg')">注册</button>
   </div>
 
   <div id="formLogin">
-    <input type="text" id="u" placeholder="账号或数字 ID" autocomplete="username">
-    <input type="password" id="p" placeholder="密码" autocomplete="current-password">
+    <label class="f"><span>账号</span>
+      <input type="text" id="u" placeholder="账号名或 5-9 位数字 ID" autocomplete="username">
+    </label>
+    <label class="f"><span>密码</span>
+      <input type="password" id="p" placeholder="请输入密码" autocomplete="current-password">
+    </label>
     <button id="loginBtn" onclick="doLogin()">登录</button>
     <div class="msg" id="loginMsg"></div>
   </div>
 
   <div id="formReg" class="hidden">
-    <input type="text" id="r-mail" placeholder="QQ 邮箱（如 12345@qq.com）" autocomplete="off">
-    <div style="display:flex;gap:8px;margin-bottom:12px">
-      <input type="text" id="r-code" placeholder="邮箱验证码" maxlength="6" style="margin-bottom:0">
-      <button class="inline solid" id="codeBtn" onclick="sendCode()" style="padding:0 14px;font-size:13px;white-space:nowrap">发送验证码</button>
-    </div>
-    <input type="text" id="r-user" placeholder="账号名（2-20 位，字母/数字/中文）">
-    <input type="password" id="r-pass" placeholder="密码（至少 4 位）">
-    <button onclick="doApply()">提交注册</button>
+    <label class="f"><span>QQ 邮箱</span>
+      <input type="text" id="r-mail" placeholder="例如 12345@qq.com" autocomplete="off">
+    </label>
+    <label class="f"><span>邮箱验证码</span>
+      <div style="display:flex;gap:6px">
+        <input type="text" id="r-code" placeholder="6 位验证码" maxlength="6">
+        <button class="sm" id="codeBtn" onclick="sendCode()" style="white-space:nowrap;padding:0 12px">获取验证码</button>
+      </div>
+    </label>
+    <label class="f"><span>账号名</span>
+      <input type="text" id="r-user" placeholder="2-20 位，字母 / 数字 / 中文">
+    </label>
+    <label class="f"><span>密码</span>
+      <input type="password" id="r-pass" placeholder="至少 4 位">
+    </label>
+    <button onclick="doApply()">注册账号</button>
     <div class="msg" id="regMsg"></div>
   </div>
 
-  <div class="note">一个邮箱只能注册一个账号，验证通过后立即生效。</div>
+  <div class="foot">一个邮箱只能注册一个账号，验证通过后立即生效</div>
 </div>
 
 <!-- 上传 -->
 <div class="card hidden" id="uploadCard">
-  <h1>
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 16.5V4.5"/><path d="M7.5 9L12 4.5 16.5 9"/><path d="M4.5 15v3.5a2 2 0 0 0 2 2h11a2 2 0 0 0 2-2V15"/></svg></span>
-    上传图片
-  </h1>
-  <p class="lbl">提交后等待管理员审核，通过后可被机器人使用</p>
+  <div class="hd">
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 15.5V3.5"/><path d="M7.5 8L12 3.5 16.5 8"/><path d="M4 15v4.5a1.5 1.5 0 0 0 1.5 1.5h13A1.5 1.5 0 0 0 20 19.5V15"/></svg>
+      上传图片
+    </h1>
+    <p>提交后等待管理员审核，通过后即可被机器人使用</p>
+  </div>
 
   <div class="me">
-    <span class="av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><circle cx="12" cy="8" r="3.4"/><path d="M5.5 19.5c0-3.6 2.9-6 6.5-6s6.5 2.4 6.5 6"/></svg></span>
-    <span><b id="whoami">—</b><span class="no" id="whono"></span></span>
+    <div class="av" id="avatar">—</div>
+    <span><b id="whoami">—</b> <span class="no" id="whono"></span></span>
     <span class="sp"></span>
-    <button class="inline" onclick="doChangePw()">改密码</button>
-    <button class="inline" onclick="doLogout()">退出</button>
+    <button class="sm" onclick="doChangePw()">改密码</button>
+    <button class="sm" onclick="doLogout()">退出</button>
   </div>
 
   <div class="drop" id="drop" onclick="document.getElementById('file').click()">
-    <div class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="16" rx="2.2"/><circle cx="8.5" cy="9.5" r="1.6"/><path d="M3.6 17.4l4.6-4.4 3.3 3.2 2.8-2.5 5.8 5.5"/></svg></div>
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="3.5" y="4.5" width="17" height="15" rx="2"/><circle cx="8.5" cy="9.5" r="1.4"/><path d="M4 17l4.6-4.3 3.2 3 2.8-2.4 5.4 5"/></svg>
     <div class="t1">点击选择图片</div>
-    <div class="t2">支持多选 · png / jpg / gif / webp · 单张 ≤ 10MB</div>
+    <div class="t2">支持多选 · PNG / JPG / GIF / WebP · 单张不超过 10MB</div>
   </div>
   <input type="file" id="file" accept="image/png,image/jpeg,image/gif,image/webp,image/bmp" multiple>
   <div class="preview" id="preview"></div>
@@ -236,8 +322,8 @@
   <div class="msg" id="upMsg"></div>
 
   <div class="sec hidden" id="adminEntry">
-    <button class="ghost" onclick="openAdminPanel()" style="margin:0">
-      🛡️ 打开管理员审批面板
+    <button class="sec" onclick="openAdminPanel()" style="margin:0">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" style="width:15px;height:15px;vertical-align:-2px;margin-right:5px"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/></svg>打开管理员审批面板
     </button>
   </div>
 
@@ -245,37 +331,43 @@
     <div class="sec-h">
       我的上传 <span class="cnt" id="mineCount">0</span>
       <span class="sp"></span>
-      <button class="inline" onclick="loadMine()">刷新</button>
+      <button class="sm" onclick="loadMine()">刷新</button>
     </div>
     <div id="mineList"></div>
   </div>
 
   <div class="sec">
     <div class="sec-h">账号安全</div>
-    <button class="ghost" onclick="doChangePw()" style="margin:0">🔑 修改登录密码</button>
+    <button class="sec" onclick="doChangePw()" style="margin:0">修改登录密码</button>
   </div>
 
-  <div class="note">图片上传后需管理员审核，请耐心等待</div>
+  <div class="foot">图片上传后需管理员审核，请耐心等待</div>
 </div>
 
-<!-- 管理员审批面板 -->
+<!-- 管理员审批 -->
 <div class="card hidden" id="adminCard">
-  <h1>
-    <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 3v5.5c0 4-3 6.7-7 7.5-4-.8-7-3.5-7-7.5V6.5z"/><path d="M8.8 12l2.2 2.2 4.2-4.4"/></svg></span>
-    管理员审批
-  </h1>
-  <p class="lbl">审核图片 · 批准注册申请</p>
+  <div class="hd">
+    <h1>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3.5l7 2.8v5.4c0 3.8-2.9 6.5-7 7.3-4.1-.8-7-3.5-7-7.3V6.3z"/><path d="M9 12l2 2 4-4"/></svg>
+      管理员审批
+    </h1>
+    <p>审核待发布的图片，处理注册申请</p>
+  </div>
 
   <div class="me">
-    <span class="av"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M12 3.5l7 3v5.5c0 4-3 6.7-7 7.5-4-.8-7-3.5-7-7.5V6.5z"/></svg></span>
-    <span><b>管理员模式</b><span class="no" id="adminMode"></span></span>
+    <div class="av" style="background:var(--ok-soft);color:var(--ok)">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" style="width:14px;height:14px"><path d="M12 4l6.5 2.6v5c0 3.5-2.7 6-6.5 6.8-3.8-.8-6.5-3.3-6.5-6.8v-5z"/></svg>
+    </div>
+    <span><b>管理员模式</b> <span class="no" id="adminMode"></span></span>
     <span class="sp"></span>
-    <button class="inline" onclick="closeAdminPanel()">返回</button>
+    <button class="sm" onclick="closeAdminPanel()">返回</button>
   </div>
 
   <div id="pwWrap" class="hidden">
-    <input type="password" id="apw" placeholder="管理密码" oninput="pwChanged()">
-    <button onclick="loadAdmin()">进入</button>
+    <label class="f"><span>管理密码</span>
+      <input type="password" id="apw" placeholder="后台设置的密码" oninput="pwChanged()">
+    </label>
+    <button onclick="loadAdmin()">进入审批面板</button>
   </div>
   <div class="msg" id="adminMsg"></div>
 
@@ -283,7 +375,7 @@
     <div class="sec-h">
       待审核图片 <span class="cnt" id="revCount">0</span>
       <span class="sp"></span>
-      <button class="inline" onclick="loadAdmin()">刷新</button>
+      <button class="sm" onclick="loadAdmin()">刷新</button>
     </div>
     <div id="revList"></div>
   </div>
@@ -292,14 +384,14 @@
     <div class="sec-h">
       待批注册申请 <span class="cnt" id="apCount">0</span>
       <span class="sp"></span>
-      <button class="inline" onclick="loadAdmin()">刷新</button>
+      <button class="sm" onclick="loadAdmin()">刷新</button>
     </div>
     <div id="apList"></div>
   </div>
 </div>
 
 <div class="lightbox" id="lightbox" onclick="closeLightbox()">
-  <button class="x" onclick="event.stopPropagation();closeLightbox()">✕ 关闭</button>
+  <button class="x" onclick="event.stopPropagation();closeLightbox()">关闭</button>
   <img id="lightboxImg" src="" alt="" onclick="event.stopPropagation()">
 </div>
 
@@ -328,7 +420,7 @@ async function post(path, body, headers) {
   });
   let d = {};
   try { d = await res.json(); } catch (e) {}
-  if (!res.ok) throw new Error(d.detail || ('请求失败 ' + res.status));
+  if (!res.ok) throw new Error(d.detail || ('请求失败（' + res.status + '）'));
   return d;
 }
 
@@ -358,7 +450,8 @@ async function doLogin() {
 
 function enterUpload(username, uidNumber, isAdmin) {
   $('#whoami').textContent = username;
-  $('#whono').textContent = uidNumber ? '#' + uidNumber : '';
+  $('#avatar').textContent = (username || '?').slice(0, 1).toUpperCase();
+  $('#whono').textContent = uidNumber ? '· #' + uidNumber : '';
   const admin = !!isAdmin || localStorage.getItem(AD_KEY) === '1';
   $('#adminEntry').classList.toggle('hidden', !admin);
   $('#loginCard').classList.add('hidden');
@@ -383,7 +476,7 @@ async function sendCode() {
       if (n < 0) {
         clearInterval(codeTimer);
         btn.disabled = false;
-        btn.textContent = '发送验证码';
+        btn.textContent = '获取验证码';
       }
     }, 1000);
   } catch (e) {
@@ -397,13 +490,13 @@ async function doApply() {
   const code = $('#r-code').value.trim();
   const username = $('#r-user').value.trim();
   const password = $('#r-pass').value;
-  if (!mail || !code || !username || !password) return msg('#regMsg', '请填写完整', true);
+  if (!mail || !code || !username || !password) return msg('#regMsg', '请填写完整信息', true);
   try {
     const d = await post('/remote/apply', {mail, code, username, password});
-    msg('#regMsg', '✅ 注册成功！' + (d.uid_number ? '数字 ID #' + d.uid_number + '，' : '') + '请登录');
+    msg('#regMsg', '注册成功' + (d.uid_number ? '，数字 ID #' + d.uid_number : '') + '，请登录');
     switchTab('login');
     $('#u').value = username;
-    $('#loginMsg').textContent = '账号已就绪，输入密码登录即可';
+    $('#loginMsg').textContent = '账号已创建，输入密码登录即可';
     $('#loginMsg').className = 'msg ok';
   } catch (e) {
     msg('#regMsg', e.message, true);
@@ -422,7 +515,7 @@ drop.addEventListener('drop', e => setFiles([].slice.call(e.dataTransfer.files))
 function setFiles(fs) {
   files = fs.filter(f => f.type.startsWith('image/'));
   $('#preview').innerHTML = files.map(f => '<img src="' + URL.createObjectURL(f) + '">').join('');
-  msg('#upMsg', files.length ? '已选 ' + files.length + ' 张' : '');
+  msg('#upMsg', files.length ? '已选择 ' + files.length + ' 张' : '');
 }
 
 async function doUpload() {
@@ -454,16 +547,16 @@ async function doUpload() {
   $('#bar').firstElementChild.style.width = '100%';
   $('#go').disabled = false;
   if (!fail) {
-    msg('#upMsg', '✅ ' + ok + ' 张已提交，等待管理员审核');
+    msg('#upMsg', ok + ' 张已提交，等待管理员审核');
     files = [];
     fileEl.value = '';
     $('#preview').innerHTML = '';
     setTimeout(() => {
       $('#bar').style.display = 'none';
       $('#bar').firstElementChild.style.width = '0%';
-    }, 800);
+    }, 700);
   } else {
-    msg('#upMsg', '成功 ' + ok + '，失败 ' + fail + (lastErr ? '：' + lastErr : ''), true);
+    msg('#upMsg', '成功 ' + ok + ' 张，失败 ' + fail + ' 张' + (lastErr ? '：' + lastErr : ''), true);
   }
   loadMine();
 }
@@ -489,8 +582,8 @@ async function loadMine() {
     $('#mineList').innerHTML = list.length ? list.map(function (i) {
       return '<div class="row">' +
         '<img src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
-        '<span class="nm">' + esc(i.original) +
-        '<span class="t">' + esc((i.created_at || '').slice(5, 16)) + '</span></span>' +
+        '<span class="nm"><b>' + esc(i.original) + '</b>' +
+        '<span>' + esc((i.created_at || '').slice(5, 16)) + '</span></span>' +
         '<span class="tag ' + (i.status || 'approved') + '" title="' + esc(i.review_note || '') + '">' +
         (tagText[i.status] || '已通过') + '</span>' +
         '</div>';
@@ -523,7 +616,7 @@ async function doLogout() {
 let adminPw = '';
 function openAdminPanel() {
   adminPw = localStorage.getItem(PW_KEY) || '';
-  $('#adminMode').textContent = localStorage.getItem(AD_KEY) === '1' ? '管理员账号已登录' : '';
+  $('#adminMode').textContent = localStorage.getItem(AD_KEY) === '1' ? '· 管理员账号' : '';
   const hasSession = !!localStorage.getItem(TK_KEY) && localStorage.getItem(AD_KEY) === '1';
   if (hasSession) {
     $('#pwWrap').classList.add('hidden');
@@ -538,8 +631,9 @@ function openAdminPanel() {
 }
 function closeAdminPanel() {
   $('#adminCard').classList.add('hidden');
-  $('#loginCard').classList.toggle('hidden', !!localStorage.getItem(TK_KEY));
-  $('#uploadCard').classList.toggle('hidden', !localStorage.getItem(TK_KEY));
+  const logged = !!localStorage.getItem(TK_KEY);
+  $('#loginCard').classList.toggle('hidden', logged);
+  $('#uploadCard').classList.toggle('hidden', !logged);
 }
 function pwChanged() {
   adminPw = $('#apw').value.trim();
@@ -567,26 +661,24 @@ async function loadAdmin() {
   $('#revList').innerHTML = images.length ? images.map(function (i) {
     return '<div class="rev">' +
       '<img src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
-      '<span class="info">' +
-      '<span class="n">' + esc(i.original) + '</span>' +
-      '<span class="u">@' + esc(i.uploader) + ' · ' + esc((i.created_at || '').slice(5, 16)) + '</span>' +
-      '</span>' +
+      '<span class="info"><b>' + esc(i.original) + '</b>' +
+      '<span>' + esc(i.uploader) + ' · ' + esc((i.created_at || '').slice(5, 16)) + '</span></span>' +
       '<span class="ops">' +
-      '<button class="inline ok" onclick="reviewOne(' + i.id + ',\'approve\')">通过</button>' +
-      '<button class="inline no" onclick="reviewOne(' + i.id + ',\'reject\')">驳回</button>' +
+      '<button class="sm ok" onclick="reviewOne(' + i.id + ',\'approve\')">通过</button>' +
+      '<button class="sm danger" onclick="reviewOne(' + i.id + ',\'reject\')">驳回</button>' +
       '</span></div>';
-  }).join('') : '<div class="empty">没有待审核的图片</div>';
+  }).join('') : '<div class="empty">暂无待审核图片</div>';
 
   $('#apCount').textContent = applies.length;
   $('#apList').innerHTML = applies.length ? applies.map(function (a) {
     return '<div class="rev">' +
-      '<span class="info"><span class="n">' + esc(a.username) + '</span>' +
-      '<span class="u">' + esc(a.mail) + '</span></span>' +
+      '<span class="info"><b>' + esc(a.username) + '</b>' +
+      '<span>' + esc(a.mail) + '</span></span>' +
       '<span class="ops">' +
-      '<button class="inline ok" onclick="applyOne(' + a.id + ',\'approve\')">批准</button>' +
-      '<button class="inline no" onclick="applyOne(' + a.id + ',\'reject\')">驳回</button>' +
+      '<button class="sm ok" onclick="applyOne(' + a.id + ',\'approve\')">批准</button>' +
+      '<button class="sm danger" onclick="applyOne(' + a.id + ',\'reject\')">驳回</button>' +
       '</span></div>';
-  }).join('') : '<div class="empty">没有待批的注册申请</div>';
+  }).join('') : '<div class="empty">暂无待批注册申请</div>';
 }
 
 async function reviewOne(id, action) {
