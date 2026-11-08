@@ -1350,6 +1350,40 @@
   </form>
 </dialog>
 
+<dialog id="banDlg">
+  <form method="dialog" onsubmit="return false">
+    <div class="dlg-head"><h3 id="ban-title">封禁账号</h3></div>
+    <div class="dlg-body">
+      <input type="hidden" id="ban-uid">
+      <div class="hint" id="ban-who" style="margin-bottom:12px"></div>
+      <label class="field"><span>封禁时长</span>
+        <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:8px">
+          <button type="button" class="small" data-hours="1" onclick="pickBan(this,1)">1 小时</button>
+          <button type="button" class="small" data-hours="24" onclick="pickBan(this,24)">1 天</button>
+          <button type="button" class="small" data-hours="72" onclick="pickBan(this,72)">3 天</button>
+          <button type="button" class="small" data-hours="168" onclick="pickBan(this,168)">7 天</button>
+          <button type="button" class="small" data-hours="720" onclick="pickBan(this,720)">30 天</button>
+          <button type="button" class="small" data-hours="permanent" onclick="pickBan(this,'permanent')">永久</button>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <input id="ban-custom" type="number" min="1" placeholder="自定义小时数" style="flex:1">
+          <span style="font-size:12px;color:var(--sub);white-space:nowrap">小时</span>
+        </div>
+      </label>
+      <label class="field"><span>封禁原因（可选，会显示给被封者）</span>
+        <input id="ban-reason" maxlength="60" placeholder="例如 上传违规图片">
+      </label>
+      <div class="status" id="ban-msg" style="min-height:0;margin-top:4px"></div>
+    </div>
+    <div class="dlg-foot">
+      <button type="button" class="small" id="unban-btn" onclick="doUnban()" style="display:none">解除封禁</button>
+      <span class="spacer"></span>
+      <button type="button" class="small" onclick="$('#banDlg').close()">取消</button>
+      <button type="button" class="danger" onclick="doBan()">确认封禁</button>
+    </div>
+  </form>
+</dialog>
+
 
 
 <div id="lightbox" class="lightbox hidden" onclick="closeLightbox()">
@@ -1598,12 +1632,14 @@ async function loadUploadUsers() {
         <div class="title">👤 ${esc(u.username)}
           <span class="pill on" style="background:rgba(56,189,248,.15);color:var(--pink)" title="数字登录ID">#${esc(u.uid_number || '—')}</span>
           ${u.is_admin ? '<span class="pill on" style="background:rgba(251,191,36,.18);color:#f59e0b" title="拥有管理员权限">★ 管理员</span>' : ''}
+          ${u.banned ? `<span class="pill off" style="background:rgba(239,68,68,.16);color:var(--err)" title="封禁至 ${esc(u.banned_until)}">🚫 封禁${u.banned_until === '永久' ? '（永久）' : ''}</span>` : ''}
           <span class="pill ${u.enabled ? 'on' : 'off'}">${u.enabled ? '启用' : '停用'}</span>
         </div>
         <div class="meta"><span>${esc(u.note || '无备注')}</span><span>创建于 ${esc(u.created_at || '')}</span></div>
       </div>
       <div class="ops">
         <button class="small" onclick="openUploadUserForm(${u.id})">编辑</button>
+        <button class="small ${u.banned ? '' : 'danger'}" onclick="openBanForm(${u.id})">${u.banned ? '解封/改期限' : '🚫 封禁'}</button>
         <button class="small" onclick="toggleUploadUser(${u.id}, ${!u.enabled})">${u.enabled ? '停用' : '启用'}</button>
         <button class="small danger" onclick="delUploadUser(${u.id})">删除</button>
       </div>
@@ -1665,6 +1701,66 @@ async function saveUploadUser() {
     loadUploadUsers();
     setTimeout(() => { $('#uuDlg').close(); toast(isAdmin ? '账号已保存（管理员权限）' : '账号已保存'); }, 500);
   } catch (e) { msg(e.message, true); }
+}
+
+let banHours = null;
+function openBanForm(id) {
+  const u = uploadUsers.find(x => x.id === id);
+  if (!u) return;
+  banHours = null;
+  $('#ban-uid').value = id;
+  $('#ban-title').textContent = u.banned ? `封禁管理：${u.username}` : `封禁账号：${u.username}`;
+  $('#ban-who').innerHTML = u.banned
+    ? `当前状态：<b style="color:var(--err)">已封禁</b>（至 ${esc(u.banned_until)}）${u.ban_reason ? ' · 原因：' + esc(u.ban_reason) : ''}`
+    : `该账号当前<b>正常</b>。选择时长后确认封禁。`;
+  $('#ban-reason').value = u.ban_reason || '';
+  $('#ban-custom').value = '';
+  $('#ban-msg').textContent = '';
+  $('#unban-btn').style.display = u.banned ? '' : 'none';
+  document.querySelectorAll('#banDlg [data-hours]').forEach(b => b.classList.remove('primary'));
+  $('#banDlg').showModal();
+}
+function pickBan(btn, hours) {
+  banHours = hours;
+  document.querySelectorAll('#banDlg [data-hours]').forEach(b => b.classList.remove('primary'));
+  btn.classList.add('primary');
+  $('#ban-custom').value = '';
+}
+async function doBan() {
+  const id = $('#ban-uid').value;
+  const reason = $('#ban-reason').value.trim();
+  const custom = $('#ban-custom').value.trim();
+  const msg = (m, err) => {
+    const el = $('#ban-msg');
+    el.textContent = m;
+    el.style.color = err ? 'var(--err)' : 'var(--ok)';
+  };
+  let hours = banHours;
+  if (custom) {
+    const n = Number(custom);
+    if (!n || n <= 0) return msg('自定义小时数必须大于 0', true);
+    hours = n;
+  }
+  if (hours === null || hours === undefined) return msg('请选择封禁时长（或填自定义小时数）', true);
+  try {
+    const body = hours === 'permanent'
+      ? {permanent: true, reason}
+      : {hours, reason};
+    const r = await api(`/api/upload-users/${id}/ban`, {method: 'POST', body: JSON.stringify(body)});
+    msg(r.banned ? `已封禁${r.until === '永久' ? '（永久）' : ' 至 ' + r.until}` : '已解封');
+    loadUploadUsers();
+    setTimeout(() => { $('#banDlg').close(); toast(r.banned ? '账号已封禁' : '账号已解封'); }, 500);
+  } catch (e) { msg(e.message, true); }
+}
+async function doUnban() {
+  const id = $('#ban-uid').value;
+  if (!confirm('确认解除该账号的封禁？')) return;
+  try {
+    await api(`/api/upload-users/${id}/ban`, {method: 'POST', body: JSON.stringify({hours: 0})});
+    $('#banDlg').close();
+    toast('已解除封禁');
+    loadUploadUsers();
+  } catch (e) { toast(e.message, true); }
 }
 
 async function toggleUploadUser(id, enabled) {

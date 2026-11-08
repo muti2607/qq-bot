@@ -914,6 +914,35 @@ async def api_reject_apply(aid: int):
     return {"ok": True}
 
 
+class BanIn(BaseModel):
+    hours: int = 0           # 封禁小时数，0 且 permanent=False 表示解封
+    permanent: bool = False
+    reason: str = ""
+
+
+@app.post("/api/upload-users/{uid}/ban")
+async def api_ban_user(uid: int, body: BanIn):
+    """封禁账号：hours 小时 / permanent 永久 / 都不传则解封。"""
+    u = db.get_upload_user_by_id(uid)
+    if not u:
+        raise HTTPException(404, "账号不存在")
+    if body.permanent:
+        db.ban_user(uid, "permanent", body.reason)
+        db.add_log(f"封禁账号 {u['username']}（永久）" +
+                   (f"：{body.reason[:40]}" if body.reason else ""), "warn")
+        return {"ok": True, "banned": True, "until": "永久"}
+    if body.hours <= 0:
+        db.unban_user(uid)
+        db.add_log(f"解封账号 {u['username']}", "info")
+        return {"ok": True, "banned": False}
+    import datetime as _dt
+    until = (_dt.datetime.now() + _dt.timedelta(hours=body.hours)).strftime("%Y-%m-%d %H:%M:%S")
+    db.ban_user(uid, until, body.reason)
+    db.add_log(f"封禁账号 {u['username']} 至 {until}" +
+               (f"：{body.reason[:40]}" if body.reason else ""), "warn")
+    return {"ok": True, "banned": True, "until": until}
+
+
 @app.delete("/api/upload-users/{uid}")
 async def api_delete_upload_user(uid: int):
     db.delete_upload_user(uid)
@@ -1341,6 +1370,19 @@ async def remote_login(request: Request, body: UploadLoginIn):
         raise HTTPException(429, reason)
     if not db.verify_upload_user(body.username.strip(), body.password):
         raise HTTPException(401, "账号或密码错误")
+    # 封禁检查
+    rec = db.get_upload_user(body.username.strip())
+    if rec:
+        banned, until, reason = db.ban_status(rec)
+        if banned:
+            tip = "账号已被封禁"
+            if until and until != "永久":
+                tip += f"，解封时间 {until}"
+            else:
+                tip += "（永久）"
+            if reason:
+                tip += f"。原因：{reason}"
+            raise HTTPException(403, tip)
     tok = _make_upload_token(body.username.strip())
     rec = db.get_upload_user(body.username.strip())
     resp = JSONResponse({"ok": True, "username": body.username.strip(),

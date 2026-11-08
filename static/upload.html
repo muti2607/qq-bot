@@ -232,7 +232,12 @@ async function doLogin() {
     localStorage.setItem('qqbot-is-admin', d.is_admin ? '1' : '');
     isAdminUser = !!d.is_admin;
     enterUpload(d.username, d.uid_number);
-  } catch (e) { setSt('#loginStatus', e.message, true); }
+  } catch (e) {
+    // 封禁提示用醒目样式
+    const isBan = /封禁/.test(e.message || '');
+    setSt('#loginStatus', e.message, true);
+    if (isBan) $('#loginStatus').style.fontWeight = '600';
+  }
   $('#loginBtn').disabled = false;
 }
 

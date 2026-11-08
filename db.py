@@ -81,6 +81,8 @@ CREATE TABLE IF NOT EXISTS upload_users (
     is_admin    INTEGER NOT NULL DEFAULT 0,   -- 1=管理员（可审批图片/申请）
     note        TEXT NOT NULL DEFAULT '',
     enabled     INTEGER NOT NULL DEFAULT 1,
+    banned_until TEXT NOT NULL DEFAULT '',    -- 封禁到期（空=未封，permanent=永久）
+    ban_reason  TEXT NOT NULL DEFAULT '',    -- 封禁原因
     created_at  TEXT NOT NULL DEFAULT (datetime('now','localtime'))
 );
 
@@ -167,6 +169,10 @@ def _migrate(conn: sqlite3.Connection) -> None:
         conn.execute("ALTER TABLE upload_users ADD COLUMN uid_number TEXT")
     if "is_admin" not in uu_cols:
         conn.execute("ALTER TABLE upload_users ADD COLUMN is_admin INTEGER NOT NULL DEFAULT 0")
+    if "banned_until" not in uu_cols:
+        conn.execute("ALTER TABLE upload_users ADD COLUMN banned_until TEXT NOT NULL DEFAULT ''")
+    if "ban_reason" not in uu_cols:
+        conn.execute("ALTER TABLE upload_users ADD COLUMN ban_reason TEXT NOT NULL DEFAULT ''")
     # 给没有数字ID的账号补分配
     import random as _random
     used = {r["uid_number"] for r in conn.execute(
@@ -421,8 +427,18 @@ def list_upload_users() -> list[dict[str, Any]]:
         d.pop("password", None)
         d["enabled"] = bool(d["enabled"])
         d["is_admin"] = bool(d.get("is_admin"))
+        banned, until, reason = ban_status(d)
+        d["banned"] = banned
+        d["banned_until"] = until
+        d["ban_reason"] = reason
         out.append(d)
     return out
+
+
+def get_upload_user_by_id(uid: int) -> dict[str, Any] | None:
+    with db() as conn:
+        row = conn.execute("SELECT * FROM upload_users WHERE id=?", (uid,)).fetchone()
+    return dict(row) if row else None
 
 
 def get_upload_user(username: str) -> dict[str, Any] | None:
@@ -493,6 +509,42 @@ def update_upload_user(uid: int, password: str | None = None,
 def delete_upload_user(uid: int) -> None:
     with db() as conn:
         conn.execute("DELETE FROM upload_users WHERE id=?", (uid,))
+
+
+# ---------------- 封禁 ----------------
+
+def ban_user(uid: int, until: str, reason: str = "") -> None:
+    """封禁账号。until 为空字符串或 'permanent' 表示永久封禁。"""
+    val = "permanent" if not until or until == "permanent" else until
+    with db() as conn:
+        conn.execute(
+            "UPDATE upload_users SET banned_until=?, ban_reason=? WHERE id=?",
+            (val, reason[:120], uid),
+        )
+
+
+def unban_user(uid: int) -> None:
+    with db() as conn:
+        conn.execute("UPDATE upload_users SET banned_until='', ban_reason='' WHERE id=?", (uid,))
+
+
+def ban_status(u: dict) -> tuple:
+    """返回 (是否封禁中, 到期时间文本, 原因)。已过期的自动解封。"""
+    import datetime as _dt
+    raw = (u.get("banned_until") or "").strip()
+    if not raw:
+        return False, "", ""
+    if raw != "permanent":
+        try:
+            until = _dt.datetime.strptime(raw, "%Y-%m-%d %H:%M:%S")
+        except ValueError:
+            return False, "", ""
+        if until <= _dt.datetime.now():
+            unban_user(int(u["id"]))
+            return False, "", ""
+        return True, raw, u.get("ban_reason") or ""
+    return True, "永久", u.get("ban_reason") or ""
+
 
 
 # ---------------- apply_requests（注册申请） ----------------
