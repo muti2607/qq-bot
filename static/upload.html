@@ -876,7 +876,7 @@ async function doApply() {
   if (!mail || !code || !username || !password) return msg('#regMsg', '请填写完整信息', true);
   try {
     const d = await post('/remote/apply', {mail, code, username, password});
-    msg('#regMsg', '注册成功' + (d.uid_number ? '，数字 ID #' + d.uid_number : '') + '，请登录');
+    msg('#regMsg', '注册成功！' + (d.uid_number ? '数字 ID #' + d.uid_number + '，' : '') + '已赠送 500 积分，请登录');
     switchTab('login');
     $('#u').value = username;
     $('#loginMsg').textContent = '账号已创建，输入密码登录即可';

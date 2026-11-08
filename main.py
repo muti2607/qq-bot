@@ -1605,7 +1605,10 @@ async def remote_apply(request: Request, body: ApplyDoneIn):
     if uid is None:
         db.set_apply_status(aid, "rejected")
         raise HTTPException(400, "账号名已被使用，换一个账号名")
-    db.add_log(f"邮箱注册自动通过：{username}（{body.mail}）", "info")
+    # 注册赠送 500 积分
+    with db.db() as conn:
+        conn.execute("UPDATE upload_users SET points=points+500 WHERE username=?", (username,))
+    db.add_log(f"邮箱注册自动通过：{username}（{body.mail}），赠送 500 积分", "info")
     rec = db.get_upload_user(username)
     return {"ok": True, "aid": aid, "auto": True,
             "uid_number": (rec or {}).get("uid_number") or "",
