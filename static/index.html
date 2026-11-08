@@ -1350,12 +1350,55 @@
       </div>
 
       <section class="panel view" id="sec-activities">
-        <h2>积分活动 <span class="muted" style="font-weight:400">（发布活动公告，可设签到倍率与有效期）</span>
+        <h2>积分活动 <span class="muted" style="font-weight:400">（公告 + 签到倍率 + 积分发放）</span>
           <span class="spacer"></span>
-          <button class="primary small" onclick="openActivityForm()">＋ 发布活动</button>
-          <button class="small" onclick="openPointsOps()">⚡ 积分操作</button>
+          <button class="small" onclick="loadActivities()">🔄 刷新</button>
         </h2>
-        <div id="activitylist" class="tasklist"></div>
+
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px;align-items:start">
+          <!-- 发布/编辑表单 -->
+          <div style="background:var(--card-soft);border-radius:12px;padding:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px" id="act-form-title">📣 发布新活动</div>
+            <input type="hidden" id="act-id">
+            <label class="field"><span>活动标题 *</span><input id="act-title" maxlength="40" placeholder="例如 周末双倍签到"></label>
+            <label class="field"><span>活动说明（显示给用户）</span><textarea id="act-body" style="min-height:56px" placeholder="活动规则、参与方式等"></textarea></label>
+            <div class="grid2">
+              <label class="field"><span>签到倍率（1=无加成）</span><input id="act-mult" type="number" min="1" step="0.5" value="1"></label>
+              <label class="field"><span>结束时间（留空长期）</span><input id="act-end" placeholder="2026-12-31 23:59:59"></label>
+            </div>
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button class="primary small" onclick="saveActivity()">📣 发布活动</button>
+              <button class="small" id="act-cancel" onclick="resetActivityForm()" style="display:none">取消编辑</button>
+            </div>
+            <div class="status" id="act-msg" style="min-height:0;margin-top:6px"></div>
+          </div>
+
+          <!-- 积分操作 -->
+          <div style="background:var(--card-soft);border-radius:12px;padding:14px">
+            <div style="font-size:13px;font-weight:700;margin-bottom:10px">⚡ 积分发放</div>
+            <div class="field">
+              <span style="font-size:12px;color:var(--sub)">发放对象</span>
+              <div style="display:flex;gap:8px;margin-top:4px">
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="pt-target" value="one" checked onchange="ptTargetChange()" style="width:auto;margin:0"> 指定账号</label>
+                <label style="display:flex;align-items:center;gap:4px;cursor:pointer"><input type="radio" name="pt-target" value="all" onchange="ptTargetChange()" style="width:auto;margin:0"> 全员</label>
+              </div>
+            </div>
+            <label class="field" id="pt-user-row"><span>账号名（或数字 ID）</span><input id="pt-user" placeholder="例如 muti 或 993574739"></label>
+            <label class="field"><span>积分数量（正=发放，负=扣除）</span><input id="pt-delta" type="number" placeholder="例如 100 或 -50"></label>
+            <label class="field"><span>原因（记入日志）</span><input id="pt-reason" maxlength="60" placeholder="例如 活动奖励 / 违规扣分"></label>
+            <div style="display:flex;gap:8px;margin-top:8px">
+              <button class="primary small" onclick="doGrantPoints()">发放积分</button>
+              <button class="small" onclick="doGrantPoints(true)">清零该对象</button>
+            </div>
+            <div class="status" id="pt-msg" style="min-height:0;margin-top:6px"></div>
+          </div>
+        </div>
+
+        <!-- 活动列表 -->
+        <div style="margin-top:16px">
+          <div style="font-size:13px;font-weight:700;margin-bottom:10px">已发布活动</div>
+          <div id="activitylist" class="tasklist"></div>
+        </div>
       </section>
 
       <section class="panel view" id="sec-upload-users">
@@ -2094,12 +2137,29 @@ async function updateStats() {
 
 // ---------- 积分活动 ----------
 let activities = [];
+let editingActId = null;
+
+function actMsg(m, err) {
+  const el = $('#act-msg');
+  el.textContent = m || '';
+  el.style.color = err ? 'var(--err)' : 'var(--ok)';
+}
+function ptMsg(m, err) {
+  const el = $('#pt-msg');
+  el.textContent = m || '';
+  el.style.color = err ? 'var(--err)' : 'var(--ok)';
+}
+
 async function loadActivities() {
   try { activities = await api('/api/activities'); } catch { activities = []; }
+  renderActivityList();
+}
+
+function renderActivityList() {
   const box = $('#activitylist');
   if (!box) return;
   if (!activities.length) {
-    box.innerHTML = `<div class="empty" style="grid-column:1/-1">还没有活动。发布后用户在上传页看到公告条；倍率>1 的活动会自动加成签到积分。</div>`;
+    box.innerHTML = '<div class="empty">还没有活动。左侧填写后点「发布活动」。</div>';
     return;
   }
   box.innerHTML = activities.map(a => `
@@ -2110,33 +2170,70 @@ async function loadActivities() {
           ${a.multiplier > 1 ? `<span class="pill on" style="background:rgba(251,191,36,.15);color:#f59e0b">${a.multiplier}× 倍率</span>` : ''}
         </div>
         <div class="meta">
-          <span>${esc(a.body || '无正文')}</span>
-          <span>${a.start_at ? '起 ' + esc(a.start_at.slice(0, 16)) : ''} ${a.end_at ? '止 ' + esc(a.end_at.slice(0, 16)) : '长期'}</span>
+          ${a.body ? `<span>${esc(a.body)}</span>` : ''}
+          <span>${a.end_at ? '截止 ' + esc(a.end_at.slice(0, 16)) : '长期有效'}</span>
         </div>
       </div>
       <div class="ops">
-        <button class="small" onclick="openActivityForm(${a.id})">编辑</button>
+        <button class="small" onclick='editActivity(${JSON.stringify(JSON.stringify(a))})'>编辑</button>
         <button class="small" onclick="toggleActivity(${a.id}, ${!a.enabled})">${a.enabled ? '停用' : '启用'}</button>
         <button class="small danger" onclick="delActivity(${a.id})">删除</button>
       </div>
     </div>`).join('');
 }
 
-function openActivityForm(id) {
-  const a = id ? activities.find(x => x.id === id) : null;
-  const title = prompt(a ? `编辑活动「${a.title}」——新标题：` : '活动标题：', a ? a.title : '') || '';
-  if (!title.trim()) return;
-  const body = prompt('活动正文（显示给用户，可写规则说明）：', a ? (a.body || '') : '') || '';
-  const multStr = prompt('签到积分倍率（1 = 无加成，2 = 双倍）：', a ? a.multiplier : '1') || '1';
-  const mult = Math.max(1, parseFloat(multStr) || 1);
-  const end = prompt('结束时间（格式 2026-12-31 23:59:59，留空 = 长期有效）：', a ? (a.end_at || '') : '') || '';
-  const payload = {title: title.trim(), body: body.trim(), multiplier: mult, end_at: end.trim(),
-                   start_at: a ? (a.start_at || '') : '', enabled: a ? a.enabled : true};
-  const req = a
-    ? api(`/api/activities/${a.id}`, {method: 'PUT', body: JSON.stringify(payload)})
-    : api('/api/activities', {method: 'POST', body: JSON.stringify(payload)});
-  req.then(() => { toast(a ? '活动已更新' : '活动已发布'); loadActivities(); })
-     .catch(e => toast(e.message, true));
+function resetActivityForm() {
+  editingActId = null;
+  $('#act-id').value = '';
+  $('#act-title').value = '';
+  $('#act-body').value = '';
+  $('#act-mult').value = 1;
+  $('#act-end').value = '';
+  $('#act-form-title').textContent = '📣 发布新活动';
+  $('#act-cancel').style.display = 'none';
+  actMsg('');
+}
+
+function editActivity(actJson) {
+  const a = typeof actJson === 'string' ? JSON.parse(actJson) : actJson;
+  editingActId = a.id;
+  $('#act-id').value = a.id;
+  $('#act-title').value = a.title;
+  $('#act-body').value = a.body || '';
+  $('#act-mult').value = a.multiplier;
+  $('#act-end').value = a.end_at || '';
+  $('#act-form-title').textContent = '✏️ 编辑活动：' + a.title;
+  $('#act-cancel').style.display = '';
+  actMsg('');
+  window.scrollTo({top: $('#sec-activities').offsetTop - 60, behavior: 'smooth'});
+}
+
+async function saveActivity() {
+  const title = $('#act-title').value.trim();
+  const body = $('#act-body').value.trim();
+  const mult = Math.max(1, parseFloat($('#act-mult').value) || 1);
+  const end = $('#act-end').value.trim();
+  if (!title) return actMsg('活动标题不能为空', true);
+  if (end && !/\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}/.test(end)) return actMsg('结束时间格式：2026-12-31 23:59:59', true);
+  const payload = {title, body, multiplier: mult, end_at: end,
+                   start_at: editingActId ? ($('#act-start')?.value || '') : '',
+                   enabled: true};
+  try {
+    if (editingActId) {
+      // 保留原 enabled 状态
+      const orig = activities.find(x => x.id === editingActId);
+      payload.enabled = orig ? orig.enabled : true;
+      payload.start_at = orig ? (orig.start_at || '') : '';
+      await api(`/api/activities/${editingActId}`, {method: 'PUT', body: JSON.stringify(payload)});
+      actMsg('活动已更新');
+    } else {
+      await api('/api/activities', {method: 'POST', body: JSON.stringify(payload)});
+      actMsg('活动已发布');
+      resetActivityForm();
+    }
+    loadActivities();
+    toast(editingActId ? '活动已更新' : '活动已发布');
+  } catch (e) { actMsg(e.message, true); }
 }
 
 async function toggleActivity(id, enabled) {
@@ -2144,7 +2241,7 @@ async function toggleActivity(id, enabled) {
   if (!a) return;
   try {
     await api(`/api/activities/${id}`, {method: 'PUT', body: JSON.stringify({
-      title: a.title, body: a.body, multiplier: a.multiplier,
+      title: a.title, body: a.body || '', multiplier: a.multiplier,
       start_at: a.start_at || '', end_at: a.end_at || '', enabled})});
     toast(enabled ? '已启用' : '已停用');
     loadActivities();
@@ -2157,36 +2254,60 @@ async function delActivity(id) {
   catch (e) { toast(e.message, true); }
 }
 
-// ---------- 积分操作 ----------
-function openPointsOps() {
-  const mode = prompt('输入操作类型：\n1 = 单个账号加减分\n2 = 全员加分\n3 = 全员清零', '1');
-  if (!mode) return;
-  if (mode === '1') {
-    const name = (prompt('账号名（或数字 ID）：') || '').trim();
-    if (!name) return;
-    const delta = Number(prompt('积分变化（正数加分，负数扣分，如 100 或 -50）：') || 0);
-    if (!delta) return toast('数量无效', true);
-    const reason = (prompt('原因（可选，记入日志）：') || '').trim();
-    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({username: name, delta, reason})})
-      .then(r => { toast(`${name} 积分已调整为 ${r.points}`); loadUploadUsers(); })
-      .catch(e => toast(e.message, true));
-  } else if (mode === '2') {
-    const delta = Number(prompt('全员积分变化（正加负减）：') || 0);
-    if (!delta) return toast('数量无效', true);
-    const reason = (prompt('原因（可选）：') || '').trim();
+// ---------- 积分发放 ----------
+function ptTargetChange() {
+  const one = document.querySelector('input[name="pt-target"]:checked').value === 'one';
+  $('#pt-user-row').style.display = one ? '' : 'none';
+}
+
+function ptOpMsg(m, err) { ptMsg(m, err); }
+
+async function doGrantPoints(resetMode) {
+  const isAll = document.querySelector('input[name="pt-target"]:checked').value === 'all';
+  const delta = Number($('#pt-delta').value) || 0;
+  const reason = $('#pt-reason').value.trim();
+
+  if (resetMode) {
+    // 清零
+    if (isAll) {
+      if (!confirm('确认将所有账号积分清零？不可恢复！')) return;
+      try {
+        const r = await api('/api/points/adjust', {method: 'POST', body: JSON.stringify({reset_all: true})});
+        ptOpMsg(`已清零 ${r.affected} 个账号`);
+        loadUploadUsers();
+      } catch (e) { ptOpMsg(e.message, true); }
+    } else {
+      const name = $('#pt-user').value.trim();
+      if (!name) return ptOpMsg('请填写账号名', true);
+      try {
+        await api('/api/points/adjust', {method: 'POST', body: JSON.stringify({username: name, delta: -999999, reason: '清零'})});
+        ptOpMsg(`${name} 积分已清零`);
+        loadUploadUsers();
+      } catch (e) { ptOpMsg(e.message, true); }
+    }
+    return;
+  }
+
+  if (!delta) return ptOpMsg('请填写积分数量（正数发放，负数扣除）', true);
+  if (isAll) {
     if (!confirm(`确认给所有启用账号 ${delta > 0 ? '+' : ''}${delta} 积分？`)) return;
-    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({delta, reason})})
-      .then(r => { toast(`已影响 ${r.affected} 个账号`); loadUploadUsers(); })
-      .catch(e => toast(e.message, true));
-  } else if (mode === '3') {
-    if (!confirm('确认将所有账号积分清零？此操作不可恢复！')) return;
-    api('/api/points/adjust', {method: 'POST', body: JSON.stringify({reset_all: true})})
-      .then(r => { toast(`已清零 ${r.affected} 个账号`); loadUploadUsers(); })
-      .catch(e => toast(e.message, true));
+    try {
+      const r = await api('/api/points/adjust', {method: 'POST', body: JSON.stringify({delta, reason})});
+      ptOpMsg(`已发放，${r.affected} 个账号受影响`);
+      loadUploadUsers();
+    } catch (e) { ptOpMsg(e.message, true); }
+  } else {
+    const name = $('#pt-user').value.trim();
+    if (!name) return ptOpMsg('请填写账号名或数字 ID', true);
+    try {
+      const r = await api('/api/points/adjust', {method: 'POST', body: JSON.stringify({username: name, delta, reason})});
+      ptOpMsg(`${name} 积分已更新为 ${r.points}`);
+      loadUploadUsers();
+    } catch (e) { ptOpMsg(e.message, true); }
   }
 }
 
-// ---------- 上传账号管理 ----------
+// ---------- 上传账号管理 ----------// ---------- 上传账号管理 ----------
 let uploadUsers = [];
 async function loadUploadUsers() {
   try { uploadUsers = await api('/api/upload-users'); } catch { uploadUsers = []; }
