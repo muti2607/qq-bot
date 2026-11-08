@@ -1386,7 +1386,9 @@ async def remote_login(request: Request, body: UploadLoginIn):
     tok = _make_upload_token(body.username.strip())
     rec = db.get_upload_user(body.username.strip())
     resp = JSONResponse({"ok": True, "username": body.username.strip(),
-                         "uid_number": (rec or {}).get("uid_number") or "", "token": tok})
+                         "uid_number": (rec or {}).get("uid_number") or "",
+                         "is_admin": bool((rec or {}).get("is_admin")),
+                         "token": tok})
     resp.set_cookie("upload_session", tok, httponly=True, samesite="lax",
                     max_age=_UPLOAD_SESSION_HOURS * 3600)
     return resp
@@ -1460,13 +1462,21 @@ async def remote_admin_review(request: Request, body: AdminReviewIn):
 
 
 @remote_router.get("/remote/admin-pending")
+@remote_router.post("/remote/admin-pending")
 async def remote_admin_pending(request: Request, admin_password: str = ""):
-    """管理员查看待审图片列表（8001 页面审批用）。"""
+    """管理员查看待审图片列表（8001 页面审批用）。GET/POST 均可。"""
     ip = _client_ip(request)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, admin_password)
+    pw = admin_password
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            pw = str(body.get("admin_password") or "")
+        except Exception:
+            pw = ""
+    _require_admin_ctx(request, pw)
     out = []
     for i in db.list_images(status="pending"):
         out.append({"id": i["id"], "original": i["original"], "uploader": i["uploader"], "created_at": i["created_at"]})
@@ -1474,13 +1484,21 @@ async def remote_admin_pending(request: Request, admin_password: str = ""):
 
 
 @remote_router.get("/remote/admin-applies")
+@remote_router.post("/remote/admin-applies")
 async def remote_admin_applies(request: Request, admin_password: str = ""):
-    """管理员查看待批注册申请（8001 审批面板用）。"""
+    """管理员查看待批注册申请（8001 审批面板用）。GET/POST 均可。"""
     ip = _client_ip(request)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, admin_password)
+    pw = admin_password
+    if request.method == "POST":
+        try:
+            body = await request.json()
+            pw = str(body.get("admin_password") or "")
+        except Exception:
+            pw = ""
+    _require_admin_ctx(request, pw)
     return {"ok": True, "applies": db.list_applies("pending")}
 
 
