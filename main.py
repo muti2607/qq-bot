@@ -1366,7 +1366,7 @@ def _parse_upload_token(tok: str) -> str | None:
 
 def _require_admin_ctx(request: Request, admin_password: str = "") -> str:
     """8001 审批鉴权：管理员账号登录态 OR 正确管理密码，任一通过即可。
-    返回操作者标识（用于日志）。"""
+    返回操作者标识（用于日志）。管理员账号的操作不计入限流。"""
     # 方式一：上传账号登录且该账号是管理员
     tok = (request.headers.get("X-Upload-Session", "").strip()
            or request.cookies.get("upload_session", ""))
@@ -1374,6 +1374,12 @@ def _require_admin_ctx(request: Request, admin_password: str = "") -> str:
     if who:
         rec = db.get_upload_user(who)
         if rec and rec.get("enabled") and rec.get("is_admin"):
+            # 管理员登录态：豁免该 IP 的限流（清计数与封禁）
+            ip = _client_ip(request)
+            with _RATE_LOCK:
+                _RATE_WINDOWS.pop(ip, None)
+                _BAN_UNTIL.pop(ip, None)
+                _BAN_UNTIL.pop(ip + ":hits", None)
             return f"{who}(管理员账号)"
     # 方式二：管理密码
     cur = db.get_settings().get("admin_password", "")
@@ -1395,7 +1401,7 @@ def _upload_user_from(request: Request) -> str:
 # 滑动窗口限流：每 IP 在窗口期内最多 N 次请求
 _RATE_LOCK = threading.Lock()
 _RATE_WINDOWS: dict[str, deque[float]] = defaultdict(lambda: deque(maxlen=64))
-_RATE_LIMIT = 20          # 每窗口期最多请求次数
+_RATE_LIMIT = 60          # 每窗口期最多请求次数（放宽：面板一次要拉 3 个接口）
 _RATE_WINDOW = 60.0       # 窗口期秒数
 _BAN_UNTIL: dict[str, float] = {}          # ip -> 解封时间戳
 _BAN_THRESHOLD = 3        # 窗口期内超限次数达到该值即封禁
@@ -1693,10 +1699,11 @@ class RemoteListIn(BaseModel):
 async def remote_admin_images(request: Request, body: RemoteListIn):
     """管理员查看图片库全部图片（8001 管理面板用）。"""
     ip = _client_ip(request)
+    _require_admin_ctx(request,     _require_admin_ctx(request, body.admin_password)
+)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, body.admin_password)
     imgs = db.list_images(status=body.status) if body.status else db.list_images()
     return {"ok": True, "images": [
         {"id": i["id"], "original": i["original"], "uploader": i["uploader"],
@@ -1713,10 +1720,11 @@ class RemoteDeleteIn(BaseModel):
 async def remote_admin_delete(request: Request, body: RemoteDeleteIn):
     """管理员删除图片（8001 管理面板用）。"""
     ip = _client_ip(request)
+    _require_admin_ctx(request,     _require_admin_ctx(request, body.admin_password)
+)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, body.admin_password)
     if not body.ids:
         raise HTTPException(400, "未选择图片")
     who = "管理员账号" if (lambda t: db.get_upload_user(t) if t else None)(
@@ -1740,10 +1748,11 @@ async def remote_admin_delete(request: Request, body: RemoteDeleteIn):
 async def remote_admin_review(request: Request, body: AdminReviewIn):
     """管理员在 8001 上传页直接审批待审图片（用管理密码鉴权）。"""
     ip = _client_ip(request)
+    _require_admin_ctx(request,     _require_admin_ctx(request, body.admin_password)
+)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, body.admin_password)
     if body.action not in ("approve", "reject"):
         raise HTTPException(400, "action 无效")
     status = "approved" if body.action == "approve" else "rejected"
@@ -1756,10 +1765,6 @@ async def remote_admin_review(request: Request, body: AdminReviewIn):
 @remote_router.post("/remote/admin-pending")
 async def remote_admin_pending(request: Request, admin_password: str = ""):
     """管理员查看待审图片列表（8001 页面审批用）。GET/POST 均可。"""
-    ip = _client_ip(request)
-    ok, reason = _rate_check(ip)
-    if not ok:
-        raise HTTPException(429, reason)
     pw = admin_password
     if request.method == "POST":
         try:
@@ -1768,6 +1773,10 @@ async def remote_admin_pending(request: Request, admin_password: str = ""):
         except Exception:
             pw = ""
     _require_admin_ctx(request, pw)
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
     out = []
     for i in db.list_images(status="pending"):
         out.append({"id": i["id"], "original": i["original"], "uploader": i["uploader"], "created_at": i["created_at"]})
@@ -1778,10 +1787,6 @@ async def remote_admin_pending(request: Request, admin_password: str = ""):
 @remote_router.post("/remote/admin-applies")
 async def remote_admin_applies(request: Request, admin_password: str = ""):
     """管理员查看待批注册申请（8001 审批面板用）。GET/POST 均可。"""
-    ip = _client_ip(request)
-    ok, reason = _rate_check(ip)
-    if not ok:
-        raise HTTPException(429, reason)
     pw = admin_password
     if request.method == "POST":
         try:
@@ -1790,6 +1795,10 @@ async def remote_admin_applies(request: Request, admin_password: str = ""):
         except Exception:
             pw = ""
     _require_admin_ctx(request, pw)
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
     return {"ok": True, "applies": db.list_applies("pending")}
 
 
@@ -1797,10 +1806,11 @@ async def remote_admin_applies(request: Request, admin_password: str = ""):
 async def remote_admin_apply_approve(request: Request, body: dict):
     """管理员在 8001 页面批准注册申请。"""
     ip = _client_ip(request)
+    _require_admin_ctx(request,     _require_admin_ctx(request, str(body.get("admin_password", "")))
+)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, str(body.get("admin_password", "")))
     uid = db.approve_apply(int(body.get("aid", 0)))
     if uid is None:
         raise HTTPException(400, "申请不存在、已处理或用户名冲突")
@@ -1812,10 +1822,11 @@ async def remote_admin_apply_approve(request: Request, body: dict):
 @remote_router.post("/remote/admin-apply-reject")
 async def remote_admin_apply_reject(request: Request, body: dict):
     ip = _client_ip(request)
+    _require_admin_ctx(request,     _require_admin_ctx(request, str(body.get("admin_password", "")))
+)
     ok, reason = _rate_check(ip)
     if not ok:
         raise HTTPException(429, reason)
-    _require_admin_ctx(request, str(body.get("admin_password", "")))
     aid = int(body.get("aid", 0))
     a = db.get_apply(aid)
     if not a or a["status"] != "pending":
