@@ -377,6 +377,22 @@
   .lib-bar .selinfo{font-size:12px;color:var(--fg2)}
   .lib-bar .sp{flex:1}
 
+
+  /* 面板统计条 */
+  .stats-row{
+    display:grid;grid-template-columns:repeat(4,1fr);gap:8px;margin-bottom:16px;
+  }
+  .stat-c{
+    background:var(--surface2);border:1px solid var(--border2);
+    border-radius:var(--radius);padding:10px 8px;text-align:center;
+  }
+  .stat-c b{
+    display:block;font-size:18px;font-weight:600;color:var(--fg);
+    font-variant-numeric:tabular-nums;line-height:1.2;
+  }
+  .stat-c span{font-size:11px;color:var(--fg3)}
+  @media (max-width:430px){.stats-row{gap:6px}.stat-c b{font-size:16px}}
+
 </style>
 </head>
 <body>
@@ -581,6 +597,13 @@
         <button class="primary" onclick="loadAdmin()">进入审批面板</button>
       </div>
       <div class="msg" id="adminMsg"></div>
+
+      <div class="stats-row hidden" id="adminStats">
+        <div class="stat-c"><b id="sum-all">—</b><span>全部图片</span></div>
+        <div class="stat-c"><b id="sum-pending">—</b><span>待审核</span></div>
+        <div class="stat-c"><b id="sum-approved">—</b><span>已通过</span></div>
+        <div class="stat-c"><b id="sum-applies">—</b><span>待批申请</span></div>
+      </div>
 
       <div class="split">
         <div class="col-l">
@@ -877,12 +900,18 @@ async function loadAdmin() {
     $('#adminBody2').style.display = 'none';
     if (/权限/.test(e.message)) $('#pwWrap').classList.remove('hidden');
     $('#adminBody3').style.display = 'none';
+    $('#adminStats').classList.add('hidden');
     libAll = []; libSel.clear();
     return;
   }
   $('#adminBody').style.display = '';
   $('#adminBody2').style.display = '';
   $('#adminBody3').style.display = '';
+  $('#adminStats').classList.remove('hidden');
+  $('#sum-all').textContent = libAll.length;
+  $('#sum-pending').textContent = libAll.filter(i => (i.status || 'approved') === 'pending').length;
+  $('#sum-approved').textContent = libAll.filter(i => (i.status || 'approved') === 'approved').length;
+  $('#sum-applies').textContent = applies.length;
   renderLib();
   $('#revCount').textContent = images.length;
   $('#revList').innerHTML = images.length ? images.map(function (i) {
