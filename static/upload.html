@@ -331,6 +331,52 @@
     background:var(--accent);opacity:.9;
   }
 
+
+  /* 图片库管理 */
+  .lib-filter{display:flex;gap:6px;margin-bottom:10px;flex-wrap:wrap}
+  .lib-filter button.sm{padding:3px 10px;font-size:12px}
+  .lib-filter button.sm.on{
+    background:var(--accent-soft);border-color:var(--accent);color:var(--accent);
+  }
+  .lib-grid{
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px;
+    margin-bottom:12px;
+  }
+  .lib-it{
+    position:relative;border-radius:6px;overflow:hidden;
+    border:1px solid var(--border);cursor:pointer;
+    transition:border-color .12s,box-shadow .12s;
+  }
+  .lib-it img{
+    width:100%;height:74px;object-fit:cover;display:block;
+  }
+  .lib-it .st{
+    position:absolute;left:3px;top:3px;font-size:9px;line-height:14px;
+    padding:0 5px;border-radius:3px;color:#fff;font-weight:500;
+  }
+  .lib-it .st.approved{background:rgba(26,127,55,.88)}
+  .lib-it .st.pending{background:rgba(154,103,0,.88)}
+  .lib-it .st.rejected{background:rgba(207,34,46,.88)}
+  .lib-it .up{
+    position:absolute;left:3px;bottom:3px;font-size:9px;line-height:14px;
+    padding:0 5px;border-radius:3px;background:rgba(1,4,9,.66);color:#c9d8ee;
+    max-width:calc(100% - 26px);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .lib-it .ck{
+    position:absolute;right:3px;top:3px;width:16px;height:16px;
+    border-radius:3px;border:1.5px solid #fff;background:rgba(1,4,9,.4);
+    display:grid;place-items:center;color:#fff;font-size:10px;line-height:1;
+  }
+  .lib-it.sel{border-color:var(--accent);box-shadow:0 0 0 2px var(--accent-soft)}
+  .lib-it.sel .ck{background:var(--accent);border-color:var(--accent)}
+  .lib-it:hover{border-color:var(--fg3)}
+  .lib-bar{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    padding:8px 0 0;
+  }
+  .lib-bar .selinfo{font-size:12px;color:var(--fg2)}
+  .lib-bar .sp{flex:1}
+
 </style>
 </head>
 <body>
@@ -823,15 +869,21 @@ async function loadAdmin() {
     images = d1.images || [];
     const d2 = await post('/remote/admin-applies', {admin_password: adminPw}, H());
     applies = d2.applies || [];
+    const d3 = await post('/remote/admin-images', {admin_password: adminPw}, H());
+    libAll = d3.images || [];
   } catch (e) {
     msg('#adminMsg', e.message, true);
     $('#adminBody').style.display = 'none';
     $('#adminBody2').style.display = 'none';
     if (/权限/.test(e.message)) $('#pwWrap').classList.remove('hidden');
+    $('#adminBody3').style.display = 'none';
+    libAll = []; libSel.clear();
     return;
   }
   $('#adminBody').style.display = '';
   $('#adminBody2').style.display = '';
+  $('#adminBody3').style.display = '';
+  renderLib();
   $('#revCount').textContent = images.length;
   $('#revList').innerHTML = images.length ? images.map(function (i) {
     return '<div class="item">' +
@@ -854,6 +906,65 @@ async function loadAdmin() {
       '<button class="sm danger" onclick="applyOne(' + a.id + ',\'reject\')">驳回</button>' +
       '</div></div>';
   }).join('') : '<div class="empty">暂无待批注册申请</div>';
+}
+
+/* ---------- 图片库管理 ---------- */
+let libAll = [];          // 全部图片
+let libFilterSt = '';     // 当前筛选
+let libSel = new Set();   // 选中的 id
+
+function libFilter(st, btn) {
+  libFilterSt = st;
+  document.querySelectorAll('#libFilter button').forEach(b => b.classList.remove('on'));
+  if (btn) btn.classList.add('on');
+  renderLib();
+}
+function libSelAll() {
+  visibleLib().forEach(i => libSel.add(i.id));
+  renderLib();
+}
+function libSelNone() {
+  libSel.clear();
+  renderLib();
+}
+function visibleLib() {
+  return libFilterSt ? libAll.filter(i => (i.status || 'approved') === libFilterSt) : libAll;
+}
+function libToggle(id) {
+  if (libSel.has(id)) libSel.delete(id);
+  else libSel.add(id);
+  renderLib();
+}
+function renderLib() {
+  const list = visibleLib();
+  const stText = {approved: '通过', pending: '待审', rejected: '驳回'};
+  const stCls = {approved: 'approved', pending: 'pending', rejected: 'rejected'};
+  $('#libCount').textContent = libAll.length;
+  $('#libGrid').innerHTML = list.length ? list.map(function (i) {
+    const sel = libSel.has(i.id);
+    return '<div class="lib-it' + (sel ? ' sel' : '') + '" onclick="libToggle(' + i.id + ')" title="' +
+      esc(i.original) + ' · @' + esc(i.uploader) + '">' +
+      '<img src="/remote/thumb/' + i.id + '" onclick="event.stopPropagation();openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+      '<span class="st ' + (stCls[i.status] || 'approved') + '">' + (stText[i.status] || '通过') + '</span>' +
+      (i.uploader ? '<span class="up">@' + esc(i.uploader) + '</span>' : '') +
+      '<span class="ck">' + (sel ? '✓' : '') + '</span>' +
+      '</div>';
+  }).join('') : '<div class="empty">图片库为空</div>';
+  $('#libSelInfo').textContent = libSel.size
+    ? '已选 ' + libSel.size + ' 张'
+    : '未选择';
+  $('#libDelBtn').disabled = !libSel.size;
+}
+async function libDelete() {
+  if (!libSel.size) return;
+  if (!confirm('确认删除选中的 ' + libSel.size + ' 张图片？删除后不可恢复，且任务/触发词将无法再使用这些图片。')) return;
+  try {
+    const r = await post('/remote/admin-delete',
+      {admin_password: adminPw, ids: [...libSel]}, H());
+    alert('已删除 ' + r.deleted + ' 张' + (r.missing ? '，' + r.missing + ' 张不存在' : ''));
+    libSel.clear();
+    loadAdmin();
+  } catch (e) { msg('#adminMsg', e.message, true); }
 }
 
 async function reviewOne(id, action) {

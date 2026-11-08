@@ -1684,6 +1684,58 @@ class AdminReviewIn(BaseModel):
     action: str          # approve | reject
 
 
+class RemoteListIn(BaseModel):
+    admin_password: str = ""
+    status: str | None = None      # approved/pending/rejected/None=全部
+
+
+@remote_router.post("/remote/admin-images")
+async def remote_admin_images(request: Request, body: RemoteListIn):
+    """管理员查看图片库全部图片（8001 管理面板用）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    _require_admin_ctx(request, body.admin_password)
+    imgs = db.list_images(status=body.status) if body.status else db.list_images()
+    return {"ok": True, "images": [
+        {"id": i["id"], "original": i["original"], "uploader": i["uploader"],
+         "status": i["status"], "size": i["size"], "created_at": i["created_at"]}
+        for i in imgs]}
+
+
+class RemoteDeleteIn(BaseModel):
+    admin_password: str = ""
+    ids: list[int] = []
+
+
+@remote_router.post("/remote/admin-delete")
+async def remote_admin_delete(request: Request, body: RemoteDeleteIn):
+    """管理员删除图片（8001 管理面板用）。"""
+    ip = _client_ip(request)
+    ok, reason = _rate_check(ip)
+    if not ok:
+        raise HTTPException(429, reason)
+    _require_admin_ctx(request, body.admin_password)
+    if not body.ids:
+        raise HTTPException(400, "未选择图片")
+    who = "管理员账号" if (lambda t: db.get_upload_user(t) if t else None)(
+        (request.headers.get("X-Upload-Session", "").strip()
+         or request.cookies.get("upload_session", ""))) else "管理密码"
+    deleted, missing = 0, 0
+    for iid in body.ids:
+        img = db.get_image(int(iid))
+        if not img:
+            missing += 1
+            continue
+        db.delete_image(int(iid))
+        (db.UPLOAD_DIR / img["filename"]).unlink(missing_ok=True)
+        (THUMB_DIR / (Path(img["filename"]).stem + ".webp")).unlink(missing_ok=True)
+        deleted += 1
+    db.add_log(f"8001 {who}删除图片 {deleted} 张", "warn" if deleted else "info")
+    return {"ok": True, "deleted": deleted, "missing": missing}
+
+
 @remote_router.post("/remote/admin-review")
 async def remote_admin_review(request: Request, body: AdminReviewIn):
     """管理员在 8001 上传页直接审批待审图片（用管理密码鉴权）。"""
