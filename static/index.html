@@ -1393,7 +1393,13 @@
       </div>
       <div class="hint">设置密码后，打开网页需要登录；建议公网部署务必设置。</div>
       <hr style="border:none;border-top:1px solid var(--line);margin:16px 0">
-      <div class="field">
+      <details id="ai-details" style="border:1px solid var(--line);border-radius:8px;padding:0;margin:10px 0">
+  <summary onclick="setTimeout(()=>{const a=$('#ai-details-arrow'); if(a) a.style.transform = $('#ai-details').open ? 'rotate(90deg)' : ''},0)" style="cursor:pointer;padding:10px 14px;font-size:12.5px;font-weight:600;color:var(--sub);user-select:none;list-style:none;display:flex;align-items:center;gap:8px">
+    <span style="transition:transform .15s" id="ai-details-arrow">▸</span>
+    AI 聊天 / 大模型接入（当前：<b id="ai-status-brief">关闭</b>，默认收起 —— 一般用不到）
+    <span style="font-size:11px;color:var(--txt3, var(--sub));font-weight:400;margin-left:auto">点开展开配置</span>
+  </summary>
+  <div style="padding:4px 14px 14px;border-top:1px solid var(--line)"><div class="field">
         <span style="font-size:12px;color:var(--sub)">AI 聊天（接入大模型，兼容 OpenAI /v1/chat/completions；如 DeepSeek、SiliconFlow、OpenRouter、Ollama 等）</span>
         <div class="grid3">
           <select id="s-ai-enabled" style="width:110px">
@@ -1501,7 +1507,8 @@
           </div>
         </div>
         <label class="field"><span>系统提示词 System Prompt</span><textarea id="s-ai-prompt" style="min-height:70px;font-size:12px" placeholder="你是一个友好的 QQ 机器人助手，用简洁自然的中文回复，不要过长。"></textarea></label>
-        <div class="hint" style="margin-top:6px;font-size:11px;color:var(--sub)">未命中任何关键词触发词时，才会调用 AI 回复；若想让 AI 优先处理，请不要设置相同的关键词触发词。多个接口时，上次成功的接口会被优先使用，失败自动切换下一个。</div>
+        <div class="hint" style="margin-top:6px;font-size:11px;color:var(--sub)">未命中任何关键词触发词时，才会调用 AI 回复；若想让 AI 优先处理，请不要设置相同的关键词触发词。多个接口时，上次成功的接口会被优先使用，失败自动切换下一个。</div></div>
+</details>
       </div>
       <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:14px;flex-wrap:wrap">
         <button class="small" onclick="loadQuoteEditor()">重载名言</button>
@@ -3332,6 +3339,15 @@ async function openSettings() {
     $('#s-rss').value = s.rss_timeout || 15;
     $('#s-ai-enabled').value = s.ai_enabled || '0';
     $('#s-ai-mode').value = s.ai_reply_mode || 'at';
+    // AI 区块状态摘要
+    const aiOn = (s.ai_enabled === '1' || s.ai_enabled === 1);
+    const brief = $('#ai-status-brief');
+    if (brief) {
+      brief.textContent = aiOn
+        ? '已开启（' + (s.ai_reply_mode === 'all' ? '回复全部' : s.ai_reply_mode === 'off' ? '仅配置' : '仅@和私聊') + '）'
+        : '关闭';
+      brief.style.color = aiOn ? 'var(--ok)' : 'var(--txt)';
+    }
     $('#s-ai-base').value = s.ai_api_base || '';
     $('#s-ai-key').value = s.ai_api_key || '';
     $('#s-ai-model').value = s.ai_model || '';
