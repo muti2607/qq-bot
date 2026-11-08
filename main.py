@@ -1936,12 +1936,43 @@ async def remote_upload_page():
     return HTMLResponse((BASE_DIR / "static" / "upload.html").read_text(encoding="utf-8"))
 
 
-@remote_router.get("/remote/thumb/{image_id}")
-async def remote_thumb(image_id: int, request: Request):
-    """上传页「我的上传」缩略图：只允许本人看自己上传的图。"""
-    u = _upload_user_from(request)
+@remote_router.get("/remote/file/{image_id}")
+async def remote_file(image_id: int, request: Request, token: str = ""):
+    """原图查看（大图/放大）：本人或管理员。支持 ?token= 查询参数。"""
+    tok = (request.headers.get("X-Upload-Session", "").strip()
+           or token.strip()
+           or request.cookies.get("upload_session", ""))
+    u = _parse_upload_token(tok) if tok else None
+    if not u:
+        raise HTTPException(401, "请先登录")
     img = db.get_image(image_id)
-    if not img or img.get("uploader") != u:
+    rec = db.get_upload_user(u)
+    is_admin = bool(rec and rec.get("is_admin"))
+    if not img or (img.get("uploader") != u and not is_admin):
+        raise HTTPException(404, "图片不存在")
+    src = db.UPLOAD_DIR / img["filename"]
+    if not src.exists():
+        raise HTTPException(404, "文件丢失")
+    from main import _guess_mime
+    return Response(src.read_bytes(), media_type=_guess_mime(img["filename"]))
+
+
+@remote_router.get("/remote/thumb/{image_id}")
+async def remote_thumb(image_id: int, request: Request, token: str = ""):
+    """缩略图：本人可见自己的图；管理员可见全部。img 标签无法带 header，
+    支持 ?token= 查询参数鉴权。"""
+    # 鉴权：header > 查询参数 > cookie（显式 token 优先，避免旧 cookie 干扰管理员视图）
+    tok = (request.headers.get("X-Upload-Session", "").strip()
+           or token.strip()
+           or request.cookies.get("upload_session", ""))
+    u = _parse_upload_token(tok) if tok else None
+    if not u:
+        raise HTTPException(401, "请先登录")
+    img = db.get_image(image_id)
+    rec = db.get_upload_user(u)
+    is_admin = bool(rec and rec.get("is_admin"))
+    # 本人或管理员可见
+    if not img or (img.get("uploader") != u and not is_admin):
         raise HTTPException(404, "图片不存在")
     src = db.UPLOAD_DIR / img["filename"]
     if not src.exists():

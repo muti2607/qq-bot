@@ -671,6 +671,15 @@ const H = () => {
   const t = localStorage.getItem(TK_KEY) || '';
   return t ? {'X-Upload-Session': t} : {};
 };
+// img 标签无法带自定义 header，缩略图 URL 统一拼 token 查询参数
+function thumbSrc(id) {
+  const t = localStorage.getItem(TK_KEY) || '';
+  return '/remote/thumb/' + id + (t ? '?token=' + encodeURIComponent(t) : '');
+}
+function fileSrc(id) {
+  const t = localStorage.getItem(TK_KEY) || '';
+  return '/remote/file/' + id + (t ? '?token=' + encodeURIComponent(t) : '');
+}
 
 function msg(sel, text, isErr) {
   const el = $(sel);
@@ -852,7 +861,7 @@ async function loadMine() {
     const tagText = {pending: '待审核', approved: '已通过', rejected: '未通过'};
     $('#mineList').innerHTML = list.length ? list.map(function (i) {
       return '<div class="item">' +
-        '<img class="thumb" src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+        '<img class="thumb" src="' + thumbSrc(i.id) + '" onclick="openLightbox(fileSrc(' + i.id + '))" onerror="this.style.display=\'none\'">' +
         '<div class="meta"><div class="name">' + esc(i.original) + '</div>' +
         '<div class="sub">' + esc((i.created_at || '').slice(5, 16)) + '</div></div>' +
         '<span class="badge ' + (i.status || 'approved') + '" title="' + esc(i.review_note || '') + '">' +
@@ -939,7 +948,7 @@ async function loadAdmin() {
   $('#revCount').textContent = images.length;
   $('#revList').innerHTML = images.length ? images.map(function (i) {
     return '<div class="item">' +
-      '<img class="thumb" src="/remote/thumb/' + i.id + '" onclick="openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+      '<img class="thumb" src="' + thumbSrc(i.id) + '" onclick="openLightbox(fileSrc(' + i.id + '))" onerror="this.style.display=\'none\'">' +
       '<div class="meta"><div class="name">' + esc(i.original) + '</div>' +
       '<div class="sub">' + esc(i.uploader) + ' · ' + esc((i.created_at || '').slice(5, 16)) + '</div></div>' +
       '<div class="ops">' +
@@ -996,7 +1005,7 @@ function renderLib() {
     const sel = libSel.has(i.id);
     return '<div class="lib-it' + (sel ? ' sel' : '') + '" onclick="libToggle(' + i.id + ')" title="' +
       esc(i.original) + ' · @' + esc(i.uploader) + '">' +
-      '<img src="/remote/thumb/' + i.id + '" onclick="event.stopPropagation();openLightbox(this.src.replace(\'/thumb\',\'/file\'))" onerror="this.style.display=\'none\'">' +
+      '<img src="' + thumbSrc(i.id) + '" onclick="event.stopPropagation();openLightbox(fileSrc(' + i.id + '))" onerror="this.style.display=\'none\'">' +
       '<span class="st ' + (stCls[i.status] || 'approved') + '">' + (stText[i.status] || '通过') + '</span>' +
       (i.uploader ? '<span class="up">@' + esc(i.uploader) + '</span>' : '') +
       '<span class="ck">' + (sel ? '✓' : '') + '</span>' +
