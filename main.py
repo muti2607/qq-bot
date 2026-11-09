@@ -1452,6 +1452,21 @@ def _parse_upload_token(tok: str) -> str | None:
     except Exception:
         return None
 
+def _is_admin_user(username: str) -> bool:
+    """统一的管理员判定：永久管理员 OR 积分兑换的时间制管理员（含到期检查）。"""
+    if not username:
+        return False
+    rec = db.get_upload_user(username)
+    if not rec or not rec.get("enabled"):
+        return False
+    if rec.get("is_admin"):
+        return True
+    try:
+        return checkin.is_timed_admin(username)
+    except Exception:
+        return False
+
+
 def _require_admin_ctx(request: Request, admin_password: str = "") -> str:
     """8001 审批鉴权：管理员账号登录态 OR 正确管理密码，任一通过即可。
     返回操作者标识（用于日志）。管理员账号的操作不计入限流。"""
@@ -1813,7 +1828,7 @@ async def remote_login(request: Request, body: UploadLoginIn):
     pts = checkin.get_points(body.username.strip())
     resp = JSONResponse({"ok": True, "username": body.username.strip(),
                          "uid_number": (rec or {}).get("uid_number") or "",
-                         "is_admin": bool((rec or {}).get("is_admin")),
+                         "is_admin": _is_admin_user(body.username.strip()),
                          "is_timed_admin": pts.get("is_timed_admin", False),
                          "points": pts.get("points", 0),
                          "today_checked": pts.get("today_checked", False),
@@ -1835,7 +1850,7 @@ async def remote_me(request: Request):
     pts = checkin.get_points(u)
     return {"ok": True, "username": u,
             "uid_number": (rec or {}).get("uid_number") or "",
-            "is_admin": bool((rec or {}).get("is_admin")),
+            "is_admin": _is_admin_user(u),
             "is_timed_admin": pts.get("is_timed_admin", False),
             "admin_until": pts.get("admin_until", ""),
             "points": pts.get("points", 0),
@@ -2136,7 +2151,7 @@ async def remote_file(image_id: int, request: Request, token: str = ""):
         raise HTTPException(401, "请先登录")
     img = db.get_image(image_id)
     rec = db.get_upload_user(u)
-    is_admin = bool(rec and rec.get("is_admin"))
+    is_admin = _is_admin_user(u)
     if not img or (img.get("uploader") != u and not is_admin):
         raise HTTPException(404, "图片不存在")
     src = db.UPLOAD_DIR / img["filename"]
@@ -2159,7 +2174,7 @@ async def remote_thumb(image_id: int, request: Request, token: str = ""):
         raise HTTPException(401, "请先登录")
     img = db.get_image(image_id)
     rec = db.get_upload_user(u)
-    is_admin = bool(rec and rec.get("is_admin"))
+    is_admin = _is_admin_user(u)
     # 本人或管理员可见
     if not img or (img.get("uploader") != u and not is_admin):
         raise HTTPException(404, "图片不存在")
